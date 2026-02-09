@@ -23,10 +23,7 @@ class Rule:
 def apply_rules(text: str, *rules: Rule) -> str:
     """Apply a series of compiled regex rules to text."""
     for rule in rules:
-        if hasattr(rule, "regex"):
-            text = rule.regex.sub(rule.replacement, text)
-        else:
-            text = re.sub(rule.pattern, rule.replacement, text)
+        text = rule.regex.sub(rule.replacement, text)
     return text
 
 

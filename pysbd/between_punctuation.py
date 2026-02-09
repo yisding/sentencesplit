@@ -14,43 +14,27 @@ class BetweenPunctuation:
     (Ruby's atomic groups are not available in the stdlib regex engine).
     """
     # Rubular: http://rubular.com/r/2YFrKWQUYi
-    BETWEEN_SINGLE_QUOTES_REGEX = r"(?<=\s)'(?:[^']|'[a-zA-Z])*'"
+    BETWEEN_SINGLE_QUOTES_REGEX = re.compile(r"(?<=\s)'(?:[^']|'[a-zA-Z])*'")
 
-    BETWEEN_SINGLE_QUOTE_SLANTED_REGEX = r"(?<=\s)‘(?:[^’]|’[a-zA-Z])*’"
+    BETWEEN_SINGLE_QUOTE_SLANTED_REGEX = re.compile(r"(?<=\s)\u2018(?:[^\u2019]|\u2019[a-zA-Z])*\u2019")
 
-    # Rubular: http://rubular.com/r/3Pw1QlXOjd
-    BETWEEN_DOUBLE_QUOTES_REGEX = r'"(?>[^"\\]+|\\{2}|\\.)*"'
+    BETWEEN_DOUBLE_QUOTES_REGEX_2 = re.compile(r'"(?=(?P<tmp>[^\"\\]+|\\{2}|\\.)*)(?P=tmp)"')
 
-    # https://regex101.com/r/r6I1bW/1
-    # https://stackoverflow.com/questions/13577372/do-python-regular-expressions-have-an-equivalent-to-rubys-atomic-grouping?noredirect=1&lq=1
-    BETWEEN_DOUBLE_QUOTES_REGEX_2 = r'"(?=(?P<tmp>[^\"\\]+|\\{2}|\\.)*)(?P=tmp)"'
+    BETWEEN_QUOTE_ARROW_REGEX_2 = re.compile(r"\u00ab(?=(?P<tmp>[^\u00bb\\]+|\\{2}|\\.)*)(?P=tmp)\u00bb")
 
-    # Rubular: http://rubular.com/r/x6s4PZK8jc
-    BETWEEN_QUOTE_ARROW_REGEX = r'«(?>[^»\\]+|\\{2}|\\.)*»'
-
-    BETWEEN_QUOTE_ARROW_REGEX_2 = r"\«(?=(?P<tmp>[^»\\]+|\\{2}|\\.)*)(?P=tmp)\»"
-
-    # Rubular: http://rubular.com/r/JbAIpKdlSq
-    BETWEEN_QUOTE_SLANTED_REGEX = r"“(?>[^”\\]+|\\{2}|\\.)*”"
-    BETWEEN_QUOTE_SLANTED_REGEX_2 = r"\“(?=(?P<tmp>[^”\\]+|\\{2}|\\.)*)(?P=tmp)\”"
+    BETWEEN_QUOTE_SLANTED_REGEX_2 = re.compile(r"\u201c(?=(?P<tmp>[^\u201d\\]+|\\{2}|\\.)*)(?P=tmp)\u201d")
 
     # Rubular: http://rubular.com/r/WX4AvnZvlX
-    BETWEEN_SQUARE_BRACKETS_REGEX = r"\[(?>[^\]\\]+|\\{2}|\\.)*\]"
+    BETWEEN_SQUARE_BRACKETS_REGEX_2 = re.compile(r'\[(?=(?P<tmp>[^\]\\]+|\\{2}|\\.)*)(?P=tmp)\]')
 
-    BETWEEN_SQUARE_BRACKETS_REGEX_2 = r'\[(?=(?P<tmp>[^\]\\]+|\\{2}|\\.)*)(?P=tmp)\]'
-
-    # Rubular: http://rubular.com/r/6tTityPflI
-    BETWEEN_PARENS_REGEX = r"\((?>[^\(\)\\]+|\\{2}|\\.)*\)"
-
-    BETWEEN_PARENS_REGEX_2 = r"\((?=(?P<tmp>[^\(\)\\]+|\\{2}|\\.)*)(?P=tmp)\)"
+    BETWEEN_PARENS_REGEX_2 = re.compile(r"\((?=(?P<tmp>[^\(\)\\]+|\\{2}|\\.)*)(?P=tmp)\)")
 
     # Rubular: http://rubular.com/r/mXf8cW025o
-    WORD_WITH_LEADING_APOSTROPHE = r"(?<=\s)'(?:[^']|'[a-zA-Z])*'\S"
+    WORD_WITH_LEADING_APOSTROPHE = re.compile(r"(?<=\s)'(?:[^']|'[a-zA-Z])*'\S")
 
-    # Rubular: http://rubular.com/r/jTtDKfjxzr
-    BETWEEN_EM_DASHES_REGEX = r"\-\-(?>[^\-\-])*\-\-"
+    BETWEEN_EM_DASHES_REGEX_2 = re.compile(r"--(?=(?P<tmp>[^--]*))(?P=tmp)--")
 
-    BETWEEN_EM_DASHES_REGEX_2 = r"--(?=(?P<tmp>[^--]*))(?P=tmp)--"
+    _QUOTE_SPACE_RE = re.compile(r"'\s")
 
     def __init__(self, text: str) -> None:
         self.text = text
@@ -70,33 +54,30 @@ class BetweenPunctuation:
         return txt
 
     def sub_punctuation_between_parens(self, txt: str) -> str:
-        return re.sub(self.BETWEEN_PARENS_REGEX_2, replace_punctuation, txt)
+        return self.BETWEEN_PARENS_REGEX_2.sub(replace_punctuation, txt)
 
     def sub_punctuation_between_square_brackets(self, txt: str) -> str:
-        return re.sub(self.BETWEEN_SQUARE_BRACKETS_REGEX_2, replace_punctuation,
-                      txt)
+        return self.BETWEEN_SQUARE_BRACKETS_REGEX_2.sub(replace_punctuation, txt)
 
     def sub_punctuation_between_single_quotes(self, txt: str) -> str:
-        if re.search(self.WORD_WITH_LEADING_APOSTROPHE, txt) and \
-                (not re.search(r"'\s", txt)):
+        if self.WORD_WITH_LEADING_APOSTROPHE.search(txt) and \
+                (not self._QUOTE_SPACE_RE.search(txt)):
             return txt
-        return re.sub(self.BETWEEN_SINGLE_QUOTES_REGEX,
+        return self.BETWEEN_SINGLE_QUOTES_REGEX.sub(
                       partial(replace_punctuation, match_type='single'), txt)
 
     def sub_punctuation_between_single_quote_slanted(self, txt: str) -> str:
-        return re.sub(self.BETWEEN_SINGLE_QUOTE_SLANTED_REGEX,
+        return self.BETWEEN_SINGLE_QUOTE_SLANTED_REGEX.sub(
                       replace_punctuation, txt)
 
     def sub_punctuation_between_double_quotes(self, txt: str) -> str:
-        return re.sub(self.BETWEEN_DOUBLE_QUOTES_REGEX_2, replace_punctuation,
-                      txt)
+        return self.BETWEEN_DOUBLE_QUOTES_REGEX_2.sub(replace_punctuation, txt)
 
     def sub_punctuation_between_quotes_arrow(self, txt: str) -> str:
-        return re.sub(self.BETWEEN_QUOTE_ARROW_REGEX_2, replace_punctuation, txt)
+        return self.BETWEEN_QUOTE_ARROW_REGEX_2.sub(replace_punctuation, txt)
 
     def sub_punctuation_between_em_dashes(self, txt: str) -> str:
-        return re.sub(self.BETWEEN_EM_DASHES_REGEX_2, replace_punctuation, txt)
+        return self.BETWEEN_EM_DASHES_REGEX_2.sub(replace_punctuation, txt)
 
     def sub_punctuation_between_quotes_slanted(self, txt: str) -> str:
-        return re.sub(self.BETWEEN_QUOTE_SLANTED_REGEX_2, replace_punctuation,
-                      txt)
+        return self.BETWEEN_QUOTE_SLANTED_REGEX_2.sub(replace_punctuation, txt)

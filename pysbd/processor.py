@@ -10,24 +10,32 @@ from pysbd.exclamation_words import ExclamationWords
 from pysbd.between_punctuation import BetweenPunctuation
 from pysbd.abbreviation_replacer import AbbreviationReplacer
 
+# Pre-compiled patterns used on the hot path
+_ALPHA_ONLY_RE = re.compile(r'\A[a-zA-Z]*\Z')
+_UNDERSCORE_RE = re.compile(r'_{3,}')
+_TRAILING_EXCL_RE = re.compile(r'&ᓴ&$')
+_PAREN_SPACE_BEFORE_RE = re.compile(r'\s(?=\()')
+_PAREN_SPACE_AFTER_RE = re.compile(r'(?<=\))\s')
+
+
+def _sub_symbols_fast(text, lang):
+    """Replace temporary symbols using str.replace() instead of regex."""
+    for old, new in lang.SubSymbolsRules.SUBS_TABLE:
+        text = text.replace(old, new)
+    return text
+
+
 class Processor:
 
     def __init__(self, text: str | None, lang, char_span: bool = False) -> None:
-        """Process a text - do pre and post processing - to get proper sentences
-
-        Parameters
-        ----------
-        text : str
-            Original text
-        language : object
-            Language module
-        char_span : bool, optional
-            Get start & end character offsets of each sentences
-            within original text, by default False
-        """
         self.text = text
         self.lang = lang
         self.char_span = char_span
+        # Cache hasattr lookups
+        self._has_abbr_replacer = hasattr(lang, "AbbreviationReplacer")
+        self._has_between_punct = hasattr(lang, "BetweenPunctuation")
+        self._has_colon_rule = hasattr(lang, 'ReplaceColonBetweenNumbersRule')
+        self._has_comma_rule = hasattr(lang, 'ReplaceNonSentenceBoundaryCommaRule')
 
     def process(self) -> List[str]:
         if not self.text:
@@ -47,28 +55,14 @@ class Processor:
         return postprocessed_sents
 
     def rm_none_flatten(self, sents: List[str | List[str] | None]) -> List[str]:
-        """Remove None values and unpack list of list sents
-
-        Parameters
-        ----------
-        sents : list
-            list of sentences
-
-        Returns
-        -------
-        list
-            unpacked and None removed list of sents
-        """
-        sents = [s for s in sents if s]
-        if not any(isinstance(s, list) for s in sents):
-            return sents
         new_sents = []
-        for sent in sents:
-            if isinstance(sent, list):
-                for s in sent:
-                    new_sents.append(s)
+        for s in sents:
+            if not s:
+                continue
+            if isinstance(s, list):
+                new_sents.extend(s)
             else:
-                new_sents.append(sent)
+                new_sents.append(s)
         return new_sents
 
     def split_into_segments(self) -> List[str]:
@@ -85,7 +79,7 @@ class Processor:
         sents = self.rm_none_flatten(sents)
         postprocessed_sents = []
         for sent in sents:
-            sent = apply_rules(sent, *self.lang.SubSymbolsRules.All)
+            sent = _sub_symbols_fast(sent, self.lang)
             for pps in self.post_process_segments(sent):
                 if pps:
                     postprocessed_sents.append(pps)
@@ -94,7 +88,7 @@ class Processor:
         return postprocessed_sents
 
     def post_process_segments(self, txt: str) -> List[str]:
-        if len(txt) > 2 and re.search(r'\A[a-zA-Z]*\Z', txt):
+        if len(txt) > 2 and _ALPHA_ONLY_RE.search(txt):
             return [txt]
 
         txt = apply_rules(txt, *self.lang.ReinsertEllipsisRules.All)
@@ -110,8 +104,8 @@ class Processor:
     def check_for_parens_between_quotes(self) -> None:
         def paren_replace(match):
             match = match.group()
-            sub1 = re.sub(r'\s(?=\()', '\r', match)
-            sub2 = re.sub(r'(?<=\))\s', '\r', sub1)
+            sub1 = _PAREN_SPACE_BEFORE_RE.sub('\r', match)
+            sub2 = _PAREN_SPACE_AFTER_RE.sub('\r', sub1)
             return sub2
         self.text = re.sub(self.lang.PARENS_BETWEEN_DOUBLE_QUOTES_REGEX,
                       paren_replace, self.text)
@@ -119,9 +113,9 @@ class Processor:
     def replace_continuous_punctuation(self) -> None:
         def continuous_puncs_replace(match):
             match = match.group()
-            sub1 = re.sub(re.escape('!'), '&ᓴ&', match)
-            sub2 = re.sub(re.escape('?'), '&ᓷ&', sub1)
-            return sub2
+            match = match.replace('!', '&ᓴ&')
+            match = match.replace('?', '&ᓷ&')
+            return match
         self.text = re.sub(self.lang.CONTINUOUS_PUNCTUATION_REGEX,
                         continuous_puncs_replace, self.text)
 
@@ -131,8 +125,7 @@ class Processor:
                       r"∯\2\r\7", self.text)
 
     def consecutive_underscore(self, txt: str) -> bool:
-        # Rubular: http://rubular.com/r/fTF2Ff3WBL
-        txt = re.sub(r'_{3,}', '', txt)
+        txt = _UNDERSCORE_RE.sub('', txt)
         return len(txt) == 0
 
     def check_for_punctuation(self, txt: str) -> List[str]:
@@ -161,7 +154,7 @@ class Processor:
         self.text = apply_rules(self.text, *self.lang.Numbers.All)
 
     def abbreviations_replacer(self):
-        if hasattr(self.lang, "AbbreviationReplacer"):
+        if self._has_abbr_replacer:
             return self.lang.AbbreviationReplacer(self.text, self.lang)
         else:
             return AbbreviationReplacer(self.text, self.lang)
@@ -170,7 +163,7 @@ class Processor:
         self.text = self.abbreviations_replacer().replace()
 
     def between_punctuation_processor(self, txt: str):
-        if hasattr(self.lang, "BetweenPunctuation"):
+        if self._has_between_punct:
             return self.lang.BetweenPunctuation(txt)
         else:
             return BetweenPunctuation(txt)
@@ -180,12 +173,12 @@ class Processor:
         return txt
 
     def sentence_boundary_punctuation(self, txt: str) -> List[str]:
-        if hasattr(self.lang, 'ReplaceColonBetweenNumbersRule'):
+        if self._has_colon_rule:
             txt = apply_rules(txt, self.lang.ReplaceColonBetweenNumbersRule)
-        if hasattr(self.lang, 'ReplaceNonSentenceBoundaryCommaRule'):
+        if self._has_comma_rule:
             txt = apply_rules(txt, self.lang.ReplaceNonSentenceBoundaryCommaRule)
         # retain exclamation mark if it is an ending character of a given text
-        txt = re.sub(r'&ᓴ&$', '!', txt)
+        txt = _TRAILING_EXCL_RE.sub('!', txt)
         txt = [
             m.group() for m in re.finditer(self.lang.SENTENCE_BOUNDARY_REGEX, txt)
             ]

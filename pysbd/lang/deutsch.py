@@ -70,7 +70,7 @@ class Deutsch(Common, Standard):
             self.text = self.replace_abbreviation_as_sentence_boundary()
             return self.text
 
-        def scan_for_replacements(self, txt, am, index, character_array):
+        def scan_for_replacements(self, txt, am, index, character_array, stripped=None, escaped=None):
             txt = re.sub(r'(?<={am})\.(?=\s)'.format(am=am), '∯', txt)
             return txt
 

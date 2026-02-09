@@ -25,7 +25,7 @@ class Arabic(Common, Standard):
         def __init__(self, text, lang):
             super().__init__(text, lang)
 
-        def scan_for_replacements(self, txt, am, index, character_array):
+        def scan_for_replacements(self, txt, am, index, character_array, stripped=None, escaped=None):
             txt = re.sub('(?<={0})\.'.format(am), '∯', txt)
             return txt
 

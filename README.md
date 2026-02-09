@@ -61,6 +61,51 @@ print(list(doc.sents))
 
 ```
 
+## Multi-language segmentation
+
+Languages with similar writing systems (e.g. English, Spanish, French) can be combined into a single segmenter by merging their abbreviation lists. This avoids needing to detect the language of each sentence before segmenting.
+
+```python
+import pysbd
+from pysbd.abbreviation_replacer import AbbreviationReplacer
+from pysbd.lang.common import Common, Standard
+from pysbd.lang.english import English
+from pysbd.lang.spanish import Spanish
+from pysbd.lang.french import French
+from pysbd.languages import LANGUAGE_CODES
+
+class MultiLang(Common, Standard):
+    iso_code = 'multi'
+
+    class Abbreviation(Standard.Abbreviation):
+        ABBREVIATIONS = sorted(set(
+            Standard.Abbreviation.ABBREVIATIONS +
+            Spanish.Abbreviation.ABBREVIATIONS +
+            French.Abbreviation.ABBREVIATIONS
+        ))
+        PREPOSITIVE_ABBREVIATIONS = sorted(set(
+            Standard.Abbreviation.PREPOSITIVE_ABBREVIATIONS +
+            Spanish.Abbreviation.PREPOSITIVE_ABBREVIATIONS +
+            French.Abbreviation.PREPOSITIVE_ABBREVIATIONS
+        ))
+        NUMBER_ABBREVIATIONS = sorted(set(
+            Standard.Abbreviation.NUMBER_ABBREVIATIONS +
+            Spanish.Abbreviation.NUMBER_ABBREVIATIONS +
+            French.Abbreviation.NUMBER_ABBREVIATIONS
+        ))
+
+    class AbbreviationReplacer(AbbreviationReplacer):
+        SENTENCE_STARTERS = English.AbbreviationReplacer.SENTENCE_STARTERS
+
+LANGUAGE_CODES['multi'] = MultiLang
+
+seg = pysbd.Segmenter(language="multi", clean=False)
+print(seg.segment("Hola Srta. Ledesma. How are you?"))
+# ['Hola Srta. Ledesma.', 'How are you?']
+```
+
+This works well for languages that share the `Common` and `Standard` base classes and use the same sentence-ending punctuation (`.`, `!`, `?`). The same pattern can be extended to other similar languages like Italian, Dutch, or Danish. Languages with different writing systems or punctuation (e.g. Japanese, Arabic) would need a different approach.
+
 ## Contributing
 
 If you want to contribute new feature/language support or found a text that is incorrectly segmented using pySBD, then please head to [CONTRIBUTING.md](https://github.com/nipunsadvilkar/pySBD/blob/master/CONTRIBUTING.md) to know more and follow these steps.

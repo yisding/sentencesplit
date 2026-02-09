@@ -20,7 +20,7 @@ class Russian(Common, Standard):
         def __init__(self, text, lang):
             super().__init__(text, lang)
 
-        def replace_period_of_abbr(self, txt, abbr):
+        def replace_period_of_abbr(self, txt, abbr, escaped=None):
             txt = re.sub(r'(?<=\s{abbr})\.'.format(abbr=abbr.strip()), '∯', txt)
             txt = re.sub(r'(?<=\A{abbr})\.'.format(abbr=abbr.strip()), '∯', txt)
             txt = re.sub(r'(?<=^{abbr})\.'.format(abbr=abbr.strip()), '∯', txt)

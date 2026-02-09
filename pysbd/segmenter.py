@@ -104,10 +104,32 @@ class Segmenter:
         if self.clean:
             # clean and destructed sentences
             return postprocessed_sents
-        # nondestructive with whitespaces
-        sentence_w_char_spans = self.sentences_with_char_spans(
-            postprocessed_sents, original_text)
-        return [textspan.sent for textspan in sentence_w_char_spans]
+        # nondestructive: return original text spans preserving whitespace
+        return self.sentences_from_original(postprocessed_sents, original_text)
+
+    def sentences_from_original(self, sentences: List[str],
+                                original_text: str) -> List[str]:
+        """Map processed sentences back to original text spans (no TextSpan overhead)."""
+        result: List[str] = []
+        prior_end = 0
+        for sent in sentences:
+            if not sent:
+                continue
+            start_idx = original_text.find(sent, prior_end)
+            if start_idx == -1:
+                for match in re.finditer(rf'{re.escape(sent)}\s*', original_text):
+                    match_start, match_end = match.span()
+                    if match_end > prior_end:
+                        result.append(match.group())
+                        prior_end = match_end
+                        break
+                continue
+            end_idx = start_idx + len(sent)
+            while end_idx < len(original_text) and original_text[end_idx].isspace():
+                end_idx += 1
+            result.append(original_text[start_idx:end_idx])
+            prior_end = end_idx
+        return result
 
     def segment_spans(self, text: str | None) -> List[TextSpan]:
         """Return sentence spans regardless of the instance's char_span flag."""

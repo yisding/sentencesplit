@@ -19,6 +19,6 @@ class Bulgarian(Common, Standard):
         def __init__(self, text, lang):
             super().__init__(text, lang)
 
-        def replace_period_of_abbr(self, txt, abbr):
+        def replace_period_of_abbr(self, txt, abbr, escaped=None):
             txt = re.sub(r'(?<=\s{abbr})\.|(?<=^{abbr})\.'.format(abbr=abbr.strip()), '∯', txt)
             return txt

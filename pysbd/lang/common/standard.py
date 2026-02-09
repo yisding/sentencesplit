@@ -54,22 +54,8 @@ class Standard:
     class SubSymbolsRules:
         """Reverse temporary symbols back to their original punctuation.
 
-        Symbol mapping (temporary -> original):
-        - ∯ -> .
-        - &ᓰ& -> 。
-        - &ᓱ& -> ．
-        - &ᓳ& -> ！
-        - &ᓴ& -> !
-        - &ᓷ& -> ?
-        - &ᓸ& -> ？
-        - ☉ -> ?!
-        - ☇ -> ??
-        - ☈ -> !?
-        - ☄ -> !!
-        - &✂& -> (
-        - &⌬& -> )
-        - ȸ -> (temporary end marker)
-        - ȹ -> \n
+        Uses str.replace() via SUBS_TABLE for performance since all
+        substitutions are literal strings (no regex needed).
         """
         Period = Rule(r'∯', '.')
         ArabicComma = Rule(r'♬', '،')
@@ -93,6 +79,27 @@ class Standard:
                FullWidthQuestionMark, MixedDoubleQE, MixedDoubleQQ, MixedDoubleEQ,
                MixedDoubleEE, LeftParens, RightParens, TemporaryEndingPunctutation,
                Newline]
+
+        # Literal (pattern, replacement) pairs for fast str.replace()
+        SUBS_TABLE = [
+            ('∯', '.'),
+            ('♬', '،'),
+            ('♭', ':'),
+            ('&ᓰ&', '。'),
+            ('&ᓱ&', '．'),
+            ('&ᓳ&', '！'),
+            ('&ᓴ&', '!'),
+            ('&ᓷ&', '?'),
+            ('&ᓸ&', '？'),
+            ('☉', '?!'),
+            ('☇', '??'),
+            ('☈', '!?'),
+            ('☄', '!!'),
+            ('&✂&', '('),
+            ('&⌬&', ')'),
+            ('ȸ', ''),
+            ('ȹ', "\n"),
+        ]
 
     class EllipsisRules:
 

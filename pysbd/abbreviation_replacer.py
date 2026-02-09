@@ -7,35 +7,57 @@ from typing import List
 from pysbd.utils import apply_rules
 
 
-def replace_pre_number_abbr(txt: str, abbr: str) -> str:
-    # prepend a space to avoid needing another regex for start of string
+def _replace_with_escape(txt: str, escaped: str, suffix_pattern: str, replacement: str) -> str:
+    """Replace period after abbreviation match using pre-escaped abbreviation."""
     txt = " " + txt
-    escaped = re.escape(abbr.strip())
-    txt = re.sub(rf"(?<=\s{escaped})\.(?=(\s\d|\s+\())", "∯", txt)
-    # remove the prepended space
-    txt = txt[1:]
-    return txt
+    txt = re.sub(rf"(?<=\s{escaped}){suffix_pattern}", replacement, txt)
+    return txt[1:]
 
 
-def replace_prepositive_abbr(txt: str, abbr: str) -> str:
-    # prepend a space to avoid needing another regex for start of string
-    txt = " " + txt
-    escaped = re.escape(abbr.strip())
-    txt = re.sub(rf"(?<=\s{escaped})\.(?=(\s|:\d+))", "∯", txt)
-    # remove the prepended space
-    txt = txt[1:]
-    return txt
+class _AbbreviationData:
+    """Pre-computed abbreviation data for a language, cached per Abbreviation class."""
+    __slots__ = ('abbreviations', 'prepositive_set', 'number_abbr_set')
+
+    def __init__(self, lang_abbreviation_class):
+        raw = lang_abbreviation_class.ABBREVIATIONS
+        sorted_abbrs = sorted(raw, key=len, reverse=True)
+        self.abbreviations = []
+        for abbr in sorted_abbrs:
+            stripped = abbr.strip()
+            stripped_lower = stripped.lower()
+            escaped = re.escape(stripped)
+            # Pre-compile the two findall patterns for this abbreviation
+            match_re = re.compile(
+                r"(?:^|\s|\r|\n){}".format(escaped), re.IGNORECASE
+            )
+            next_word_re = re.compile(
+                r"(?<={{{escaped}}} ).{{1}}".format(escaped=escaped)
+            )
+            self.abbreviations.append((
+                stripped,
+                stripped_lower,
+                escaped,
+                match_re,
+                next_word_re,
+            ))
+        self.prepositive_set = frozenset(
+            a.lower() for a in lang_abbreviation_class.PREPOSITIVE_ABBREVIATIONS
+        )
+        self.number_abbr_set = frozenset(
+            a.lower() for a in lang_abbreviation_class.NUMBER_ABBREVIATIONS
+        )
 
 
 class AbbreviationReplacer:
+    _data_cache: dict[int, _AbbreviationData] = {}
+
     def __init__(self, text: str, lang) -> None:
         self.text = text
         self.lang = lang
-        self._abbreviations = sorted(
-            self.lang.Abbreviation.ABBREVIATIONS,
-            key=len,
-            reverse=True,
-        )
+        abbr_class_id = id(lang.Abbreviation)
+        if abbr_class_id not in AbbreviationReplacer._data_cache:
+            AbbreviationReplacer._data_cache[abbr_class_id] = _AbbreviationData(lang.Abbreviation)
+        self._data = AbbreviationReplacer._data_cache[abbr_class_id]
 
     def replace(self) -> str:
         self.text = apply_rules(
@@ -62,7 +84,7 @@ class AbbreviationReplacer:
     def replace_multi_period_abbreviations(self) -> None:
         def mpa_replace(match):
             match = match.group()
-            match = re.sub(re.escape(r"."), "∯", match)
+            match = match.replace(".", "∯")
             return match
 
         self.text = re.sub(
@@ -72,55 +94,50 @@ class AbbreviationReplacer:
             flags=re.IGNORECASE
         )
 
-    def replace_period_of_abbr(self, txt: str, abbr: str) -> str:
-        # prepend a space to avoid needing another regex for start of string
+    def replace_period_of_abbr(self, txt: str, abbr: str, escaped: str | None = None) -> str:
         txt = " " + txt
+        if escaped is None:
+            escaped = re.escape(abbr.strip())
         txt = re.sub(
             r"(?<=\s{abbr})\.(?=((\.|\:|-|\?|,)|(\s([a-z]|I\s|I'm|I'll|\d|\())))".format(
-                abbr=re.escape(abbr.strip())
+                abbr=escaped
             ),
             "∯",
             txt,
         )
-        # remove the prepended space
-        txt = txt[1:]
-        return txt
-
+        return txt[1:]
 
     def search_for_abbreviations_in_string(self, text: str) -> str:
         lowered = text.lower()
-        for abbr in self._abbreviations:
-            stripped = abbr.strip()
-            stripped_lower = stripped.lower()
+        data = self._data
+        for stripped, stripped_lower, escaped, match_re, next_word_re in data.abbreviations:
             if stripped_lower not in lowered:
                 continue
-            escaped = re.escape(stripped)
-            abbrev_match = re.findall(
-                r"(?:^|\s|\r|\n){}".format(escaped), text, flags=re.IGNORECASE
-            )
+            abbrev_match = match_re.findall(text)
             if not abbrev_match:
                 continue
-            next_word_start = r"(?<={" + str(re.escape(stripped)) + "} ).{1}"
-            char_array = re.findall(next_word_start, text)
+            char_array = next_word_re.findall(text)
             for ind, match in enumerate(abbrev_match):
                 text = self.scan_for_replacements(
-                    text, match, ind, char_array
+                    text, match, ind, char_array, stripped, escaped
                 )
         return text
 
-    def scan_for_replacements(self, txt: str, am: str, ind: int, char_array) -> str:
+    def scan_for_replacements(self, txt: str, am: str, ind: int, char_array,
+                              stripped: str = "", escaped: str | None = None) -> str:
         try:
             char = char_array[ind]
         except IndexError:
             char = ""
-        prepositive = self.lang.Abbreviation.PREPOSITIVE_ABBREVIATIONS
-        number_abbr = self.lang.Abbreviation.NUMBER_ABBREVIATIONS
-        upper = str(char).isupper()
-        if not upper or am.strip().lower() in prepositive:
-            if am.strip().lower() in prepositive:
-                txt = replace_prepositive_abbr(txt, am)
-            elif am.strip().lower() in number_abbr:
-                txt = replace_pre_number_abbr(txt, am)
+        upper = char.isupper() if char else False
+        am_lower = am.strip().lower()
+        if not upper or am_lower in self._data.prepositive_set:
+            # Use match-derived escape to preserve original case
+            am_escaped = re.escape(am.strip())
+            if am_lower in self._data.prepositive_set:
+                txt = _replace_with_escape(txt, am_escaped, r'\.(?=(\s|:\d+))', '∯')
+            elif am_lower in self._data.number_abbr_set:
+                txt = _replace_with_escape(txt, am_escaped, r'\.(?=(\s\d|\s+\())', '∯')
             else:
-                txt = self.replace_period_of_abbr(txt, am)
+                txt = self.replace_period_of_abbr(txt, am, am_escaped)
         return txt
