@@ -2,9 +2,71 @@
 from __future__ import annotations
 
 import re
+from collections import deque
 from typing import List
 
 from pysbd.utils import apply_rules
+
+
+class AhoCorasickAutomaton:
+    """Pure-Python Aho-Corasick automaton for multi-pattern substring search."""
+    __slots__ = ('goto', 'fail', 'output', '_built')
+
+    def __init__(self):
+        # State 0 is the root. Each state maps char -> next_state.
+        self.goto: list[dict[str, int]] = [{}]
+        self.output: list[list[int]] = [[]]  # pattern IDs at each state
+        self.fail: list[int] = [0]
+        self._built = False
+
+    def add_pattern(self, pattern: str, pattern_id: int) -> None:
+        state = 0
+        for ch in pattern:
+            nxt = self.goto[state].get(ch)
+            if nxt is None:
+                nxt = len(self.goto)
+                self.goto.append({})
+                self.output.append([])
+                self.fail.append(0)
+                self.goto[state][ch] = nxt
+            state = nxt
+        self.output[state].append(pattern_id)
+
+    def build(self) -> None:
+        queue: deque[int] = deque()
+        # Initialize depth-1 states
+        for ch, s in self.goto[0].items():
+            self.fail[s] = 0
+            queue.append(s)
+        # BFS to build failure links
+        while queue:
+            r = queue.popleft()
+            for ch, s in self.goto[r].items():
+                queue.append(s)
+                state = self.fail[r]
+                while state != 0 and ch not in self.goto[state]:
+                    state = self.fail[state]
+                self.fail[s] = self.goto[state].get(ch, 0)
+                if self.fail[s] == s:
+                    self.fail[s] = 0
+                if self.output[self.fail[s]]:
+                    self.output[s] = self.output[s] + self.output[self.fail[s]]
+        self._built = True
+
+    def search(self, text: str) -> set[int]:
+        """Scan text in one pass, return set of matched pattern IDs."""
+        state = 0
+        found: set[int] = set()
+        goto = self.goto
+        fail = self.fail
+        output = self.output
+        for ch in text:
+            while state != 0 and ch not in goto[state]:
+                state = fail[state]
+            state = goto[state].get(ch, 0)
+            if output[state]:
+                found.update(output[state])
+        return found
 
 
 def _replace_with_escape(txt: str, escaped: str, suffix_pattern: str, replacement: str) -> str:
@@ -16,13 +78,14 @@ def _replace_with_escape(txt: str, escaped: str, suffix_pattern: str, replacemen
 
 class _AbbreviationData:
     """Pre-computed abbreviation data for a language, cached per Abbreviation class."""
-    __slots__ = ('abbreviations', 'prepositive_set', 'number_abbr_set')
+    __slots__ = ('abbreviations', 'prepositive_set', 'number_abbr_set', 'automaton')
 
     def __init__(self, lang_abbreviation_class):
         raw = lang_abbreviation_class.ABBREVIATIONS
         sorted_abbrs = sorted(raw, key=len, reverse=True)
         self.abbreviations = []
-        for abbr in sorted_abbrs:
+        self.automaton = AhoCorasickAutomaton()
+        for idx, abbr in enumerate(sorted_abbrs):
             stripped = abbr.strip()
             stripped_lower = stripped.lower()
             escaped = re.escape(stripped)
@@ -40,6 +103,8 @@ class _AbbreviationData:
                 match_re,
                 next_word_re,
             ))
+            self.automaton.add_pattern(stripped_lower, idx)
+        self.automaton.build()
         self.prepositive_set = frozenset(
             a.lower() for a in lang_abbreviation_class.PREPOSITIVE_ABBREVIATIONS
         )
@@ -110,9 +175,10 @@ class AbbreviationReplacer:
     def search_for_abbreviations_in_string(self, text: str) -> str:
         lowered = text.lower()
         data = self._data
-        for stripped, stripped_lower, escaped, match_re, next_word_re in data.abbreviations:
-            if stripped_lower not in lowered:
-                continue
+        found_indices = data.automaton.search(lowered)
+        abbreviations = data.abbreviations
+        for idx in sorted(found_indices):
+            stripped, stripped_lower, escaped, match_re, next_word_re = abbreviations[idx]
             abbrev_match = match_re.findall(text)
             if not abbrev_match:
                 continue
