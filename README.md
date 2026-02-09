@@ -45,21 +45,15 @@ print(seg.segment(text))
 ```
 
 -   Use `pysbd` as a [spaCy](https://spacy.io/usage/processing-pipelines) pipeline component. (recommended)</br>Please refer to example [pysbd\_as\_spacy\_component.py](https://github.com/nipunsadvilkar/pySBD/blob/master/examples/pysbd_as_spacy_component.py)
-- Use pysbd through [entrypoints](https://spacy.io/usage/saving-loading#entry-points-components)
+- Use pysbd through [entry points](https://spacy.io/usage/saving-loading#entry-points-components)
 
 ```python
 import spacy
-from pysbd.utils import PySBDFactory
 
 nlp = spacy.blank('en')
 
-# explicitly adding component to pipeline
-# (recommended - makes it more readable to tell what's going on)
-nlp.add_pipe(PySBDFactory(nlp))
-
-# or you can use it implicitly with keyword
-# pysbd = nlp.create_pipe('pysbd')
-# nlp.add_pipe(pysbd)
+# add pysbd component registered via package entry points
+nlp.add_pipe("pysbd")
 
 doc = nlp('My name is Jonas E. Smith. Please turn to p. 55.')
 print(list(doc.sents))

@@ -10,7 +10,7 @@ import syntok.segmenter as syntok_segmenter
 pysbd_segmenter = pysbd.Segmenter(language="en", clean=False, char_span=False)
 
 nlp = spacy.blank('en')
-nlp.add_pipe(nlp.create_pipe("sentencizer"))
+nlp.add_pipe("sentencizer")
 nlp_dep = spacy.load('en_core_web_sm', disable=["ner"])
 #stanza.download('en')
 stanza_nlp = stanza.Pipeline(lang='en', processors='tokenize')

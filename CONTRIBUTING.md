@@ -61,9 +61,9 @@ To make changes to pySBD's code base, you need to fork then clone the GitHub rep
 python -m pip install -U pip
 git clone https://github.com/nipunsadvilkar/pySBD
 cd pySBD
-pip install -r requirements-dev.txt
+pip install -e ".[dev]"
 ```
-Since pySBD is lightweight, it requires only python inbuilt modules, more specifically python `re` module to function. Development packages requiremment will be provided in `requirements-dev.txt`. If you want to use pySBD as a spacy component then install spacy in your environment.
+Since pySBD is lightweight, it requires only python inbuilt modules, more specifically python `re` module to function. Development packages are provided through the `dev` extra in `pyproject.toml`. If you want benchmark dependencies (`spacy`, `stanza`, etc.), install `pip install -e ".[benchmark]"`.
 
 ### Add a new rule to existing *Golden Rules Set* (GRS)
 The language specific *Golden Rules Set* are hand-constructed rules, designed to cover sentence boundaries across a variety of domains. The set is by no means complete and will evolve and expand over time. If you would like to report an issue in existing rule or report a new rule, please [open an issue.](#submitting-issues) If you want to contribute yourself then please go ahead and send pull request by referring to [add tests](#add-tests) section.

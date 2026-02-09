@@ -1,0 +1,60 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pysbd"
+dynamic = ["version"]
+description = "pysbd (Python Sentence Boundary Disambiguation) is a rule-based sentence boundary detection that works out-of-the-box across many languages."
+readme = "README.md"
+requires-python = ">=3.11"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [
+  { name = "Nipun Sadvilkar", email = "nipunsadvilkar@gmail.com" }
+]
+keywords = ["natural-language-processing", "nlp"]
+classifiers = [
+  "Intended Audience :: Developers",
+  "Intended Audience :: Science/Research",
+  "Topic :: Scientific/Engineering",
+  "Topic :: Scientific/Engineering :: Artificial Intelligence",
+  "Topic :: Scientific/Engineering :: Information Analysis",
+  "Topic :: Text Processing",
+  "Topic :: Text Processing :: Linguistic",
+  "Topic :: Software Development",
+  "Topic :: Software Development :: Libraries",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+]
+dependencies = []
+
+[project.urls]
+Homepage = "http://nipunsadvilkar.github.io/"
+Repository = "https://github.com/nipunsadvilkar/pySBD"
+
+[project.optional-dependencies]
+dev = [
+  "flake8>=7.1",
+  "pytest>=8.0",
+  "pytest-cov>=5.0",
+]
+benchmark = [
+  "blingfire>=0.1.8",
+  "nltk>=3.9",
+  "spacy>=3.7",
+  "stanza>=1.8",
+  "syntok>=1.4.4",
+]
+
+[project.entry-points."spacy_factories"]
+pysbd = "pysbd.utils:PySBDFactory"
+
+[tool.setuptools]
+include-package-data = true
+packages = { find = { include = ["pysbd*"] } }
+
+[tool.setuptools.dynamic]
+version = { attr = "pysbd.about.__version__" }
