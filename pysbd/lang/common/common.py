@@ -60,17 +60,30 @@ class Common:
 
     class AmPmRules:
 
+        # Timezone abbreviations that commonly follow a.m./p.m. and should
+        # NOT be treated as sentence starters.
+        _TZ = (
+            r'(?:[ECMP][SD]T'    # US: EST, EDT, CST, CDT, MST, MDT, PST, PDT
+            r'|GMT|UTC'           # Universal
+            r'|CET|CEST|WET|WEST|EET|EEST'  # Europe
+            r'|BST|MSK|IST'      # UK, Moscow, India/Ireland/Israel
+            r'|JST|KST|HKT|SGT'  # East Asia
+            r'|(?:AE|NZ)[SD]T'   # Australia/NZ: AEST, AEDT, NZST, NZDT
+            r'|AST|AKST|HST|NST'  # US/Canada outlying
+            r')[\s.]'
+        )
+
         # Rubular: http://rubular.com/r/Vnx3m4Spc8
-        UpperCasePmRule = Rule(r'(?<= P∯M)∯(?=\s[A-Z])', '.')
+        UpperCasePmRule = Rule(r'(?<= P∯M)∯(?=\s(?!' + _TZ + r')[A-Z])', '.')
 
         # Rubular: http://rubular.com/r/AJMCotJVbW
-        UpperCaseAmRule = Rule(r'(?<=A∯M)∯(?=\s[A-Z])', '.')
+        UpperCaseAmRule = Rule(r'(?<=A∯M)∯(?=\s(?!' + _TZ + r')[A-Z])', '.')
 
         # Rubular: http://rubular.com/r/13q7SnOhgA
-        LowerCasePmRule = Rule(r'(?<=p∯m)∯(?=\s[A-Z])', '.')
+        LowerCasePmRule = Rule(r'(?<=p∯m)∯(?=\s(?!' + _TZ + r')[A-Z])', '.')
 
         # Rubular: http://rubular.com/r/DgUDq4mLz5
-        LowerCaseAmRule = Rule(r'(?<=a∯m)∯(?=\s[A-Z])', '.')
+        LowerCaseAmRule = Rule(r'(?<=a∯m)∯(?=\s(?!' + _TZ + r')[A-Z])', '.')
 
         All = [UpperCasePmRule, UpperCaseAmRule, LowerCasePmRule, LowerCaseAmRule]
 
@@ -90,10 +103,16 @@ class Common:
         # Rubular: http://rubular.com/r/NuvWnKleFl
         StartLineTwoDigitNumberPeriodRule = Rule(r'(?<=^\d\d)\.(?=(\s\S)|\))', '∯')
 
+        # "in." as measurement abbreviation (inches) only after a digit.
+        # Distinguishes "5 in. wide" (measurement, non-boundary) from
+        # "walked in. She left" (preposition, boundary).
+        InchesAbbreviationRule = Rule(r'(?<=\d )in\.(?=\s[a-z])', 'in∯')
+
         All = [
             PeriodBeforeNumberRule,
             NumberAfterPeriodBeforeLetterRule,
             NewLineNumberPeriodSpaceLetterRule,
             StartLineNumberPeriodRule,
-            StartLineTwoDigitNumberPeriodRule
+            StartLineTwoDigitNumberPeriodRule,
+            InchesAbbreviationRule,
             ]
