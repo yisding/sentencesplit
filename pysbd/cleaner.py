@@ -3,12 +3,12 @@ from __future__ import annotations
 
 import re
 
+from pysbd.clean.rules import HTML, PDF
+from pysbd.clean.rules import CleanRules as cr
 from pysbd.utils import apply_rules
-from pysbd.clean.rules import PDF, HTML, CleanRules as cr
 
 
 class Cleaner:
-
     def __init__(self, text: str | None, lang, doc_type: str | None = None) -> None:
         self.text = text
         self.lang = lang
@@ -37,9 +37,10 @@ class Cleaner:
     def remove_newline_in_middle_of_sentence(self):
         def replace_w_blank(match):
             match = match.group()
-            sub = re.sub(cr.NEWLINE_IN_MIDDLE_OF_SENTENCE_REGEX, '', match)
+            sub = re.sub(cr.NEWLINE_IN_MIDDLE_OF_SENTENCE_REGEX, "", match)
             return sub
-        self.text = re.sub(r'(?:[^\.])*', replace_w_blank, self.text)
+
+        self.text = re.sub(r"(?:[^\.])*", replace_w_blank, self.text)
 
     def remove_newline_in_middle_of_word(self):
         self.text = apply_rules(self.text, cr.NewLineInMiddleOfWordRule)
@@ -60,7 +61,7 @@ class Cleaner:
         )
 
     def replace_newlines(self):
-        if self.doc_type == 'pdf':
+        if self.doc_type == "pdf":
             self.remove_pdf_line_breaks()
         else:
             self.text = apply_rules(
@@ -81,17 +82,18 @@ class Cleaner:
     def replace_punctuation_in_brackets(self):
         def replace_punct(match):
             match = match.group()
-            if '?' in match:
-                sub = re.sub(re.escape('?'), '&ᓷ&', match)
+            if "?" in match:
+                sub = re.sub(re.escape("?"), "&ᓷ&", match)
                 return sub
             return match
-        self.text = re.sub(r'\[(?:[^\]])*\]', replace_punct, self.text)
+
+        self.text = re.sub(r"\[(?:[^\]])*\]", replace_punct, self.text)
 
     def clean_quotations(self):
         # method added explicitly
         # pragmatic-segmenter applies this method
         # at different location
-        self.text = re.sub('`', "'", self.text)
+        self.text = re.sub("`", "'", self.text)
         self.text = apply_rules(
             self.text,
             cr.QuotationsFirstRule,
@@ -115,7 +117,7 @@ class Cleaner:
         return new_word
 
     def check_for_no_space_in_between_sentences(self):
-        words = self.text.split(' ')
+        words = self.text.split(" ")
         for idx, word in enumerate(words):
             word = self.search_for_connected_sentences(
                 word,
@@ -128,7 +130,7 @@ class Cleaner:
                 cr.NoSpaceBetweenSentencesDigitRule,
             )
             words[idx] = word
-        self.text = ' '.join(words)
+        self.text = " ".join(words)
 
     def clean_consecutive_characters(self):
         self.text = apply_rules(

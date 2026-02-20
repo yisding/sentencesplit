@@ -5,8 +5,8 @@ from __future__ import annotations
 import re
 from typing import Pattern
 
-class Rule:
 
+class Rule:
     def __init__(self, pattern: str, replacement: str, flags: int = 0) -> None:
         self.pattern = pattern
         self.replacement = replacement
@@ -14,8 +14,7 @@ class Rule:
         self.regex: Pattern[str] = re.compile(pattern, flags)
 
     def __repr__(self) -> str:  # pragma: no cover
-        return '<{} pattern="{}" and replacement="{}">'.format(
-            self.__class__.__name__, self.pattern, self.replacement)
+        return '<{} pattern="{}" and replacement="{}">'.format(self.__class__.__name__, self.pattern, self.replacement)
 
 
 def apply_rules(text: str, *rules: Rule) -> str:
@@ -26,7 +25,6 @@ def apply_rules(text: str, *rules: Rule) -> str:
 
 
 class TextSpan:
-
     def __init__(self, sent: str, start: int, end: int) -> None:
         """
         Sentence text and its start & end character offsets within original text
@@ -45,8 +43,7 @@ class TextSpan:
         self.end = end
 
     def __repr__(self) -> str:  # pragma: no cover
-        return "{0}(sent={1}, start={2}, end={3})".format(
-            self.__class__.__name__, repr(self.sent), self.start, self.end)
+        return "{0}(sent={1}, start={2}, end={3})".format(self.__class__.__name__, repr(self.sent), self.start, self.end)
 
     def __eq__(self, other: object) -> bool:
         if isinstance(other, self.__class__):

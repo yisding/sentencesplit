@@ -1,2 +1,2 @@
-from .segmenter import Segmenter
-from .about import __version__
+from .about import __version__ as __version__
+from .segmenter import Segmenter as Segmenter

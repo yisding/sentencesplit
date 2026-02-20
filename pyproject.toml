@@ -49,13 +49,29 @@ pysbd = "pysbd.spacy_component:PySBDFactory"
 
 [dependency-groups]
 dev = [
-  "flake8>=7.1",
+  "ruff>=0.9",
   "pytest>=8.0",
   "pytest-cov>=5.0",
 ]
 
 [tool.uv.build-backend]
 module-root = ""
+
+[tool.ruff]
+line-length = 127
+extend-exclude = [".venv"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "C90", "I"]
+mccabe.max-complexity = 10
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["E501"]
+"pysbd/lang/**" = ["E501"]
+"pysbd/about.py" = ["E501"]
+"pysbd/exclamation_words.py" = ["E501"]
+"pysbd/lists_item_replacer.py" = ["E501"]
+"pysbd/processor.py" = ["C901"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
