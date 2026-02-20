@@ -136,6 +136,16 @@ class AbbreviationReplacer:
             lines.append(self.search_for_abbreviations_in_string(line))
         self.text = "".join(lines)
         self.replace_multi_period_abbreviations()
+        # Restore sentence-boundary period when a multi-period abbreviation
+        # with 3+ parts (e.g. "e∯s∯t∯") is followed by a space and
+        # uppercase letter.  Two-part abbreviations like U∯S∯ are handled
+        # separately by replace_abbreviation_as_sentence_boundary.
+        # Note: no IGNORECASE — [A-Z] in lookahead must only match uppercase
+        # so that "C.E.O. of" is not mistakenly split.
+        self.text = re.sub(
+            r'(?<=[a-zA-Z]∯[a-zA-Z]∯[a-zA-Z])∯(?=\s[A-Z])',
+            '.', self.text
+        )
         self.text = apply_rules(self.text, *self.lang.AmPmRules.All)
         self.text = self.replace_abbreviation_as_sentence_boundary()
         return self.text

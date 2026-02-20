@@ -12,9 +12,11 @@ from pysbd.abbreviation_replacer import AbbreviationReplacer
 
 # Pre-compiled patterns used on the hot path
 _ALPHA_ONLY_RE = re.compile(r'\A[a-zA-Z]*\Z')
+_ELLIPSIS_RE = re.compile(r'\A\.{3,}\Z')
 _TRAILING_EXCL_RE = re.compile(r'&ᓴ&$')
 _PAREN_SPACE_BEFORE_RE = re.compile(r'\s(?=\()')
 _PAREN_SPACE_AFTER_RE = re.compile(r'(?<=\))\s')
+_ORPHAN_SINGLE_CHARS = frozenset("'\")\u2019\u201d")
 
 
 def _sub_symbols_fast(text, lang):
@@ -49,7 +51,8 @@ class Processor:
         self.text = apply_rules(
             self.text,
             self.lang.Abbreviation.WithMultiplePeriodsAndEmailRule,
-            self.lang.GeoLocationRule, self.lang.FileFormatRule)
+            self.lang.GeoLocationRule, self.lang.FileFormatRule,
+            self.lang.DotNetRule)
         postprocessed_sents = self.split_into_segments()
         return postprocessed_sents
 
@@ -84,7 +87,33 @@ class Processor:
                     postprocessed_sents.append(pps)
         postprocessed_sents = [apply_rules(ns, self.lang.SubSingleQuoteRule)
                                for ns in postprocessed_sents]
-        return postprocessed_sents
+        # Re-split at ".) Capital" boundaries (period inside closing paren before new sentence)
+        resplit = []
+        for pps in postprocessed_sents:
+            parts = re.split(r'(?<=[a-zA-Z]{2}\.\))\s+(?=[A-Z])', pps)
+            resplit.extend(p for p in parts if p)
+        postprocessed_sents = resplit
+        # Merge orphan fragments into the preceding sentence.
+        # An orphan is either an ellipsis (3+ periods) or a very short
+        # lowercase abbreviation fragment ending with a period (e.g. "pp.").
+        merged = []
+        for sent in postprocessed_sents:
+            stripped = sent.strip()
+            is_orphan = False
+            if stripped and merged:
+                if _ELLIPSIS_RE.match(stripped):
+                    is_orphan = True
+                elif len(stripped) == 1 and stripped in _ORPHAN_SINGLE_CHARS:
+                    is_orphan = True
+                elif (len(stripped) <= 10 and stripped.endswith('.')
+                      and not stripped[0].isupper()
+                      and any(c.isalnum() for c in stripped)):
+                    is_orphan = True
+            if is_orphan:
+                merged[-1] = merged[-1] + ' ' + sent
+            else:
+                merged.append(sent)
+        return merged
 
     def post_process_segments(self, txt: str) -> List[str]:
         if len(txt) > 2 and _ALPHA_ONLY_RE.search(txt):

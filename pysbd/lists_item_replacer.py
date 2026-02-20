@@ -110,17 +110,21 @@ class ListItemReplacer:
         return txt
 
     def scan_lists(self, regex1, regex2, replacement, strip=False):
-        list_array = re.findall(regex1, self.text)
-        list_array = list(map(int, list_array))
-        for ind, item in enumerate(list_array):
-            # to avoid IndexError
-            # ruby returns nil if index is out of range
-            if (ind < len(list_array) - 1 and item + 1 == list_array[ind + 1]):
-                self.substitute_found_list_items(regex2, item, strip, replacement)
-            elif ind > 0:
-                if (((item - 1) == list_array[ind - 1]) or
-                    ((item == 0) and (list_array[ind - 1] == 9)) or
-                    ((item == 9) and (list_array[ind - 1] == 0))):
+        matches = list(re.finditer(regex1, self.text))
+        list_array = [(int(m.group().strip()), m.start()) for m in matches]
+        for ind, (item, pos) in enumerate(list_array):
+            found_forward = False
+            if ind < len(list_array) - 1:
+                next_item, next_pos = list_array[ind + 1]
+                if item + 1 == next_item and next_pos - pos < 200:
+                    self.substitute_found_list_items(regex2, item, strip, replacement)
+                    found_forward = True
+            if not found_forward and ind > 0:
+                prev_item, prev_pos = list_array[ind - 1]
+                if pos - prev_pos < 200 and (
+                    ((item - 1) == prev_item) or
+                    ((item == 0) and (prev_item == 9)) or
+                    ((item == 9) and (prev_item == 0))):
                     self.substitute_found_list_items(regex2, item, strip, replacement)
 
     def substitute_found_list_items(self, regex, each, strip, replacement):
