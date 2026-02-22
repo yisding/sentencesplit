@@ -10,7 +10,8 @@ from pysbd.utils import apply_rules
 
 class AhoCorasickAutomaton:
     """Pure-Python Aho-Corasick automaton for multi-pattern substring search."""
-    __slots__ = ('goto', 'fail', 'output', '_built')
+
+    __slots__ = ("goto", "fail", "output", "_built")
 
     def __init__(self):
         # State 0 is the root. Each state maps char -> next_state.
@@ -69,7 +70,9 @@ class AhoCorasickAutomaton:
         return found
 
 
-def _replace_with_escape(txt: str, escaped: str, suffix_pattern: str, replacement: str) -> str:
+def _replace_with_escape(
+    txt: str, escaped: str, suffix_pattern: str, replacement: str
+) -> str:
     """Replace period after abbreviation match using pre-escaped abbreviation."""
     txt = " " + txt
     txt = re.sub(rf"(?<=\s{escaped}){suffix_pattern}", replacement, txt)
@@ -78,7 +81,8 @@ def _replace_with_escape(txt: str, escaped: str, suffix_pattern: str, replacemen
 
 class _AbbreviationData:
     """Pre-computed abbreviation data for a language, cached per Abbreviation class."""
-    __slots__ = ('abbreviations', 'prepositive_set', 'number_abbr_set', 'automaton')
+
+    __slots__ = ("abbreviations", "prepositive_set", "number_abbr_set", "automaton")
 
     def __init__(self, lang_abbreviation_class):
         raw = lang_abbreviation_class.ABBREVIATIONS
@@ -90,19 +94,19 @@ class _AbbreviationData:
             stripped_lower = stripped.lower()
             escaped = re.escape(stripped)
             # Pre-compile the two findall patterns for this abbreviation
-            match_re = re.compile(
-                r"(?:^|\s|\r|\n){}".format(escaped), re.IGNORECASE
-            )
+            match_re = re.compile(r"(?:^|\s|\r|\n){}".format(escaped), re.IGNORECASE)
             next_word_re = re.compile(
                 r"(?<={{{escaped}}} ).{{1}}".format(escaped=escaped)
             )
-            self.abbreviations.append((
-                stripped,
-                stripped_lower,
-                escaped,
-                match_re,
-                next_word_re,
-            ))
+            self.abbreviations.append(
+                (
+                    stripped,
+                    stripped_lower,
+                    escaped,
+                    match_re,
+                    next_word_re,
+                )
+            )
             self.automaton.add_pattern(stripped_lower, idx)
         self.automaton.build()
         self.prepositive_set = frozenset(
@@ -121,7 +125,9 @@ class AbbreviationReplacer:
         self.lang = lang
         abbr_class_id = id(lang.Abbreviation)
         if abbr_class_id not in AbbreviationReplacer._data_cache:
-            AbbreviationReplacer._data_cache[abbr_class_id] = _AbbreviationData(lang.Abbreviation)
+            AbbreviationReplacer._data_cache[abbr_class_id] = _AbbreviationData(
+                lang.Abbreviation
+            )
         self._data = AbbreviationReplacer._data_cache[abbr_class_id]
 
     def replace(self) -> str:
@@ -129,7 +135,7 @@ class AbbreviationReplacer:
             self.text,
             self.lang.PossessiveAbbreviationRule,
             self.lang.KommanditgesellschaftRule,
-            *self.lang.SingleLetterAbbreviationRules.All
+            *self.lang.SingleLetterAbbreviationRules.All,
         )
         lines: List[str] = []
         for line in self.text.splitlines(True):
@@ -143,17 +149,20 @@ class AbbreviationReplacer:
         # Note: no IGNORECASE — [A-Z] in lookahead must only match uppercase
         # so that "C.E.O. of" is not mistakenly split.
         self.text = re.sub(
-            r'(?<=[a-zA-Z]∯[a-zA-Z]∯[a-zA-Z])∯(?=\s[A-Z])',
-            '.', self.text
+            r"(?<=[a-zA-Z]∯[a-zA-Z]∯[a-zA-Z])∯(?=\s[A-Z])", ".", self.text
         )
         self.text = apply_rules(self.text, *self.lang.AmPmRules.All)
         self.text = self.replace_abbreviation_as_sentence_boundary()
         return self.text
 
     def replace_abbreviation_as_sentence_boundary(self) -> str:
-        sent_starters = "|".join((r"(?=\s{}\s)".format(word) for word in self.SENTENCE_STARTERS))
-        regex = r"(U∯S|U\.S|U∯K|E∯U|E\.U|U∯S∯A|U\.S\.A|I|i.v|I.V)∯({})".format(sent_starters)
-        self.text = re.sub(regex, '\\1.', self.text)
+        sent_starters = "|".join(
+            (r"(?=\s{}\s)".format(word) for word in self.SENTENCE_STARTERS)
+        )
+        regex = r"(U∯S|U\.S|U∯K|E∯U|E\.U|U∯S∯A|U\.S\.A|I|i.v|I.V)∯({})".format(
+            sent_starters
+        )
+        self.text = re.sub(regex, "\\1.", self.text)
         return self.text
 
     def replace_multi_period_abbreviations(self) -> None:
@@ -166,10 +175,12 @@ class AbbreviationReplacer:
             self.lang.MULTI_PERIOD_ABBREVIATION_REGEX,
             mpa_replace,
             self.text,
-            flags=re.IGNORECASE
+            flags=re.IGNORECASE,
         )
 
-    def replace_period_of_abbr(self, txt: str, abbr: str, escaped: str | None = None) -> str:
+    def replace_period_of_abbr(
+        self, txt: str, abbr: str, escaped: str | None = None
+    ) -> str:
         txt = " " + txt
         if escaped is None:
             escaped = re.escape(abbr.strip())
@@ -188,7 +199,9 @@ class AbbreviationReplacer:
         found_indices = data.automaton.search(lowered)
         abbreviations = data.abbreviations
         for idx in sorted(found_indices):
-            stripped, stripped_lower, escaped, match_re, next_word_re = abbreviations[idx]
+            stripped, stripped_lower, escaped, match_re, next_word_re = abbreviations[
+                idx
+            ]
             abbrev_match = match_re.findall(text)
             if not abbrev_match:
                 continue
@@ -199,8 +212,15 @@ class AbbreviationReplacer:
                 )
         return text
 
-    def scan_for_replacements(self, txt: str, am: str, ind: int, char_array,
-                              stripped: str = "", escaped: str | None = None) -> str:
+    def scan_for_replacements(
+        self,
+        txt: str,
+        am: str,
+        ind: int,
+        char_array,
+        stripped: str = "",
+        escaped: str | None = None,
+    ) -> str:
         try:
             char = char_array[ind]
         except IndexError:
@@ -211,9 +231,9 @@ class AbbreviationReplacer:
             # Use match-derived escape to preserve original case
             am_escaped = re.escape(am.strip())
             if am_lower in self._data.prepositive_set:
-                txt = _replace_with_escape(txt, am_escaped, r'\.(?=(\s|:\d+))', '∯')
+                txt = _replace_with_escape(txt, am_escaped, r"\.(?=(\s|:\d+))", "∯")
             elif am_lower in self._data.number_abbr_set:
-                txt = _replace_with_escape(txt, am_escaped, r'\.(?=(\s\d|\s+\())', '∯')
+                txt = _replace_with_escape(txt, am_escaped, r"\.(?=(\s\d|\s+\())", "∯")
             else:
                 txt = self.replace_period_of_abbr(txt, am, am_escaped)
         return txt

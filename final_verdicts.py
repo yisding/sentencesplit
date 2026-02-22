@@ -24,23 +24,93 @@ HEADER_RE = re.compile(r"^={2,}\s.*={2,}$")
 # Abbreviation patterns that should NOT trigger a sentence break
 ABBREVIATIONS = {
     # Titles
-    "Mr.", "Mrs.", "Ms.", "Dr.", "Prof.", "Rev.", "Sr.", "Jr.",
-    "Gen.", "Gov.", "Sgt.", "Cpl.", "Pvt.", "Capt.", "Lt.", "Col.",
-    "Cmdr.", "Adm.", "Maj.", "Supt.", "Msgr.",
+    "Mr.",
+    "Mrs.",
+    "Ms.",
+    "Dr.",
+    "Prof.",
+    "Rev.",
+    "Sr.",
+    "Jr.",
+    "Gen.",
+    "Gov.",
+    "Sgt.",
+    "Cpl.",
+    "Pvt.",
+    "Capt.",
+    "Lt.",
+    "Col.",
+    "Cmdr.",
+    "Adm.",
+    "Maj.",
+    "Supt.",
+    "Msgr.",
     # Academic / professional
-    "Ph.D.", "M.D.", "B.A.", "M.A.", "D.Phil.", "LL.B.", "LL.M.",
+    "Ph.D.",
+    "M.D.",
+    "B.A.",
+    "M.A.",
+    "D.Phil.",
+    "LL.B.",
+    "LL.M.",
     # Common abbreviations
-    "etc.", "e.g.", "i.e.", "vs.", "al.", "approx.", "dept.",
-    "est.", "govt.", "inc.", "corp.", "assn.", "bros.",
+    "etc.",
+    "e.g.",
+    "i.e.",
+    "vs.",
+    "al.",
+    "approx.",
+    "dept.",
+    "est.",
+    "govt.",
+    "inc.",
+    "corp.",
+    "assn.",
+    "bros.",
     # Initials / multi-part abbreviations
-    "U.S.", "U.S.A.", "U.K.", "U.N.", "E.U.",
-    "W.", "E.", "B.", "D.", "C.", "F.", "G.", "H.", "I.", "J.",
-    "K.", "L.", "M.", "N.", "O.", "P.", "Q.", "R.", "S.", "T.",
-    "V.", "X.", "Y.", "Z.",
+    "U.S.",
+    "U.S.A.",
+    "U.K.",
+    "U.N.",
+    "E.U.",
+    "W.",
+    "E.",
+    "B.",
+    "D.",
+    "C.",
+    "F.",
+    "G.",
+    "H.",
+    "I.",
+    "J.",
+    "K.",
+    "L.",
+    "M.",
+    "N.",
+    "O.",
+    "P.",
+    "Q.",
+    "R.",
+    "S.",
+    "T.",
+    "V.",
+    "X.",
+    "Y.",
+    "Z.",
     # Geographic / institution abbreviations
-    "St.", "Mt.", "Ft.", "Ave.", "Blvd.",
+    "St.",
+    "Mt.",
+    "Ft.",
+    "Ave.",
+    "Blvd.",
     # Other
-    "pp.", "vol.", "no.", "op.", "fig.", "ch.", "sec.",
+    "pp.",
+    "vol.",
+    "no.",
+    "op.",
+    "fig.",
+    "ch.",
+    "sec.",
 }
 
 # Specific multi-letter abbreviation sequences (W. E. B., D.C., etc.)
@@ -53,7 +123,7 @@ MULTI_ABBREV_RE = re.compile(
 # to avoid false positives on any sentence-final word like "bridges."
 ABBREV_BEFORE_SPLIT_RE = re.compile(
     r"(?:"
-    r"(?<!\w)[A-Z]\.\s*$"    # single initial at end: "W." "B." (with word boundary)
+    r"(?<!\w)[A-Z]\.\s*$"  # single initial at end: "W." "B." (with word boundary)
     r"|[Ee]\.g\.\s*$"
     r"|[Ii]\.e\.\s*$"
     r"|et\s+al\.\s*$"
@@ -88,6 +158,7 @@ MIN_REAL_SENTENCE_LEN = 6  # anything shorter is suspicious
 # Helper functions
 # ---------------------------------------------------------------------------
 
+
 def strip_headers(sentences: List[str]) -> List[str]:
     """Remove section header lines (=== Title ===) from sentence list.
     Also strip header prefixes from sentences where Punkt merged a header
@@ -98,10 +169,10 @@ def strip_headers(sentences: List[str]) -> List[str]:
         if HEADER_RE.match(stripped):
             continue
         # Check if the sentence starts with a merged header (header + newline + text)
-        m = re.match(r'^(={2,}\s.*?={2,})\s*\n\s*', s)
+        m = re.match(r"^(={2,}\s.*?={2,})\s*\n\s*", s)
         if m:
             # Strip the header prefix, keep the rest
-            remainder = s[m.end():]
+            remainder = s[m.end() :]
             if remainder.strip():
                 result.append(remainder)
             continue
@@ -125,7 +196,11 @@ def is_very_short_fragment(s: str) -> bool:
     """Check if a sentence is suspiciously short and not a real sentence."""
     stripped = s.strip()
     # Remove quotes and punctuation to check core content
-    core = re.sub(r'[\"\'\u2018\u2019\u201c\u201d\.\!\?\,\;\:\(\)\[\]\{\}\u2026\u2013\u2014\-]', "", stripped).strip()
+    core = re.sub(
+        r"[\"\'\u2018\u2019\u201c\u201d\.\!\?\,\;\:\(\)\[\]\{\}\u2026\u2013\u2014\-]",
+        "",
+        stripped,
+    ).strip()
     if len(core) < MIN_REAL_SENTENCE_LEN and len(stripped) < 20:
         # Exception: intentional short sentences like "I see." are fine
         # But fragments like "." or "pp." or "(BDFL)" or "v-vi." are not
@@ -182,7 +257,7 @@ def check_quote_balance(s: str) -> int:
                     depth += 1
             else:
                 depth += 1
-        elif ch == '\u201d':  # closing curly quote
+        elif ch == "\u201d":  # closing curly quote
             depth = max(0, depth - 1)
     return depth
 
@@ -196,8 +271,8 @@ def smarter_quote_check(sent: str, next_sent: Optional[str]) -> bool:
         return False
 
     # Count quotes in the current sentence
-    open_q = sent.count('\u201c') + sent.count('\u201e')  # left double quotes
-    close_q = sent.count('\u201d')
+    open_q = sent.count("\u201c") + sent.count("\u201e")  # left double quotes
+    close_q = sent.count("\u201d")
     straight = sent.count('"')
 
     # For straight quotes, try to figure out open vs close by position
@@ -213,14 +288,16 @@ def smarter_quote_check(sent: str, next_sent: Optional[str]) -> bool:
     # For curly quotes
     if open_q > close_q:
         # Unclosed opening quote
-        next_close = next_sent.count('\u201d') + next_sent.count('"')
+        next_close = next_sent.count("\u201d") + next_sent.count('"')
         if next_close > 0:
             return True
 
     return False
 
 
-def check_punkt_splits_inside_quote(punkt_sents: List[str], pysbd_sents: List[str]) -> bool:
+def check_punkt_splits_inside_quote(
+    punkt_sents: List[str], pysbd_sents: List[str]
+) -> bool:
     """
     Check if Punkt splits a quoted passage that pySBD keeps together.
     Returns True if Punkt appears to incorrectly break inside a quote.
@@ -240,7 +317,9 @@ def check_punkt_splits_inside_quote(punkt_sents: List[str], pysbd_sents: List[st
     return False
 
 
-def check_punkt_splits_at_abbreviation(punkt_sents: List[str], pysbd_sents: List[str]) -> bool:
+def check_punkt_splits_at_abbreviation(
+    punkt_sents: List[str], pysbd_sents: List[str]
+) -> bool:
     """
     Check if Punkt incorrectly splits at an abbreviation that pySBD handles.
     """
@@ -272,7 +351,9 @@ def check_punkt_splits_at_abbreviation(punkt_sents: List[str], pysbd_sents: List
     return False
 
 
-def check_punkt_splits_inside_parens(punkt_sents: List[str], pysbd_sents: List[str]) -> bool:
+def check_punkt_splits_inside_parens(
+    punkt_sents: List[str], pysbd_sents: List[str]
+) -> bool:
     """
     Check if Punkt splits inside parenthesized text that pySBD keeps together.
     """
@@ -305,8 +386,8 @@ def _boundary_inside_quote(sent: str) -> bool:
 # Covers single initials, multi-initials, and common continuation abbreviations.
 _ABBREV_MERGE_EXCLUDE_RE = re.compile(
     r"(?:"
-    r"(?<!\w)[A-Z]\.\s*$"           # single initial: J. B. I. X.
-    r"|[A-Z]\.[A-Z]\.\s*$"         # double initial: W.H. A.R. C.S.
+    r"(?<!\w)[A-Z]\.\s*$"  # single initial: J. B. I. X.
+    r"|[A-Z]\.[A-Z]\.\s*$"  # double initial: W.H. A.R. C.S.
     r"|[Ee]\.g\.\s*$"
     r"|[Ii]\.e\.\s*$"
     r"|[Cc]f\.\s*$"
@@ -323,7 +404,9 @@ _ABBREV_MERGE_EXCLUDE_RE = re.compile(
 )
 
 
-def check_pysbd_merges_across_newline(pysbd_sents: List[str], punkt_sents: List[str]) -> bool:
+def check_pysbd_merges_across_newline(
+    pysbd_sents: List[str], punkt_sents: List[str]
+) -> bool:
     """
     Check if pySBD incorrectly merged two sentences that happen to be
     separated by a newline (paragraph boundary within the text).
@@ -339,7 +422,11 @@ def check_pysbd_merges_across_newline(pysbd_sents: List[str], punkt_sents: List[
             combined = punkt_sents[i].rstrip() + " " + punkt_sents[i + 1].lstrip()
             combined_norm = " ".join(combined.split())
             ps_norm = " ".join(ps.split())
-            if combined_norm == ps_norm and len(punkt_sents[i]) > 40 and len(punkt_sents[i + 1]) > 40:
+            if (
+                combined_norm == ps_norm
+                and len(punkt_sents[i]) > 40
+                and len(punkt_sents[i + 1]) > 40
+            ):
                 sent_end = punkt_sents[i].rstrip()
 
                 # Not a merge error if pySBD is keeping a quoted passage together
@@ -349,7 +436,9 @@ def check_pysbd_merges_across_newline(pysbd_sents: List[str], punkt_sents: List[
                 # Not a merge error if the split is at an abbreviation / initial
                 if _ABBREV_MERGE_EXCLUDE_RE.search(sent_end):
                     continue
-                if MULTI_ABBREV_RE.search(sent_end[-10:] if len(sent_end) >= 10 else sent_end):
+                if MULTI_ABBREV_RE.search(
+                    sent_end[-10:] if len(sent_end) >= 10 else sent_end
+                ):
                     continue
 
                 # Not a merge error if Punkt split inside unclosed parentheses
@@ -432,6 +521,7 @@ def find_split_differences(pysbd: List[str], punkt: List[str]) -> dict:
 # Verdict determination
 # ---------------------------------------------------------------------------
 
+
 def determine_verdict(case_idx: int, case: dict) -> Tuple[str, str]:
     """
     Determine the verdict for a disagreement case.
@@ -439,10 +529,8 @@ def determine_verdict(case_idx: int, case: dict) -> Tuple[str, str]:
     """
     pysbd = case["pysbd"]
     punkt = case["punkt"]
-    article = case["article"]
 
     analysis = find_split_differences(pysbd, punkt)
-    reasons = []
 
     # -----------------------------------------------------------------------
     # 1. HEADER_SPLIT: only difference is that pySBD separates the header
@@ -510,9 +598,7 @@ def determine_verdict(case_idx: int, case: dict) -> Tuple[str, str]:
 
     # Parenthesis splits
     if analysis["punkt_paren_split"]:
-        punkt_errors.append(
-            "Punkt incorrectly splits inside parenthesized text"
-        )
+        punkt_errors.append("Punkt incorrectly splits inside parenthesized text")
 
     # -----------------------------------------------------------------------
     # Additional heuristic checks when primary checks didn't find errors
@@ -523,8 +609,11 @@ def determine_verdict(case_idx: int, case: dict) -> Tuple[str, str]:
 
     # If pySBD has more sentences than Punkt (after removing headers),
     # and the difference is ONLY the header, classify accordingly.
-    if (analysis["pysbd_has_headers"] and not analysis["punkt_has_headers"]
-            and len(pysbd_no_h) == len(punkt_no_h)):
+    if (
+        analysis["pysbd_has_headers"]
+        and not analysis["punkt_has_headers"]
+        and len(pysbd_no_h) == len(punkt_no_h)
+    ):
         # Header is the only extra -- but sentences themselves differ
         # (header was merged into first Punkt sentence).
         # Check if after stripping the header text from Punkt's first sentence,
@@ -535,8 +624,10 @@ def determine_verdict(case_idx: int, case: dict) -> Tuple[str, str]:
             for h in [s for s in pysbd if is_header(s)]:
                 h_text = h.strip()
                 if first_punkt.startswith(h_text):
-                    remainder = first_punkt[len(h_text):].strip()
-                    if remainder and normalize_sents([remainder]) == normalize_sents(pysbd_no_h[:1]):
+                    remainder = first_punkt[len(h_text) :].strip()
+                    if remainder and normalize_sents([remainder]) == normalize_sents(
+                        pysbd_no_h[:1]
+                    ):
                         if not pysbd_errors and not punkt_errors:
                             return "HEADER_SPLIT", (
                                 f"pySBD separates header {repr(h_text[:60])} "
@@ -557,9 +648,9 @@ def determine_verdict(case_idx: int, case: dict) -> Tuple[str, str]:
         # Check for Punkt splitting "..." (ellipsis in quotes) as sentence end
         for i in range(len(punkt_no_h) - 1):
             sent = punkt_no_h[i]
-            if sent.rstrip().endswith("...") or sent.rstrip().endswith("...\""):
+            if sent.rstrip().endswith("...") or sent.rstrip().endswith('..."'):
                 # Check if this is inside a quote
-                full_context = " ".join(punkt_no_h[max(0, i-1):i+2])
+                full_context = " ".join(punkt_no_h[max(0, i - 1) : i + 2])
                 quote_depth = 0
                 for ch in full_context:
                     if ch in '"\u201c':
@@ -567,7 +658,9 @@ def determine_verdict(case_idx: int, case: dict) -> Tuple[str, str]:
                     elif ch in '"\u201d':
                         quote_depth -= 1
                 # Heuristic: if the ellipsis is inside a quote, Punkt shouldn't split
-                if quote_depth != 0 or ('"' in sent and not sent.rstrip().endswith('"')):
+                if quote_depth != 0 or (
+                    '"' in sent and not sent.rstrip().endswith('"')
+                ):
                     if not any("quote" in e.lower() for e in punkt_errors):
                         punkt_errors.append(
                             "Punkt splits at an ellipsis within a quoted passage"
@@ -578,9 +671,7 @@ def determine_verdict(case_idx: int, case: dict) -> Tuple[str, str]:
             sent = punkt_no_h[i].rstrip()
             if re.search(r"\be\.g\.\s*$", sent) or re.search(r"\bi\.e\.\s*$", sent):
                 if not any("abbreviation" in e.lower() for e in punkt_errors):
-                    punkt_errors.append(
-                        "Punkt splits at 'e.g.' or 'i.e.' abbreviation"
-                    )
+                    punkt_errors.append("Punkt splits at 'e.g.' or 'i.e.' abbreviation")
 
         # Check for pySBD creating fragments from "do..while" style text
         for i, s in enumerate(pysbd_no_h):
@@ -599,7 +690,8 @@ def determine_verdict(case_idx: int, case: dict) -> Tuple[str, str]:
     if pysbd_errors and punkt_errors:
         return "BOTH_WRONG", (
             "Both splitters have errors. "
-            + " | ".join(pysbd_errors) + " || "
+            + " | ".join(pysbd_errors)
+            + " || "
             + " | ".join(punkt_errors)
         )
 
@@ -627,8 +719,12 @@ def determine_verdict(case_idx: int, case: dict) -> Tuple[str, str]:
             for h in headers:
                 h_stripped = h.strip()
                 if punkt_core[0].startswith(h_stripped):
-                    punkt_first_cleaned = punkt_core[0][len(h_stripped):].strip()
-                    adjusted_punkt = [punkt_first_cleaned] + punkt_core[1:] if punkt_first_cleaned else punkt_core[1:]
+                    punkt_first_cleaned = punkt_core[0][len(h_stripped) :].strip()
+                    adjusted_punkt = (
+                        [punkt_first_cleaned] + punkt_core[1:]
+                        if punkt_first_cleaned
+                        else punkt_core[1:]
+                    )
                     if normalize_sents(pysbd_core) == normalize_sents(adjusted_punkt):
                         return "HEADER_SPLIT", (
                             f"pySBD separates header {repr(h_stripped[:60])} "
@@ -686,6 +782,7 @@ def determine_verdict(case_idx: int, case: dict) -> Tuple[str, str]:
 # Main
 # ---------------------------------------------------------------------------
 
+
 def main():
     with open(RESULTS_FILE, "r", encoding="utf-8") as f:
         data = json.load(f)
@@ -706,14 +803,16 @@ def main():
     verdicts = []
     for idx, case in enumerate(disagreements):
         verdict, reasoning = determine_verdict(idx, case)
-        verdicts.append({
-            "case": idx,
-            "article": case["article"],
-            "verdict": verdict,
-            "reasoning": reasoning,
-            "pysbd_count": len(case["pysbd"]),
-            "punkt_count": len(case["punkt"]),
-        })
+        verdicts.append(
+            {
+                "case": idx,
+                "article": case["article"],
+                "verdict": verdict,
+                "reasoning": reasoning,
+                "pysbd_count": len(case["pysbd"]),
+                "punkt_count": len(case["punkt"]),
+            }
+        )
 
     # -----------------------------------------------------------------------
     # Print per-case results
@@ -724,7 +823,9 @@ def main():
 
     for v in verdicts:
         print(f"\nCase {v['case']:2d} | Article: {v['article']}")
-        print(f"  pySBD: {v['pysbd_count']} sentences | Punkt: {v['punkt_count']} sentences")
+        print(
+            f"  pySBD: {v['pysbd_count']} sentences | Punkt: {v['punkt_count']} sentences"
+        )
         print(f"  VERDICT: {v['verdict']}")
         # Wrap reasoning text for readability
         reasoning_lines = []
@@ -749,8 +850,13 @@ def main():
     print("FINAL TALLY")
     print("=" * 80)
 
-    verdict_order = ["PYSBD_CORRECT", "PUNKT_CORRECT", "HEADER_SPLIT",
-                     "AMBIGUOUS", "BOTH_WRONG"]
+    verdict_order = [
+        "PYSBD_CORRECT",
+        "PUNKT_CORRECT",
+        "HEADER_SPLIT",
+        "AMBIGUOUS",
+        "BOTH_WRONG",
+    ]
     for vtype in verdict_order:
         count = tally.get(vtype, 0)
         pct = count / len(verdicts) * 100

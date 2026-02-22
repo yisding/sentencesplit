@@ -24,34 +24,33 @@ from pysbd.lang.kazakh import Kazakh
 from pysbd.lang.slovak import Slovak
 
 LANGUAGE_CODES = {
-    'en': English,
-    'hi': Hindi,
-    'mr': Marathi,
-    'zh': Chinese,
-    'es': Spanish,
-    'am': Amharic,
-    'ar': Arabic,
-    'hy': Armenian,
-    'bg': Bulgarian,
-    'ur': Urdu,
-    'ru': Russian,
-    'pl': Polish,
-    'fa': Persian,
-    'nl': Dutch,
-    'da': Danish,
-    'fr': French,
-    'my': Burmese,
-    'el': Greek,
-    'it': Italian,
-    'ja': Japanese,
-    'de': Deutsch,
-    'kk': Kazakh,
-    'sk': Slovak
+    "en": English,
+    "hi": Hindi,
+    "mr": Marathi,
+    "zh": Chinese,
+    "es": Spanish,
+    "am": Amharic,
+    "ar": Arabic,
+    "hy": Armenian,
+    "bg": Bulgarian,
+    "ur": Urdu,
+    "ru": Russian,
+    "pl": Polish,
+    "fa": Persian,
+    "nl": Dutch,
+    "da": Danish,
+    "fr": French,
+    "my": Burmese,
+    "el": Greek,
+    "it": Italian,
+    "ja": Japanese,
+    "de": Deutsch,
+    "kk": Kazakh,
+    "sk": Slovak,
 }
 
 
 class Language:
-
     def __init__(self, code: str) -> None:
         self.code = code
 
@@ -60,5 +59,7 @@ class Language:
         try:
             return LANGUAGE_CODES[code]
         except KeyError:
-            raise ValueError("Provide valid language ID i.e. ISO code. "
-                "Available codes are : {}".format(sorted(LANGUAGE_CODES.keys())))
+            raise ValueError(
+                "Provide valid language ID i.e. ISO code. "
+                "Available codes are : {}".format(sorted(LANGUAGE_CODES.keys()))
+            )

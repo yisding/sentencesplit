@@ -4,6 +4,7 @@ Example of pySBD as a sentencizer component for spaCy
 Installation:
 pip install spacy
 """
+
 import pysbd
 import spacy
 from spacy.language import Language

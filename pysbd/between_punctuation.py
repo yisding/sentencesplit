@@ -13,21 +13,34 @@ class BetweenPunctuation:
     Note: *_REGEX_2 patterns are kept as atomic-grouping workarounds for Python
     (Ruby's atomic groups are not available in the stdlib regex engine).
     """
+
     # Rubular: http://rubular.com/r/2YFrKWQUYi
     BETWEEN_SINGLE_QUOTES_REGEX = re.compile(r"(?<=\s)'(?:[^']|'[a-zA-Z])*'")
 
-    BETWEEN_SINGLE_QUOTE_SLANTED_REGEX = re.compile(r"(?<=\s)\u2018(?:[^\u2019]|\u2019[a-zA-Z])*\u2019")
+    BETWEEN_SINGLE_QUOTE_SLANTED_REGEX = re.compile(
+        r"(?<=\s)\u2018(?:[^\u2019]|\u2019[a-zA-Z])*\u2019"
+    )
 
-    BETWEEN_DOUBLE_QUOTES_REGEX_2 = re.compile(r'"(?=(?P<tmp>[^\"\\]+|\\{2}|\\.)*)(?P=tmp)"')
+    BETWEEN_DOUBLE_QUOTES_REGEX_2 = re.compile(
+        r'"(?=(?P<tmp>[^\"\\]+|\\{2}|\\.)*)(?P=tmp)"'
+    )
 
-    BETWEEN_QUOTE_ARROW_REGEX_2 = re.compile(r"\u00ab(?=(?P<tmp>[^\u00bb\\]+|\\{2}|\\.)*)(?P=tmp)\u00bb")
+    BETWEEN_QUOTE_ARROW_REGEX_2 = re.compile(
+        r"\u00ab(?=(?P<tmp>[^\u00bb\\]+|\\{2}|\\.)*)(?P=tmp)\u00bb"
+    )
 
-    BETWEEN_QUOTE_SLANTED_REGEX_2 = re.compile(r"\u201c(?=(?P<tmp>[^\u201d\\]+|\\{2}|\\.)*)(?P=tmp)\u201d")
+    BETWEEN_QUOTE_SLANTED_REGEX_2 = re.compile(
+        r"\u201c(?=(?P<tmp>[^\u201d\\]+|\\{2}|\\.)*)(?P=tmp)\u201d"
+    )
 
     # Rubular: http://rubular.com/r/WX4AvnZvlX
-    BETWEEN_SQUARE_BRACKETS_REGEX_2 = re.compile(r'\[(?=(?P<tmp>[^\]\\]+|\\{2}|\\.)*)(?P=tmp)\]')
+    BETWEEN_SQUARE_BRACKETS_REGEX_2 = re.compile(
+        r"\[(?=(?P<tmp>[^\]\\]+|\\{2}|\\.)*)(?P=tmp)\]"
+    )
 
-    BETWEEN_PARENS_REGEX_2 = re.compile(r"\((?=(?P<tmp>[^\(\)\\]+|\\{2}|\\.)*)(?P=tmp)\)")
+    BETWEEN_PARENS_REGEX_2 = re.compile(
+        r"\((?=(?P<tmp>[^\(\)\\]+|\\{2}|\\.)*)(?P=tmp)\)"
+    )
 
     # Rubular: http://rubular.com/r/mXf8cW025o
     WORD_WITH_LEADING_APOSTROPHE = re.compile(r"(?<=\s)'(?:[^']|'[a-zA-Z])*'\S")
@@ -60,15 +73,16 @@ class BetweenPunctuation:
         return self.BETWEEN_SQUARE_BRACKETS_REGEX_2.sub(replace_punctuation, txt)
 
     def sub_punctuation_between_single_quotes(self, txt: str) -> str:
-        if self.WORD_WITH_LEADING_APOSTROPHE.search(txt) and \
-                (not self._QUOTE_SPACE_RE.search(txt)):
+        if self.WORD_WITH_LEADING_APOSTROPHE.search(txt) and (
+            not self._QUOTE_SPACE_RE.search(txt)
+        ):
             return txt
         return self.BETWEEN_SINGLE_QUOTES_REGEX.sub(
-                      partial(replace_punctuation, match_type='single'), txt)
+            partial(replace_punctuation, match_type="single"), txt
+        )
 
     def sub_punctuation_between_single_quote_slanted(self, txt: str) -> str:
-        return self.BETWEEN_SINGLE_QUOTE_SLANTED_REGEX.sub(
-                      replace_punctuation, txt)
+        return self.BETWEEN_SINGLE_QUOTE_SLANTED_REGEX.sub(replace_punctuation, txt)
 
     def sub_punctuation_between_double_quotes(self, txt: str) -> str:
         return self.BETWEEN_DOUBLE_QUOTES_REGEX_2.sub(replace_punctuation, txt)

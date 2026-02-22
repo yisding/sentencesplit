@@ -14,6 +14,7 @@ These extend the golden rules with harder edge cases covering:
 - Short and degenerate sentences
 - Mixed formal/informal punctuation
 """
+
 import pytest
 
 
@@ -42,7 +43,6 @@ CHALLENGING_EN_TEST_CASES = [
         "She holds a B.A. in English and a B.S. in computer science from Stanford.",
         ["She holds a B.A. in English and a B.S. in computer science from Stanford."],
     ),
-
     # ===== Military and religious titles =====
     # 53) Military abbreviations mid-sentence
     (
@@ -59,7 +59,6 @@ CHALLENGING_EN_TEST_CASES = [
         "We visited Rev. Martin Luther King Jr.'s memorial. It was moving.",
         ["We visited Rev. Martin Luther King Jr.'s memorial.", "It was moving."],
     ),
-
     # ===== Legal and scientific citations =====
     # 56) Legal citation with U.S.C.
     (
@@ -93,7 +92,6 @@ CHALLENGING_EN_TEST_CASES = [
             "This is consistent with previous findings [2, 3].",
         ],
     ),
-
     # ===== Technical text =====
     # 60) Version number at sentence boundary
     (
@@ -121,7 +119,6 @@ CHALLENGING_EN_TEST_CASES = [
             "Check it for errors.",
         ],
     ),
-
     # ===== Complex quotation and dialogue =====
     # 64) Question inside quotes, continuation outside
     (
@@ -148,7 +145,6 @@ CHALLENGING_EN_TEST_CASES = [
         "She asked, \"Did he really say 'I quit'?\" I wasn't sure.",
         ["She asked, \"Did he really say 'I quit'?\"", "I wasn't sure."],
     ),
-
     # ===== Consecutive abbreviations =====
     # 69) Multiple geographic abbreviations
     (
@@ -176,7 +172,6 @@ CHALLENGING_EN_TEST_CASES = [
         ],
         marks=pytest.mark.xfail,
     ),
-
     # ===== Decimal / number edge cases =====
     # 72) Percentage at sentence boundary
     (
@@ -206,7 +201,6 @@ CHALLENGING_EN_TEST_CASES = [
         "The company was founded in 2015. It went public in 2020.",
         ["The company was founded in 2015.", "It went public in 2020."],
     ),
-
     # ===== Parenthetical abbreviations =====
     # 77) Abbreviation inside parentheses, not a boundary
     (
@@ -229,7 +223,6 @@ CHALLENGING_EN_TEST_CASES = [
             "Management was not happy.",
         ],
     ),
-
     # ===== Short / degenerate sentences =====
     # 80) Single-word sentences
     (
@@ -246,7 +239,6 @@ CHALLENGING_EN_TEST_CASES = [
         "WARNING: DO NOT ENTER. THIS AREA IS RESTRICTED.",
         ["WARNING: DO NOT ENTER.", "THIS AREA IS RESTRICTED."],
     ),
-
     # ===== Mixed formal/informal punctuation =====
     # 83) Em-dash splitting context
     (
@@ -277,7 +269,6 @@ CHALLENGING_EN_TEST_CASES = [
         "Can you believe it? Absolutely incredible! I was stunned.",
         ["Can you believe it?", "Absolutely incredible!", "I was stunned."],
     ),
-
     # ===== Ambiguous "i.e." and "e.g." =====
     # 87) i.e. mid-sentence
     (
@@ -295,7 +286,6 @@ CHALLENGING_EN_TEST_CASES = [
             "The parser handles all three.",
         ],
     ),
-
     # ===== Tricky boundary vs. non-boundary after abbreviation =====
     # 89) "Inc." at sentence end vs. mid-sentence
     (
@@ -312,7 +302,6 @@ CHALLENGING_EN_TEST_CASES = [
         "The contract was signed by Thames Ltd. It goes into effect Monday.",
         ["The contract was signed by Thames Ltd.", "It goes into effect Monday."],
     ),
-
     # ===== Time expressions =====
     # 92) Time with a.m./p.m. followed by new sentence
     (
@@ -327,7 +316,6 @@ CHALLENGING_EN_TEST_CASES = [
             "The office is closed on weekends.",
         ],
     ),
-
     # ===== Addresses and locations =====
     # 94) Street abbreviation mid-sentence
     (
@@ -342,14 +330,12 @@ CHALLENGING_EN_TEST_CASES = [
             "The building is on the corner.",
         ],
     ),
-
     # ===== Sentence with only punctuation-heavy content =====
     # 96) Initialism confusion with sentence-ending "I"
     (
         "The team includes you, her, and I. We start tomorrow.",
         ["The team includes you, her, and I.", "We start tomorrow."],
     ),
-
     # ===== No space after period (OCR / PDF artifacts) =====
     # 97) Missing space after period
     # xfail: no space between sentences (common OCR artifact)
@@ -365,7 +351,6 @@ CHALLENGING_EN_TEST_CASES = [
         ["He works at Acme Corp.", "She works at Globex Inc."],
         marks=pytest.mark.xfail,
     ),
-
     # ===== Edge cases with "no.", "fig.", "eq." =====
     # 99) "No." as abbreviation for number
     (
@@ -387,7 +372,6 @@ CHALLENGING_EN_TEST_CASES = [
         ["Substituting into Eq. 5 yields the result.", "The proof is complete."],
         marks=pytest.mark.xfail,
     ),
-
     # ===== Complex real-world text =====
     # 102) News-style dense text with multiple abbreviations
     (
@@ -417,9 +401,7 @@ CHALLENGING_EN_TEST_CASES = [
         ],
         marks=pytest.mark.xfail,
     ),
-
     # ===== Additional edge cases inspired by failure analysis =====
-
     # 105) Unknown abbreviation "approx." mid-sentence
     # xfail: approx. not in abbreviation list
     pytest.param(
@@ -547,7 +529,9 @@ CHALLENGING_EN_TEST_CASES = [
 
 
 @pytest.mark.parametrize("text,expected_sents", CHALLENGING_EN_TEST_CASES)
-def test_en_challenging(pysbd_default_en_no_clean_no_span_fixture, text, expected_sents):
+def test_en_challenging(
+    pysbd_default_en_no_clean_no_span_fixture, text, expected_sents
+):
     """Challenging SBD tests extending the golden rules."""
     segments = pysbd_default_en_no_clean_no_span_fixture.segment(text)
     segments = [s.strip() for s in segments]
