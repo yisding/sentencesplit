@@ -3,9 +3,11 @@
 
 import json
 import re
-import requests
-import pysbd
+
 import nltk.data
+import requests
+
+import pysbd
 
 # ── Fetch Wikipedia articles ──────────────────────────────────────────────────
 
@@ -62,6 +64,7 @@ ARTICLES = [
     "Jazz",
 ]
 
+
 def fetch_wikipedia_text(title: str) -> str:
     """Fetch plain-text extract of a Wikipedia article."""
     resp = requests.get(
@@ -94,22 +97,24 @@ def build_corpus() -> dict[str, str]:
 
 # ── Split into paragraphs ────────────────────────────────────────────────────
 
+
 def get_paragraphs(text: str) -> list[str]:
     """Split text into non-empty paragraphs (double-newline separated)."""
-    paragraphs = re.split(r'\n{2,}', text)
+    paragraphs = re.split(r"\n{2,}", text)
     result = []
     for p in paragraphs:
         p = p.strip()
-        if len(p) <= 40 or '.' not in p:
+        if len(p) <= 40 or "." not in p:
             continue
         # Skip paragraphs with embedded LaTeX math markup (unfair to both splitters)
-        if '\\displaystyle' in p or '{\\' in p:
+        if "\\displaystyle" in p or "{\\" in p:
             continue
         result.append(p)
     return result
 
 
 # ── Compare ──────────────────────────────────────────────────────────────────
+
 
 def compare(corpus: dict[str, str]):
     seg = pysbd.Segmenter(language="en", clean=False)
@@ -134,17 +139,20 @@ def compare(corpus: dict[str, str]):
             if pysbd_norm == punkt_norm:
                 agree_paragraphs += 1
             else:
-                disagree_records.append({
-                    "article": title,
-                    "paragraph": para,
-                    "pysbd": pysbd_norm,
-                    "punkt": punkt_norm,
-                })
+                disagree_records.append(
+                    {
+                        "article": title,
+                        "paragraph": para,
+                        "pysbd": pysbd_norm,
+                        "punkt": punkt_norm,
+                    }
+                )
 
     return total_paragraphs, agree_paragraphs, disagree_records
 
 
 # ── Judgment ──────────────────────────────────────────────────────────────────
+
 
 def judge_difference(para: str, pysbd_sents: list[str], punkt_sents: list[str]) -> str:
     """Simple heuristic to judge which splitter is correct."""
@@ -161,15 +169,17 @@ def judge_difference(para: str, pysbd_sents: list[str], punkt_sents: list[str]) 
     # Check for common error patterns
     for i, s in enumerate(pysbd_sents):
         # pySBD incorrectly split on abbreviation
-        if s.rstrip().endswith(('.', '!', '?')) is False and i < len(pysbd_sents) - 1:
+        if s.rstrip().endswith((".", "!", "?")) is False and i < len(pysbd_sents) - 1:
             reasons.append("pySBD: possible false split (sentence doesn't end with punctuation)")
 
     for i, s in enumerate(punkt_sents):
-        if s.rstrip().endswith(('.', '!', '?')) is False and i < len(punkt_sents) - 1:
+        if s.rstrip().endswith((".", "!", "?")) is False and i < len(punkt_sents) - 1:
             reasons.append("Punkt: possible false split (sentence doesn't end with punctuation)")
 
     # Check for obvious abbreviation errors
-    abbr_pattern = re.compile(r'\b(?:Dr|Mr|Mrs|Ms|Prof|Rev|Gen|Corp|Inc|Ltd|Jr|Sr|vs|etc|Fig|fig|Vol|vol|No|no|approx|est|Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sep|Oct|Nov|Dec|St|Ave|Blvd)\.$')
+    abbr_pattern = re.compile(
+        r"\b(?:Dr|Mr|Mrs|Ms|Prof|Rev|Gen|Corp|Inc|Ltd|Jr|Sr|vs|etc|Fig|fig|Vol|vol|No|no|approx|est|Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sep|Oct|Nov|Dec|St|Ave|Blvd)\.$"
+    )
     for sents, name in [(pysbd_sents, "pySBD"), (punkt_sents, "Punkt")]:
         for i, s in enumerate(sents[:-1]):  # skip last
             if abbr_pattern.search(s.rstrip()):
@@ -180,7 +190,7 @@ def judge_difference(para: str, pysbd_sents: list[str], punkt_sents: list[str]) 
         open_parens = 0
         open_quotes = 0
         for i, s in enumerate(sents):
-            open_parens += s.count('(') - s.count(')')
+            open_parens += s.count("(") - s.count(")")
             open_quotes += s.count('"') - s.count('"')  # Rough check
             if open_parens > 0 and i < len(sents) - 1:
                 reasons.append(f"{name}: split inside unclosed parentheses")
@@ -203,6 +213,7 @@ def judge_difference(para: str, pysbd_sents: list[str], punkt_sents: list[str]) 
 
 # ── Main ──────────────────────────────────────────────────────────────────────
 
+
 def main():
     print("Fetching Wikipedia articles...")
     corpus = build_corpus()
@@ -211,11 +222,11 @@ def main():
     print("Comparing pySBD vs Punkt...")
     total, agree, disagreements = compare(corpus)
 
-    print(f"\n{'='*80}")
+    print(f"\n{'=' * 80}")
     print(f"RESULTS: {total} paragraphs compared")
-    print(f"  Agree:    {agree} ({100*agree/total:.1f}%)")
-    print(f"  Disagree: {len(disagreements)} ({100*len(disagreements)/total:.1f}%)")
-    print(f"{'='*80}\n")
+    print(f"  Agree:    {agree} ({100 * agree / total:.1f}%)")
+    print(f"  Disagree: {len(disagreements)} ({100 * len(disagreements) / total:.1f}%)")
+    print(f"{'=' * 80}\n")
 
     # Show a sample of disagreements
     MAX_SHOW = 30
@@ -226,16 +237,16 @@ def main():
 
         para_display = para[:200] + "..." if len(para) > 200 else para
 
-        print(f"── Disagreement #{idx+1} ({rec['article']}) ──")
+        print(f"── Disagreement #{idx + 1} ({rec['article']}) ──")
         print(f"Paragraph: {para_display}")
         print(f"  pySBD ({len(pysbd_s)} sents):")
         for i, s in enumerate(pysbd_s):
             marker = "→ " if i >= len(punkt_s) or s != punkt_s[i] else "  "
-            print(f"    {marker}[{i}] {s[:120]}{'...' if len(s)>120 else ''}")
+            print(f"    {marker}[{i}] {s[:120]}{'...' if len(s) > 120 else ''}")
         print(f"  Punkt ({len(punkt_s)} sents):")
         for i, s in enumerate(punkt_s):
             marker = "→ " if i >= len(pysbd_s) or s != pysbd_s[i] else "  "
-            print(f"    {marker}[{i}] {s[:120]}{'...' if len(s)>120 else ''}")
+            print(f"    {marker}[{i}] {s[:120]}{'...' if len(s) > 120 else ''}")
         print()
 
     if len(disagreements) > MAX_SHOW:

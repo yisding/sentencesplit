@@ -9,7 +9,8 @@ with open("/Users/yi/Code/pySBD/comparison_results.json") as f:
 
 
 # Specifically look at cases where "Same count, different boundaries" after removing headers
-HEADER_RE = re.compile(r'^={2,}\s.*={2,}')
+HEADER_RE = re.compile(r"^={2,}\s.*={2,}")
+
 
 def strip_headers(sents):
     return [s for s in sents if not HEADER_RE.match(s.strip())]
@@ -58,7 +59,7 @@ for i, rec in enumerate(data["disagreements"]):
     else:
         pattern = "PYSBD_HAS_EXTRA"
 
-    print(f"#{i+1:>2} [{rec['article'][:20]:<20}] {len(ps):>2}v{len(ks):<2} {pattern}")
+    print(f"#{i + 1:>2} [{rec['article'][:20]:<20}] {len(ps):>2}v{len(ks):<2} {pattern}")
 
     if div is not None and div < min_len:
         # Show the divergence
@@ -67,19 +68,19 @@ for i, rec in enumerate(data["disagreements"]):
 
         p_text = ps[div][:100]
         k_text = ks[div][:100]
-        print(f"    pySBD: {p_text}{'...' if len(ps[div])>100 else ''}")
-        print(f"    Punkt: {k_text}{'...' if len(ks[div])>100 else ''}")
+        print(f"    pySBD: {p_text}{'...' if len(ps[div]) > 100 else ''}")
+        print(f"    Punkt: {k_text}{'...' if len(ks[div]) > 100 else ''}")
 
         # If there's a next sentence, show it too
         if div + 1 < len(ps):
-            print(f"    pySBD[{div+1}]: {ps[div+1][:80]}{'...' if len(ps[div+1])>80 else ''}")
+            print(f"    pySBD[{div + 1}]: {ps[div + 1][:80]}{'...' if len(ps[div + 1]) > 80 else ''}")
         if div + 1 < len(ks):
-            print(f"    Punkt[{div+1}]: {ks[div+1][:80]}{'...' if len(ks[div+1])>80 else ''}")
+            print(f"    Punkt[{div + 1}]: {ks[div + 1][:80]}{'...' if len(ks[div + 1]) > 80 else ''}")
     elif div >= min_len:
         extra = "pySBD" if len(ps) > len(ks) else "Punkt"
         extra_sents = ps[div:] if len(ps) > len(ks) else ks[div:]
         print(f"    {extra} has {len(extra_sents)} extra sentence(s):")
         for s in extra_sents[:3]:
-            print(f"      {s[:80]}{'...' if len(s)>80 else ''}")
+            print(f"      {s[:80]}{'...' if len(s) > 80 else ''}")
 
     print()

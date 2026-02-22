@@ -3,48 +3,132 @@
 
 import json
 import re
-import textwrap
 
 with open("/Users/yi/Code/pySBD/comparison_results.json") as f:
     data = json.load(f)
 
 # Known abbreviations that should NOT cause a sentence split
 KNOWN_ABBRS = {
-    'Mr', 'Mrs', 'Ms', 'Dr', 'Prof', 'Rev', 'Gen', 'Gov', 'Sgt', 'Cpl', 'Pvt',
-    'Corp', 'Inc', 'Ltd', 'Jr', 'Sr', 'vs', 'etc', 'Fig', 'fig', 'Vol', 'vol',
-    'No', 'no', 'approx', 'est', 'ca', 'dept', 'Dept',
-    'Jan', 'Feb', 'Mar', 'Apr', 'Jun', 'Jul', 'Aug', 'Sep', 'Sept', 'Oct', 'Nov', 'Dec',
-    'St', 'Ave', 'Blvd', 'Rd', 'Mt', 'Ft',
-    'U.S', 'U.S.A', 'U.K', 'E.U', 'D.C',
-    'Ph.D', 'M.D', 'B.A', 'M.A', 'B.S', 'M.S',
-    'i.e', 'e.g', 'al',  # et al.
-    'Adm', 'Bros', 'Co', 'Col', 'Capt', 'Lt', 'Maj', 'Messrs',
+    "Mr",
+    "Mrs",
+    "Ms",
+    "Dr",
+    "Prof",
+    "Rev",
+    "Gen",
+    "Gov",
+    "Sgt",
+    "Cpl",
+    "Pvt",
+    "Corp",
+    "Inc",
+    "Ltd",
+    "Jr",
+    "Sr",
+    "vs",
+    "etc",
+    "Fig",
+    "fig",
+    "Vol",
+    "vol",
+    "No",
+    "no",
+    "approx",
+    "est",
+    "ca",
+    "dept",
+    "Dept",
+    "Jan",
+    "Feb",
+    "Mar",
+    "Apr",
+    "Jun",
+    "Jul",
+    "Aug",
+    "Sep",
+    "Sept",
+    "Oct",
+    "Nov",
+    "Dec",
+    "St",
+    "Ave",
+    "Blvd",
+    "Rd",
+    "Mt",
+    "Ft",
+    "U.S",
+    "U.S.A",
+    "U.K",
+    "E.U",
+    "D.C",
+    "Ph.D",
+    "M.D",
+    "B.A",
+    "M.A",
+    "B.S",
+    "M.S",
+    "i.e",
+    "e.g",
+    "al",  # et al.
+    "Adm",
+    "Bros",
+    "Co",
+    "Col",
+    "Capt",
+    "Lt",
+    "Maj",
+    "Messrs",
     # Names that end with initials
-    'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M',
-    'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z',
+    "A",
+    "B",
+    "C",
+    "D",
+    "E",
+    "F",
+    "G",
+    "H",
+    "I",
+    "J",
+    "K",
+    "L",
+    "M",
+    "N",
+    "O",
+    "P",
+    "Q",
+    "R",
+    "S",
+    "T",
+    "U",
+    "V",
+    "W",
+    "X",
+    "Y",
+    "Z",
 }
+
 
 def ends_with_abbreviation(sent: str) -> str | None:
     """Check if a sentence ends with a known abbreviation. Returns the abbreviation or None."""
     sent = sent.rstrip()
-    if not sent.endswith('.'):
+    if not sent.endswith("."):
         return None
 
     # Check for single-letter initials like "W. E. B."
-    m = re.search(r'([A-Z])\.\s*$', sent)
+    m = re.search(r"([A-Z])\.\s*$", sent)
     if m:
         return m.group(1)
 
     # Check for multi-letter abbreviations
     for abbr in sorted(KNOWN_ABBRS, key=len, reverse=True):
-        if sent.endswith(abbr + '.'):
+        if sent.endswith(abbr + "."):
             # Make sure it's a word boundary before the abbreviation
-            prefix = sent[:-(len(abbr) + 1)]
-            if not prefix or prefix[-1] in ' \t\n(["\'':
+            prefix = sent[: -(len(abbr) + 1)]
+            if not prefix or prefix[-1] in " \t\n([\"'":
                 return abbr
 
     # Check for abbreviation patterns like "D.C." or "U.S.A."
-    m = re.search(r'([A-Z]\.(?:[A-Z]\.)+)\s*$', sent)
+    m = re.search(r"([A-Z]\.(?:[A-Z]\.)+)\s*$", sent)
     if m:
         return m.group(1)
 
@@ -58,7 +142,7 @@ def check_parenthesis_balance(sents: list[str]) -> list[int]:
     for i, s in enumerate(sents):
         if depth > 0:
             bad.append(i)
-        depth += s.count('(') - s.count(')')
+        depth += s.count("(") - s.count(")")
     return bad
 
 
@@ -70,7 +154,7 @@ def check_quote_balance(sents: list[str]) -> list[int]:
     for i, s in enumerate(sents):
         if open_double % 2 != 0 and i > 0:
             bad.append(i)
-        open_double += s.count('"') + s.count('\u201c') - s.count('\u201d')
+        open_double += s.count('"') + s.count("\u201c") - s.count("\u201d")
         # For straight quotes, count total and track parity
         straight = s.count('"')
         open_double += straight  # rough heuristic
@@ -81,8 +165,8 @@ def analyze_one(para: str, pysbd_sents: list[str], punkt_sents: list[str]) -> di
     """Analyze a single disagreement and return a verdict."""
 
     # Detect section headers that pySBD splits off
-    pysbd_has_header = bool(pysbd_sents and re.match(r'^={2,}', pysbd_sents[0]))
-    punkt_has_header = bool(punkt_sents and re.match(r'^={2,}', punkt_sents[0]))
+    pysbd_has_header = bool(pysbd_sents and re.match(r"^={2,}", pysbd_sents[0]))
+    punkt_has_header = bool(punkt_sents and re.match(r"^={2,}", punkt_sents[0]))
 
     issues = {"pysbd": [], "punkt": []}
 
@@ -104,7 +188,7 @@ def analyze_one(para: str, pysbd_sents: list[str], punkt_sents: list[str]) -> di
         for i, s in enumerate(sents):
             stripped = s.strip()
             # A real sentence almost always has a space (subject + verb at minimum)
-            if len(stripped) < 15 and ' ' not in stripped and i > 0 and i < len(sents) - 1:
+            if len(stripped) < 15 and " " not in stripped and i > 0 and i < len(sents) - 1:
                 issues[name].append(f"Suspiciously short fragment '{stripped}' at sent [{i}]")
 
     # Check for header splitting differences
@@ -135,7 +219,9 @@ def analyze_one(para: str, pysbd_sents: list[str], punkt_sents: list[str]) -> di
             explanation = "Same count, different boundaries — manual review needed"
         elif n_pysbd < n_punkt:
             verdict = "PYSBD_LIKELY_CORRECT"
-            explanation = f"Punkt over-splits ({n_punkt} vs {n_pysbd} sents) — likely splitting inside quotes or at abbreviations"
+            explanation = (
+                f"Punkt over-splits ({n_punkt} vs {n_pysbd} sents) — likely splitting inside quotes or at abbreviations"
+            )
         else:
             verdict = "PUNKT_LIKELY_CORRECT"
             explanation = f"pySBD over-splits ({n_pysbd} vs {n_punkt} sents) — may be splitting at non-boundary punctuation"
@@ -143,7 +229,7 @@ def analyze_one(para: str, pysbd_sents: list[str], punkt_sents: list[str]) -> di
         # Find sentences in Punkt that end with an unclosed quote
         for i, s in enumerate(punkt_sents[:-1]):
             # If a punkt sentence ends mid-quote and next starts lowercase or with continuation
-            if s.rstrip().endswith('...') and i + 1 < len(punkt_sents):
+            if s.rstrip().endswith("...") and i + 1 < len(punkt_sents):
                 next_s = punkt_sents[i + 1].lstrip()
                 if next_s and next_s[0].islower():
                     issues["punkt"].append(f"Split at ellipsis mid-sentence at sent [{i}]")
@@ -206,11 +292,11 @@ for verdict_name, items in verdicts.items():
         print(f"\n  #{item['index']} [{item['article']}] ({item['n_pysbd']} vs {item['n_punkt']} sents)")
         print(f"  Para: {item['paragraph_preview']}...")
         print(f"  → {item['explanation']}")
-        if item['pysbd_issues']:
-            for iss in item['pysbd_issues']:
+        if item["pysbd_issues"]:
+            for iss in item["pysbd_issues"]:
                 print(f"    pySBD issue: {iss}")
-        if item['punkt_issues']:
-            for iss in item['punkt_issues']:
+        if item["punkt_issues"]:
+            for iss in item["punkt_issues"]:
                 print(f"    Punkt issue: {iss}")
 
 # Summary
@@ -226,8 +312,12 @@ both_bad = len(verdicts["BOTH_WRONG"])
 trivial = len(verdicts["TRIVIAL"])
 unclear = len(verdicts["UNCLEAR"])
 
-print(f"  pySBD correct/better:      {pysbd_wins} ({len(verdicts['PYSBD_CORRECT'])} definite + {len(verdicts['PYSBD_LIKELY_CORRECT'])} likely)")
-print(f"  Punkt correct/better:      {punkt_wins} ({len(verdicts['PUNKT_CORRECT'])} definite + {len(verdicts['PUNKT_LIKELY_CORRECT'])} likely)")
+print(
+    f"  pySBD correct/better:      {pysbd_wins} ({len(verdicts['PYSBD_CORRECT'])} definite + {len(verdicts['PYSBD_LIKELY_CORRECT'])} likely)"
+)
+print(
+    f"  Punkt correct/better:      {punkt_wins} ({len(verdicts['PUNKT_CORRECT'])} definite + {len(verdicts['PUNKT_LIKELY_CORRECT'])} likely)"
+)
 print(f"  Both wrong:                {both_bad}")
 print(f"  Trivial (header split):    {trivial}")
 print(f"  Unclear:                   {unclear}")
@@ -236,14 +326,19 @@ print()
 total = len(data["disagreements"])
 agree = data["agree"]
 total_paras = data["total_paragraphs"]
-print(f"  Agreement rate:            {agree}/{total_paras} = {100*agree/total_paras:.1f}%")
-print(f"  pySBD error rate:          {punkt_wins + both_bad}/{total_paras} = {100*(punkt_wins+both_bad)/total_paras:.1f}% (cases where Punkt was better or both wrong)")
-print(f"  Punkt error rate:          {pysbd_wins + both_bad}/{total_paras} = {100*(pysbd_wins+both_bad)/total_paras:.1f}% (cases where pySBD was better or both wrong)")
+print(f"  Agreement rate:            {agree}/{total_paras} = {100 * agree / total_paras:.1f}%")
+print(
+    f"  pySBD error rate:          {punkt_wins + both_bad}/{total_paras} = {100 * (punkt_wins + both_bad) / total_paras:.1f}% (cases where Punkt was better or both wrong)"
+)
+print(
+    f"  Punkt error rate:          {pysbd_wins + both_bad}/{total_paras} = {100 * (pysbd_wins + both_bad) / total_paras:.1f}% (cases where pySBD was better or both wrong)"
+)
 
 # Detailed examples of each category
 print(f"\n\n{'=' * 90}")
 print("NOTABLE EXAMPLES")
 print(f"{'=' * 90}")
+
 
 def show_diff(rec, result):
     """Show a detailed diff of one disagreement."""
@@ -263,17 +358,17 @@ def show_diff(rec, result):
     end_p = min(len(pysbd_s), diverge_at + 3)
     end_k = min(len(punkt_s), diverge_at + 3)
 
-    print(f"    pySBD:")
+    print("    pySBD:")
     for j in range(start, end_p):
         marker = ">>>" if j >= diverge_at else "   "
         text = pysbd_s[j][:120]
-        print(f"      {marker} [{j}] {text}{'...' if len(pysbd_s[j])>120 else ''}")
+        print(f"      {marker} [{j}] {text}{'...' if len(pysbd_s[j]) > 120 else ''}")
 
-    print(f"    Punkt:")
+    print("    Punkt:")
     for j in range(start, end_k):
         marker = ">>>" if j >= diverge_at else "   "
         text = punkt_s[j][:120]
-        print(f"      {marker} [{j}] {text}{'...' if len(punkt_s[j])>120 else ''}")
+        print(f"      {marker} [{j}] {text}{'...' if len(punkt_s[j]) > 120 else ''}")
 
 
 # Show a few examples from each category
@@ -293,8 +388,8 @@ for category, label in [
         rec = data["disagreements"][item["index"] - 1]
         print(f"\n  #{item['index']} [{item['article']}]")
         print(f"  {item['explanation']}")
-        for iss in item['pysbd_issues']:
+        for iss in item["pysbd_issues"]:
             print(f"    pySBD: {iss}")
-        for iss in item['punkt_issues']:
+        for iss in item["punkt_issues"]:
             print(f"    Punkt: {iss}")
         show_diff(rec, item)

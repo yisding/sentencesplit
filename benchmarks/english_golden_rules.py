@@ -14,18 +14,13 @@ GOLDEN_EN_RULES = [
     # 6) Two letter lower case abbreviations in the middle of a sentence
     ("Were Jane and co. at the party?", ["Were Jane and co. at the party?"]),
     # 7) Two letter upper case abbreviations in the middle of a sentence
-    ("They closed the deal with Pitt, Briggs & Co. at noon.",
-        ["They closed the deal with Pitt, Briggs & Co. at noon."]),
+    ("They closed the deal with Pitt, Briggs & Co. at noon.", ["They closed the deal with Pitt, Briggs & Co. at noon."]),
     # 8) Two letter lower case abbreviations at the end of a sentence
-    (
-        "Let's ask Jane and co. They should know.",
-        ["Let's ask Jane and co.", "They should know."]),
+    ("Let's ask Jane and co. They should know.", ["Let's ask Jane and co.", "They should know."]),
     # 9) Two letter upper case abbreviations at the end of a sentence
     (
-        "They closed the deal with Pitt, Briggs & Co. It closed yesterday.", [
-            "They closed the deal with Pitt, Briggs & Co.",
-            "It closed yesterday."
-        ],
+        "They closed the deal with Pitt, Briggs & Co. It closed yesterday.",
+        ["They closed the deal with Pitt, Briggs & Co.", "It closed yesterday."],
     ),
     # 10) Two letter (prepositive) abbreviations
     ("I can see Mt. Fuji from here.", ["I can see Mt. Fuji from here."]),
@@ -49,34 +44,34 @@ GOLDEN_EN_RULES = [
         ["I live in the U.S.", "How about you?"],
     ),
     # 16) U.S. as non sentence boundary with next word capitalized
-    ("I work for the U.S. Government in Virginia.",
-        ["I work for the U.S. Government in Virginia."]),
+    ("I work for the U.S. Government in Virginia.", ["I work for the U.S. Government in Virginia."]),
     # 17) U.S. as non sentence boundary
-    ("I have lived in the U.S. for 20 years.",
-        ["I have lived in the U.S. for 20 years."]),
+    ("I have lived in the U.S. for 20 years.", ["I have lived in the U.S. for 20 years."]),
     # Most difficult sentence to crack
     # 18) A.M. / P.M. as non sentence boundary and sentence boundary
     (
-         "At 5 a.m. Mr. Smith went to the bank. He left the bank at 6 P.M. Mr. Smith then went to the store.",
-         [
-             "At 5 a.m. Mr. Smith went to the bank.",
-             "He left the bank at 6 P.M.", "Mr. Smith then went to the store."
-         ]
+        "At 5 a.m. Mr. Smith went to the bank. He left the bank at 6 P.M. Mr. Smith then went to the store.",
+        ["At 5 a.m. Mr. Smith went to the bank.", "He left the bank at 6 P.M.", "Mr. Smith then went to the store."],
     ),
     # 19) Number as non sentence boundary
     ("She has $100.00 in her bag.", ["She has $100.00 in her bag."]),
     # 20) Number as sentence boundary
     ("She has $100.00. It is in her bag.", ["She has $100.00.", "It is in her bag."]),
     # 21) Parenthetical inside sentence
-    ("He teaches science (He previously worked for 5 years as an engineer.) at the local University.",
-        ["He teaches science (He previously worked for 5 years as an engineer.) at the local University."]),
+    (
+        "He teaches science (He previously worked for 5 years as an engineer.) at the local University.",
+        ["He teaches science (He previously worked for 5 years as an engineer.) at the local University."],
+    ),
     # 22) Email addresses
-    ("Her email is Jane.Doe@example.com. I sent her an email.",
-        ["Her email is Jane.Doe@example.com.", "I sent her an email."]),
+    (
+        "Her email is Jane.Doe@example.com. I sent her an email.",
+        ["Her email is Jane.Doe@example.com.", "I sent her an email."],
+    ),
     # 23) Web addresses
-    ("The site is: https://www.example.50.com/new-site/awesome_content.html. Please check it out.",
-        ["The site is: https://www.example.50.com/new-site/awesome_content.html.",
-            "Please check it out."]),
+    (
+        "The site is: https://www.example.50.com/new-site/awesome_content.html. Please check it out.",
+        ["The site is: https://www.example.50.com/new-site/awesome_content.html.", "Please check it out."],
+    ),
     # 24) Single quotations inside sentence
     (
         "She turned to him, 'This is great.' she said.",
@@ -90,10 +85,7 @@ GOLDEN_EN_RULES = [
     # 26) Double quotations at the end of a sentence
     (
         'She turned to him, "This is great." She held the book out to show him.',
-        [
-            'She turned to him, "This is great."',
-            "She held the book out to show him."
-        ],
+        ['She turned to him, "This is great."', "She held the book out to show him."],
     ),
     # 27) Double punctuation (exclamation point)
     ("Hello!! Long time no see.", ["Hello!!", "Long time no see."]),
@@ -119,8 +111,7 @@ GOLDEN_EN_RULES = [
         ["1) The first item", "2) The second item"],
     ),
     # 34) List (parens and period to end item)
-    ("1) The first item. 2) The second item.",
-        ["1) The first item.", "2) The second item."]),
+    ("1) The first item. 2) The second item.", ["1) The first item.", "2) The second item."]),
     # 35) List (period to mark list and no period to end item)
     (
         "1. The first item 2. The second item",
@@ -149,10 +140,7 @@ GOLDEN_EN_RULES = [
     # 40) Geo Coordinates
     (
         "You can find it at N°. 1026.253.553. That is where the treasure is.",
-        [
-            "You can find it at N°. 1026.253.553.",
-            "That is where the treasure is."
-        ],
+        ["You can find it at N°. 1026.253.553.", "That is where the treasure is."],
     ),
     # 41) Named entities with an exclamation point
     (
@@ -162,31 +150,26 @@ GOLDEN_EN_RULES = [
     # 42) I as a sentence boundary and I as an abbreviation
     (
         "We make a good team, you and I. Did you see Albert I. Jones yesterday?",
-        [
-            "We make a good team, you and I.",
-            "Did you see Albert I. Jones yesterday?"
-        ],
+        ["We make a good team, you and I.", "Did you see Albert I. Jones yesterday?"],
     ),
     # 43) Ellipsis at end of quotation
     (
         "Thoreau argues that by simplifying one’s life, “the laws of the universe will appear less complex. . . .”",
-        [
-            "Thoreau argues that by simplifying one’s life, “the laws of the universe will appear less complex. . . .”"
-        ],
+        ["Thoreau argues that by simplifying one’s life, “the laws of the universe will appear less complex. . . .”"],
     ),
     # 44) Ellipsis with square brackets
     (
         """"Bohr [...] used the analogy of parallel stairways [...]" (Smith 55).""",
-        [
-            '"Bohr [...] used the analogy of parallel stairways [...]" (Smith 55).'
-        ],
+        ['"Bohr [...] used the analogy of parallel stairways [...]" (Smith 55).'],
     ),
     # 45) Ellipsis as sentence boundary (standard ellipsis rules)
-    ("If words are left off at the end of a sentence, and that is all that is omitted, indicate the omission with ellipsis marks (preceded and followed by a space) and then indicate the end of the sentence with a period . . . . Next sentence.",
+    (
+        "If words are left off at the end of a sentence, and that is all that is omitted, indicate the omission with ellipsis marks (preceded and followed by a space) and then indicate the end of the sentence with a period . . . . Next sentence.",
         [
             "If words are left off at the end of a sentence, and that is all that is omitted, indicate the omission with ellipsis marks (preceded and followed by a space) and then indicate the end of the sentence with a period . . . .",
-            "Next sentence."
-        ]),
+            "Next sentence.",
+        ],
+    ),
     # 46) Ellipsis as sentence boundary (non-standard ellipsis rules)
     (
         "I never meant that.... She left the store.",
@@ -195,16 +178,14 @@ GOLDEN_EN_RULES = [
     # 47) Ellipsis as non sentence boundary
     (
         "I wasn’t really ... well, what I mean...see . . . what I'm saying, the thing is . . . I didn’t mean it.",
-        [
-            "I wasn’t really ... well, what I mean...see . . . what I'm saying, the thing is . . . I didn’t mean it."
-        ],
+        ["I wasn’t really ... well, what I mean...see . . . what I'm saying, the thing is . . . I didn’t mean it."],
     ),
     # 48) 4-dot ellipsis
     (
         "One further habit which was somewhat weakened . . . was that of combining words into self-interpreting compounds. . . . The practice was not abandoned. . . .",
         [
             "One further habit which was somewhat weakened . . . was that of combining words into self-interpreting compounds.",
-            ". . . The practice was not abandoned. . . ."
+            ". . . The practice was not abandoned. . . .",
         ],
-    )
+    ),
 ]

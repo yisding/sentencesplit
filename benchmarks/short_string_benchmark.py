@@ -1,5 +1,7 @@
 """Benchmark pySBD on short strings (2-3 sentences) across languages."""
+
 import time
+
 import pysbd
 
 SAMPLES = {

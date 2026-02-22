@@ -9,12 +9,12 @@ with open("/Users/yi/Code/pySBD/comparison_results.json") as f:
 
 
 KNOWN_ABBRS_RE = re.compile(
-    r'\b(?:Mr|Mrs|Ms|Dr|Prof|Rev|Gen|Gov|Sgt|Cpl|Pvt|Corp|Inc|Ltd|Jr|Sr|vs|etc|Fig|fig|Vol|vol'
-    r'|No|no|approx|est|ca|dept|Dept|Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec'
-    r'|St|Ave|Blvd|Rd|Mt|Ft|Ph\.D|M\.D|B\.A|M\.A|B\.S|M\.S|i\.e|e\.g|al)\.$'
+    r"\b(?:Mr|Mrs|Ms|Dr|Prof|Rev|Gen|Gov|Sgt|Cpl|Pvt|Corp|Inc|Ltd|Jr|Sr|vs|etc|Fig|fig|Vol|vol"
+    r"|No|no|approx|est|ca|dept|Dept|Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec"
+    r"|St|Ave|Blvd|Rd|Mt|Ft|Ph\.D|M\.D|B\.A|M\.A|B\.S|M\.S|i\.e|e\.g|al)\.$"
 )
-INITIAL_RE = re.compile(r'\b[A-Z]\.$')
-HEADER_RE = re.compile(r'^={2,}\s.*\s={2,}$')
+INITIAL_RE = re.compile(r"\b[A-Z]\.$")
+HEADER_RE = re.compile(r"^={2,}\s.*\s={2,}$")
 
 
 def is_header(s: str) -> bool:
@@ -56,7 +56,7 @@ def classify(para, pysbd_sents, punkt_sents):
                     # But a proper sentence also starts with uppercase
                     # If next sentence doesn't start with a typical sentence starter
                     # and the initial is preceded by another initial, it's a false split
-                    if re.search(r'[A-Z]\.\s+[A-Z]\.$', stripped):
+                    if re.search(r"[A-Z]\.\s+[A-Z]\.$", stripped):
                         issues[name].append(f"False split after initials at [{i}]")
                     elif next_s and not next_s[0].isupper():
                         issues[name].append(f"False split after initial at [{i}]")
@@ -64,7 +64,7 @@ def classify(para, pysbd_sents, punkt_sents):
         # Check for orphan fragments
         for i, s in enumerate(sents):
             stripped = s.strip()
-            if stripped in ('.', '..', '...', '....') and i > 0:
+            if stripped in (".", "..", "...", "....") and i > 0:
                 issues[name].append(f"Orphan punctuation fragment '{stripped}' at [{i}]")
             elif len(stripped) < 5 and i > 0 and i < len(sents) - 1:
                 issues[name].append(f"Tiny fragment '{stripped}' at [{i}]")
@@ -75,7 +75,7 @@ def classify(para, pysbd_sents, punkt_sents):
             if depth > 0 and i > 0:
                 issues[name].append(f"Split inside unclosed parens at [{i}]")
                 depth = 0  # reset
-            depth += s.count('(') - s.count(')')
+            depth += s.count("(") - s.count(")")
 
     # Find where they diverge and look at the actual text
     min_len = min(len(pysbd_norm), len(punkt_norm))
@@ -90,13 +90,13 @@ def classify(para, pysbd_sents, punkt_sents):
             if p_sent.startswith(k_sent[:20]) and len(p_sent) > len(k_sent):
                 # Punkt may have over-split
                 # Check what Punkt cut at
-                if k_sent.rstrip()[-1] == '"' or k_sent.rstrip()[-1] == '\u201d':
+                if k_sent.rstrip()[-1] == '"' or k_sent.rstrip()[-1] == "\u201d":
                     issues["punkt"].append(f"Possible false split at end of quote at [{i}]")
-                if k_sent.rstrip().endswith('...'):
+                if k_sent.rstrip().endswith("..."):
                     issues["punkt"].append(f"Possible false split at ellipsis at [{i}]")
             elif k_sent.startswith(p_sent[:20]) and len(k_sent) > len(p_sent):
                 # pySBD may have over-split
-                if p_sent.rstrip()[-1] == '"' or p_sent.rstrip()[-1] == '\u201d':
+                if p_sent.rstrip()[-1] == '"' or p_sent.rstrip()[-1] == "\u201d":
                     issues["pysbd"].append(f"Possible false split at end of quote at [{i}]")
             break
 
@@ -127,15 +127,17 @@ def classify(para, pysbd_sents, punkt_sents):
 results = {}
 for i, rec in enumerate(data["disagreements"]):
     verdict, explanation, issues = classify(rec["paragraph"], rec["pysbd"], rec["punkt"])
-    results.setdefault(verdict, []).append({
-        "idx": i + 1,
-        "article": rec["article"],
-        "explanation": explanation,
-        "issues": issues,
-        "n_pysbd": len(rec["pysbd"]),
-        "n_punkt": len(rec["punkt"]),
-        "para_preview": rec["paragraph"][:80],
-    })
+    results.setdefault(verdict, []).append(
+        {
+            "idx": i + 1,
+            "article": rec["article"],
+            "explanation": explanation,
+            "issues": issues,
+            "n_pysbd": len(rec["pysbd"]),
+            "n_punkt": len(rec["punkt"]),
+            "para_preview": rec["paragraph"][:80],
+        }
+    )
 
 
 # ── Print ─────────────────────────────────────────────────────────────────────
@@ -148,12 +150,12 @@ agree = data["agree"]
 disagree = len(data["disagreements"])
 
 print(f"\nCorpus: 5 Wikipedia articles, {total_paras} paragraphs")
-print(f"Agreement: {agree}/{total_paras} ({100*agree/total_paras:.1f}%)")
-print(f"Disagreements: {disagree}/{total_paras} ({100*disagree/total_paras:.1f}%)")
+print(f"Agreement: {agree}/{total_paras} ({100 * agree / total_paras:.1f}%)")
+print(f"Disagreements: {disagree}/{total_paras} ({100 * disagree / total_paras:.1f}%)")
 
-print(f"\n{'─'*80}")
+print(f"\n{'─' * 80}")
 print("BREAKDOWN OF DISAGREEMENTS:")
-print(f"{'─'*80}")
+print(f"{'─' * 80}")
 
 category_order = [
     ("HEADER_ONLY", "Header-only differences (not real errors)"),
@@ -171,7 +173,7 @@ for key, label in category_order:
     print(f"\n  {label}: {len(items)}")
     for item in items:
         tag = f"#{item['idx']}"
-        art = item['article'][:20]
+        art = item["article"][:20]
         n = f"{item['n_pysbd']}v{item['n_punkt']}"
         print(f"    {tag:>4} [{art:<20}] ({n:>5}) {item['explanation']}")
         for name in ("pysbd", "punkt"):
@@ -188,15 +190,15 @@ both_issues = len(results.get("BOTH_ISSUES", []))
 minor = len(results.get("MINOR_DIFF", []))
 unclear = len(results.get("UNCLEAR", []))
 
-print(f"\n\n{'='*80}")
+print(f"\n\n{'=' * 80}")
 print("FINAL SUMMARY")
-print(f"{'='*80}")
+print(f"{'=' * 80}")
 print(f"""
   Paragraphs tested:        {total_paras}
-  Full agreement:            {agree} ({100*agree/total_paras:.1f}%)
-  Header-only difference:    {header_only} ({100*header_only/total_paras:.1f}%)
+  Full agreement:            {agree} ({100 * agree / total_paras:.1f}%)
+  Header-only difference:    {header_only} ({100 * header_only / total_paras:.1f}%)
   ─────────────────────────────────
-  Effective agreement:       {agree + header_only} ({100*(agree+header_only)/total_paras:.1f}%)
+  Effective agreement:       {agree + header_only} ({100 * (agree + header_only) / total_paras:.1f}%)
 
   pySBD better than Punkt:   {pysbd_better}
   Punkt better than pySBD:   {punkt_better}
@@ -206,9 +208,9 @@ print(f"""
 """)
 
 # Characterize the error types
-print(f"{'='*80}")
+print(f"{'=' * 80}")
 print("ERROR TYPE ANALYSIS")
-print(f"{'='*80}")
+print(f"{'=' * 80}")
 
 pysbd_error_types = {}
 punkt_error_types = {}
