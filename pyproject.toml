@@ -40,7 +40,7 @@ Upstream = "https://github.com/nipunsadvilkar/pySBD"
 benchmark = [
   "blingfire>=0.1.8",
   "nltk>=3.9",
-  "spacy>=3.7",
+  "spacy>=3.8",
   "stanza>=1.8",
   "syntok>=1.4.4",
 ]

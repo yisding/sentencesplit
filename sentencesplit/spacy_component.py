@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 from __future__ import annotations
 
-
 class SentenceSplitFactory:
     """sentencesplit as a spacy component through entrypoints"""
 
@@ -19,3 +18,19 @@ class SentenceSplitFactory:
         for token in doc:
             token.is_sent_start = True if token.idx in start_token_ids else False
         return doc
+
+
+try:
+    import spacy
+except ImportError:
+    pass
+else:
+    _spacy_version = tuple(int(x) for x in spacy.__version__.split(".")[:2])
+    if _spacy_version < (3, 8):
+        raise ImportError(f"sentencesplit requires spaCy >= 3.8, found {spacy.__version__}")
+
+    from spacy.language import Language
+
+    @Language.factory("sentencesplit", default_config={"language": "en"})
+    def create_sentencesplit(nlp, name, language):
+        return SentenceSplitFactory(nlp, name, language)

@@ -1271,7 +1271,7 @@ dev = [
 requires-dist = [
     { name = "blingfire", marker = "extra == 'benchmark'", specifier = ">=0.1.8" },
     { name = "nltk", marker = "extra == 'benchmark'", specifier = ">=3.9" },
-    { name = "spacy", marker = "extra == 'benchmark'", specifier = ">=3.7" },
+    { name = "spacy", marker = "extra == 'benchmark'", specifier = ">=3.8" },
     { name = "stanza", marker = "extra == 'benchmark'", specifier = ">=1.8" },
     { name = "syntok", marker = "extra == 'benchmark'", specifier = ">=1.4.4" },
 ]
