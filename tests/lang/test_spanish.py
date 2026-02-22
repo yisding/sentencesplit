@@ -227,6 +227,7 @@ def test_es_pdf_type(text, expected_sents):
     segments = [s.strip() for s in segments]
     assert segments == expected_sents
 
+
 ES_CHALLENGING_TEST_CASES = [
     (
         "Se graduó con un Ph.D. en biología molecular.",
@@ -271,7 +272,7 @@ ES_CHALLENGING_TEST_CASES = [
 ]
 
 
-@pytest.mark.parametrize('text,expected_sents', ES_CHALLENGING_TEST_CASES)
+@pytest.mark.parametrize("text,expected_sents", ES_CHALLENGING_TEST_CASES)
 def test_es_challenging(es_default_fixture, text, expected_sents):
     """Spanish challenging SBD tests for parity with English edge-case coverage."""
     segments = es_default_fixture.segment(text)

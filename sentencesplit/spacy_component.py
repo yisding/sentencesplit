@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 from __future__ import annotations
 
+
 class SentenceSplitFactory:
     """sentencesplit as a spacy component through entrypoints"""
 

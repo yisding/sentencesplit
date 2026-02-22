@@ -112,9 +112,7 @@ class _AbbreviationData:
 class AbbreviationReplacer:
     _data_cache: dict[int, _AbbreviationData] = {}
     SENTENCE_STARTERS = []
-    SENTENCE_BOUNDARY_ABBREVIATIONS = [
-        'U∯S', 'U.S', 'U∯K', 'E∯U', 'E.U', 'U∯S∯A', 'U.S.A', 'I', 'i.v', 'I.V'
-    ]
+    SENTENCE_BOUNDARY_ABBREVIATIONS = ["U∯S", "U.S", "U∯K", "E∯U", "E.U", "U∯S∯A", "U.S.A", "I", "i.v", "I.V"]
 
     def __init__(self, text: str, lang) -> None:
         self.text = text
@@ -156,7 +154,7 @@ class AbbreviationReplacer:
             regex = r"({})∯({})".format(boundary_abbr, sent_starters)
         else:
             regex = r"({})∯".format(boundary_abbr)
-        self.text = re.sub(regex, '\\1.', self.text)
+        self.text = re.sub(regex, "\\1.", self.text)
         return self.text
 
     def replace_multi_period_abbreviations(self) -> None:
