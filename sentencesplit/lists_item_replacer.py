@@ -50,6 +50,7 @@ class ListItemReplacer:
 
     # Rubular: http://rubular.com/r/GcnmQt4a3I
     ROMAN_NUMERALS_IN_PARENTHESES = r"\(((?=[mdclxvi])m*(c[md]|d?c*)(x[cl]|l?x*)(i[xv]|v?i*))\)(?=\s[A-Z])"
+    _ROMAN_NUMERALS_IN_PARENTHESES_RE = re.compile(ROMAN_NUMERALS_IN_PARENTHESES)
 
     def __init__(self, text: str) -> None:
         self.text = text
@@ -62,8 +63,12 @@ class ListItemReplacer:
         return self.text
 
     def replace_parens(self):
-        text = re.sub(self.ROMAN_NUMERALS_IN_PARENTHESES, r"&✂&\1&⌬&", self.text)
-        return text
+        return self._ROMAN_NUMERALS_IN_PARENTHESES_RE.sub(r"&✂&\1&⌬&", self.text)
+
+    @staticmethod
+    def replace_parens_text(text: str) -> str:
+        """Replace roman numeral parentheses without instantiation."""
+        return ListItemReplacer._ROMAN_NUMERALS_IN_PARENTHESES_RE.sub(r"&✂&\1&⌬&", text)
 
     def format_numbered_list_with_parens(self):
         self.replace_parens_in_numbered_list()

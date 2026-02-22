@@ -37,13 +37,18 @@ class Danish(Common, Standard):
             " Hvilke Hvor Hvordan Hvorfor Hvorledes Hvornår I Jeg Mange Vi Være"
         ).split(" ")
 
+        _da_sent_starters_re = None
+
         def __init__(self, text, lang):
             super().__init__(text, lang)
 
         def replace_abbreviation_as_sentence_boundary(self):
-            sent_starters = "|".join((r"(?=\s{}\s)".format(word) for word in self.SENTENCE_STARTERS))
-            regex = r"(U∯S|U\.S|U∯K|E∯U|E\.U|U∯S∯A|U\.S\.A|I|i.v|s.u|s.U)∯({})".format(sent_starters)
-            self.text = re.sub(regex, "\\1.", self.text)
+            cls = type(self)
+            if cls._da_sent_starters_re is None:
+                sent_starters = "|".join(r"(?=\s{}\s)".format(word) for word in self.SENTENCE_STARTERS)
+                regex = r"(U∯S|U\.S|U∯K|E∯U|E\.U|U∯S∯A|U\.S\.A|I|i.v|s.u|s.U)∯({})".format(sent_starters)
+                cls._da_sent_starters_re = re.compile(regex)
+            self.text = cls._da_sent_starters_re.sub("\\1.", self.text)
             return self.text
 
     class Abbreviation(Standard.Abbreviation):

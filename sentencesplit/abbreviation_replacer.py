@@ -7,6 +7,9 @@ from typing import List
 
 from sentencesplit.utils import apply_rules
 
+# Pre-compiled pattern for multi-period abbreviation boundary restoration
+_MULTI_PERIOD_BOUNDARY_RE = re.compile(r"(?<=[a-zA-Z]∯[a-zA-Z]∯[a-zA-Z])∯(?=\s[A-Z])")
+
 
 class AhoCorasickAutomaton:
     """Pure-Python Aho-Corasick automaton for multi-pattern substring search."""
@@ -85,6 +88,8 @@ class _AbbreviationData:
     def __init__(self, lang_abbreviation_class):
         raw = lang_abbreviation_class.ABBREVIATIONS
         sorted_abbrs = sorted(raw, key=len, reverse=True)
+        self.prepositive_set = frozenset(a.lower() for a in lang_abbreviation_class.PREPOSITIVE_ABBREVIATIONS)
+        self.number_abbr_set = frozenset(a.lower() for a in lang_abbreviation_class.NUMBER_ABBREVIATIONS)
         self.abbreviations = []
         self.automaton = AhoCorasickAutomaton()
         for idx, abbr in enumerate(sorted_abbrs):
@@ -105,12 +110,11 @@ class _AbbreviationData:
             )
             self.automaton.add_pattern(stripped_lower, idx)
         self.automaton.build()
-        self.prepositive_set = frozenset(a.lower() for a in lang_abbreviation_class.PREPOSITIVE_ABBREVIATIONS)
-        self.number_abbr_set = frozenset(a.lower() for a in lang_abbreviation_class.NUMBER_ABBREVIATIONS)
 
 
 class AbbreviationReplacer:
     _data_cache: dict[int, _AbbreviationData] = {}
+    _sent_starters_cache: dict[int, re.Pattern] = {}
 
     def __init__(self, text: str, lang) -> None:
         self.text = text
@@ -138,15 +142,23 @@ class AbbreviationReplacer:
         # separately by replace_abbreviation_as_sentence_boundary.
         # Note: no IGNORECASE — [A-Z] in lookahead must only match uppercase
         # so that "C.E.O. of" is not mistakenly split.
-        self.text = re.sub(r"(?<=[a-zA-Z]∯[a-zA-Z]∯[a-zA-Z])∯(?=\s[A-Z])", ".", self.text)
+        self.text = _MULTI_PERIOD_BOUNDARY_RE.sub(".", self.text)
         self.text = apply_rules(self.text, *self.lang.AmPmRules.All)
         self.text = self.replace_abbreviation_as_sentence_boundary()
         return self.text
 
+    def _get_sent_starters_re(self) -> re.Pattern:
+        """Get or build the cached sentence-starters regex for this class."""
+        cls = type(self)
+        cls_id = id(cls)
+        if cls_id not in AbbreviationReplacer._sent_starters_cache:
+            sent_starters = "|".join(r"(?=\s{}\s)".format(word) for word in self.SENTENCE_STARTERS)
+            regex = r"(U∯S|U\.S|U∯K|E∯U|E\.U|U∯S∯A|U\.S\.A|I|i.v|I.V)∯({})".format(sent_starters)
+            AbbreviationReplacer._sent_starters_cache[cls_id] = re.compile(regex)
+        return AbbreviationReplacer._sent_starters_cache[cls_id]
+
     def replace_abbreviation_as_sentence_boundary(self) -> str:
-        sent_starters = "|".join((r"(?=\s{}\s)".format(word) for word in self.SENTENCE_STARTERS))
-        regex = r"(U∯S|U\.S|U∯K|E∯U|E\.U|U∯S∯A|U\.S\.A|I|i.v|I.V)∯({})".format(sent_starters)
-        self.text = re.sub(regex, "\\1.", self.text)
+        self.text = self._get_sent_starters_re().sub("\\1.", self.text)
         return self.text
 
     def replace_multi_period_abbreviations(self) -> None:
@@ -155,7 +167,7 @@ class AbbreviationReplacer:
             match = match.replace(".", "∯")
             return match
 
-        self.text = re.sub(self.lang.MULTI_PERIOD_ABBREVIATION_REGEX, mpa_replace, self.text, flags=re.IGNORECASE)
+        self.text = self.lang.MULTI_PERIOD_ABBREVIATION_REGEX.sub(mpa_replace, self.text)
 
     def replace_period_of_abbr(self, txt: str, abbr: str, escaped: str | None = None) -> str:
         txt = " " + txt
@@ -184,7 +196,7 @@ class AbbreviationReplacer:
         return text
 
     def scan_for_replacements(
-        self, txt: str, am: str, ind: int, char_array, stripped: str = "", escaped: str | None = None
+        self, txt: str, am: str, ind: int, char_array, stripped: str = "", escaped: str | None = None,
     ) -> str:
         try:
             char = char_array[ind]

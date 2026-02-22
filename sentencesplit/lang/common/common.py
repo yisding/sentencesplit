@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+import re
+
 from sentencesplit.utils import Rule
 
 
@@ -17,23 +19,23 @@ class Common:
         r"\S[^\n。．.！!?？ȸȹ☉☈☇☄]*" + _SENTENCE_END_PUNCT,
         r"[。．.！!?？]",
     ]
-    SENTENCE_BOUNDARY_REGEX = "|".join(_SENTENCE_BOUNDARY_PARTS)
+    SENTENCE_BOUNDARY_REGEX = re.compile("|".join(_SENTENCE_BOUNDARY_PARTS))
 
     # # Rubular: http://rubular.com/r/NqCqv372Ix
-    QUOTATION_AT_END_OF_SENTENCE_REGEX = r"[!?\.-][\"\'“”]\s{1}[A-Z]"
+    QUOTATION_AT_END_OF_SENTENCE_REGEX = re.compile(r"[!?\.-][\"\'“”]\s{1}[A-Z]")
 
     # # Rubular: http://rubular.com/r/6flGnUMEVl
-    PARENS_BETWEEN_DOUBLE_QUOTES_REGEX = r'["\”]\s\(.*\)\s["\“]'
+    PARENS_BETWEEN_DOUBLE_QUOTES_REGEX = re.compile(r'["\”]\s\(.*\)\s["\“]')
 
     # # Rubular: http://rubular.com/r/JMjlZHAT4g
-    SPLIT_SPACE_QUOTATION_AT_END_OF_SENTENCE_REGEX = r"(?<=[!?\.-][\"\'“”])\s{1}(?=[A-Z])"
+    SPLIT_SPACE_QUOTATION_AT_END_OF_SENTENCE_REGEX = re.compile(r"(?<=[!?\.-][\"\'“”])\s{1}(?=[A-Z])")
 
     # # Rubular: http://rubular.com/r/mQ8Es9bxtk
-    CONTINUOUS_PUNCTUATION_REGEX = r"(?<=\S)(!|\?){3,}(?=(\s|\Z|$))"
+    CONTINUOUS_PUNCTUATION_REGEX = re.compile(r"(?<=\S)(!|\?){3,}(?=(\s|\Z|$))")
 
     # https://rubular.com/r/UkumQaILKbkeyc
     # https://github.com/diasks2/pragmatic_segmenter/commit/d9ec1a352aff92b91e2e572c30bb9561eb42c703
-    NUMBERED_REFERENCE_REGEX = (
+    NUMBERED_REFERENCE_REGEX = re.compile(
         r"(?<=[^\d\s])(\.|∯)((\[(\d{1,3},?\s?-?\s?)?\b\d{1,3}\])+|((\d{1,3}\s?){0,3}\d{1,3}))(\s)(?=[A-Z])"
     )
 
@@ -44,7 +46,7 @@ class Common:
     KommanditgesellschaftRule = Rule(r"(?<=Co)\.(?=\sKG)", "∯")
 
     # # Rubular: http://rubular.com/r/xDkpFZ0EgH
-    MULTI_PERIOD_ABBREVIATION_REGEX = r"\b[a-z](?:\.[a-z])+[.]"
+    MULTI_PERIOD_ABBREVIATION_REGEX = re.compile(r"\b[a-z](?:\.[a-z])+[.]", re.IGNORECASE)
 
     class SingleLetterAbbreviationRules:
         """Searches for periods within an abbreviation and
