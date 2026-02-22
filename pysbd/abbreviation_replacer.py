@@ -155,11 +155,14 @@ class AbbreviationReplacer:
         return self.text
 
     def replace_abbreviation_as_sentence_boundary(self) -> str:
-        sent_starters = "|".join((r"(?=\s{}\s)".format(word) for word in self.SENTENCE_STARTERS))
-        if not sent_starters:
-            return self.text
         boundary_abbr = "|".join(re.escape(abbr) for abbr in self.SENTENCE_BOUNDARY_ABBREVIATIONS)
-        regex = r"({})∯({})".format(boundary_abbr, sent_starters)
+        if not boundary_abbr:
+            return self.text
+        if self.SENTENCE_STARTERS:
+            sent_starters = "|".join((r"(?=\s{}\s)".format(word) for word in self.SENTENCE_STARTERS))
+            regex = r"({})∯({})".format(boundary_abbr, sent_starters)
+        else:
+            regex = r"({})∯".format(boundary_abbr)
         self.text = re.sub(regex, '\\1.', self.text)
         return self.text
 

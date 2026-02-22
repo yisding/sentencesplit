@@ -155,6 +155,18 @@ ES_CHALLENGING_TEST_CASES = [
         "La repisa mide 3 pies 5 in. de ancho. Cabe perfectamente.",
         ["La repisa mide 3 pies 5 in. de ancho.", "Cabe perfectamente."],
     ),
+    (
+        "Yo almorcé a las 10 a. m. y luego salí.",
+        ["Yo almorcé a las 10 a. m. y luego salí."],
+    ),
+    (
+        "La reunión fue a las 3 p. m. en la oficina.",
+        ["La reunión fue a las 3 p. m. en la oficina."],
+    ),
+    (
+        "La reunión es a las 3 p. m. Por favor sea puntual.",
+        ["La reunión es a las 3 p. m.", "Por favor sea puntual."],
+    ),
 ]
 
 

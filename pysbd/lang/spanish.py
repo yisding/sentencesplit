@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 from pysbd.abbreviation_replacer import AbbreviationReplacer
 from pysbd.lang.common import Common, Standard
+from pysbd.utils import Rule
 
 class Spanish(Common, Standard):
 
@@ -15,6 +16,32 @@ class Spanish(Common, Standard):
         SENTENCE_BOUNDARY_ABBREVIATIONS = AbbreviationReplacer.SENTENCE_BOUNDARY_ABBREVIATIONS + [
             'Ph∯D', 'Ph.D', 'M∯D', 'M.D', 'B∯A', 'B.A', 'B∯S', 'B.S', 'M∯A', 'M.A',
             'M∯B∯A', 'M.B.A'
+        ]
+
+    class AmPmRules(Common.AmPmRules):
+        _TZ = Common.AmPmRules._TZ
+
+        # Spaced AM/PM: replace periods in "a. m." / "p. m." with ∯
+        SpacedLowerAmPeriodRule = Rule(r'(?<=\d )(a)\. (m)\.', r'\1∯ \2∯')
+        SpacedLowerPmPeriodRule = Rule(r'(?<=\d )(p)\. (m)\.', r'\1∯ \2∯')
+        SpacedUpperAmPeriodRule = Rule(r'(?<=\d )(A)\. (M)\.', r'\1∯ \2∯')
+        SpacedUpperPmPeriodRule = Rule(r'(?<=\d )(P)\. (M)\.', r'\1∯ \2∯')
+
+        # Sentence boundary restoration for spaced AM/PM followed by uppercase
+        SpacedLowerAmBoundaryRule = Rule(r'(?<=a∯ m)∯(?=\s(?!' + _TZ + r')[A-Z])', '.')
+        SpacedLowerPmBoundaryRule = Rule(r'(?<=p∯ m)∯(?=\s(?!' + _TZ + r')[A-Z])', '.')
+        SpacedUpperAmBoundaryRule = Rule(r'(?<=A∯ M)∯(?=\s(?!' + _TZ + r')[A-Z])', '.')
+        SpacedUpperPmBoundaryRule = Rule(r'(?<=P∯ M)∯(?=\s(?!' + _TZ + r')[A-Z])', '.')
+
+        All = [
+            # First: escape periods in spaced AM/PM
+            SpacedLowerAmPeriodRule, SpacedLowerPmPeriodRule,
+            SpacedUpperAmPeriodRule, SpacedUpperPmPeriodRule,
+            # Then: standard AM/PM boundary rules (for compact form)
+            *Common.AmPmRules.All,
+            # Then: spaced AM/PM boundary rules
+            SpacedLowerAmBoundaryRule, SpacedLowerPmBoundaryRule,
+            SpacedUpperAmBoundaryRule, SpacedUpperPmBoundaryRule,
         ]
 
     class Abbreviation(Standard.Abbreviation):
