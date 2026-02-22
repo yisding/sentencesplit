@@ -1,4 +1,4 @@
-import pysbd, re
+import pysbd
 
 seg = pysbd.Segmenter(language='en', clean=False)
 

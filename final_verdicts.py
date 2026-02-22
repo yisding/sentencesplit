@@ -645,9 +645,9 @@ def determine_verdict(case_idx: int, case: dict) -> Tuple[str, str]:
             punkt_text = " ".join(normalize_sents(punkt_core))
             if pysbd_text == punkt_text:
                 return "HEADER_SPLIT", (
-                    f"After removing the header, both split the body text the "
-                    f"same way (though minor whitespace differences exist). "
-                    f"Trivial formatting difference."
+                    "After removing the header, both split the body text the "
+                    "same way (though minor whitespace differences exist). "
+                    "Trivial formatting difference."
                 )
 
     # Check if the number of sentences differs by exactly the number of
@@ -820,7 +820,7 @@ def main():
     print("=" * 80)
     print("SUMMARY")
     print("=" * 80)
-    print(f"""
+    print("""
   pySBD's main strengths:
     - Correctly handles quoted passages (keeps quotes together)
     - Correctly handles abbreviations (W. E. B., U.S., e.g., etc.)

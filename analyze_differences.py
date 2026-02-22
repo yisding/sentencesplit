@@ -3,7 +3,6 @@
 
 import json
 import re
-import textwrap
 
 with open("/Users/yi/Code/pySBD/comparison_results.json") as f:
     data = json.load(f)
@@ -263,13 +262,13 @@ def show_diff(rec, result):
     end_p = min(len(pysbd_s), diverge_at + 3)
     end_k = min(len(punkt_s), diverge_at + 3)
 
-    print(f"    pySBD:")
+    print("    pySBD:")
     for j in range(start, end_p):
         marker = ">>>" if j >= diverge_at else "   "
         text = pysbd_s[j][:120]
         print(f"      {marker} [{j}] {text}{'...' if len(pysbd_s[j])>120 else ''}")
 
-    print(f"    Punkt:")
+    print("    Punkt:")
     for j in range(start, end_k):
         marker = ">>>" if j >= diverge_at else "   "
         text = punkt_s[j][:120]

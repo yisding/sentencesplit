@@ -1,5 +1,4 @@
 # -*- coding: utf-8 -*-
-from pysbd.abbreviation_replacer import AbbreviationReplacer
 from pysbd.lang.common import Common, Standard
 
 class Dutch(Common, Standard):

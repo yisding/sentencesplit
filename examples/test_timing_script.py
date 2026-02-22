@@ -2,7 +2,6 @@ text = "1 Introduction The publication rate in the medical and biomedical scienc
 
 import pysbd
 import time
-import cProfile
 from tqdm import tqdm
 
 segmenter = pysbd.Segmenter(language='en', clean=False)

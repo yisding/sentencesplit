@@ -48,7 +48,7 @@ def replace_punctuation(match, match_type: str | None = None) -> str:
 
 
 # Keep Rule-based classes for backward compatibility
-from pysbd.utils import Rule, apply_rules  # noqa: E402
+from pysbd.utils import Rule  # noqa: E402
 
 
 class EscapeRegexReservedCharacters:
