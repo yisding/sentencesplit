@@ -5,9 +5,9 @@ import stanza
 import syntok.segmenter as syntok_segmenter
 from syntok.tokenizer import Tokenizer
 
-import pysbd
+import sentencesplit
 
-pysbd_segmenter = pysbd.Segmenter(language="en", clean=False, char_span=False)
+pysbd_segmenter = sentencesplit.Segmenter(language="en", clean=False, char_span=False)
 
 nlp = spacy.blank("en")
 nlp.add_pipe("sentencizer")

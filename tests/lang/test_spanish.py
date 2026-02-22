@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 import pytest
 
-import pysbd
+import sentencesplit
 
 GOLDEN_ES_RULES_TEST_CASES = [
     ("¿Cómo está hoy? Espero que muy bien.", ["¿Cómo está hoy?", "Espero que muy bien."]),
@@ -222,7 +222,7 @@ ES_PDF_CASE = [
 @pytest.mark.parametrize("text,expected_sents", ES_PDF_CASE)
 def test_es_pdf_type(text, expected_sents):
     """Spanish SBD tests from Pragmatic Segmenter for doctype:pdf"""
-    seg = pysbd.Segmenter(language="es", clean=True, doc_type="pdf")
+    seg = sentencesplit.Segmenter(language="es", clean=True, doc_type="pdf")
     segments = seg.segment(text)
     segments = [s.strip() for s in segments]
     assert segments == expected_sents

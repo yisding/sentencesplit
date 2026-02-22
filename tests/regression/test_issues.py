@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 import pytest
 
-import pysbd
-from pysbd.utils import TextSpan
+import sentencesplit
+from sentencesplit.utils import TextSpan
 
 TEST_ISSUE_DATA = [
     (
@@ -196,7 +196,7 @@ you may copy it, give it away or re-use it under the terms of the this license
 @pytest.mark.parametrize("issue_no,text,expected_sents", TEST_ISSUE_DATA)
 def test_issue(issue_no, text, expected_sents):
     """pySBD issues tests from https://github.com/nipunsadvilkar/pySBD/issues/"""
-    seg = pysbd.Segmenter(language="en", clean=False)
+    seg = sentencesplit.Segmenter(language="en", clean=False)
     segments = seg.segment(text)
     segments = [s.strip() for s in segments]
     assert segments == expected_sents
@@ -207,7 +207,7 @@ def test_issue(issue_no, text, expected_sents):
 @pytest.mark.parametrize("issue_no,text,expected_sents_w_spans", TEST_ISSUE_DATA_CHAR_SPANS)
 def test_issues_with_char_spans(issue_no, text, expected_sents_w_spans):
     """pySBD issues tests from https://github.com/nipunsadvilkar/pySBD/issues/"""
-    seg = pysbd.Segmenter(language="en", clean=False, char_span=True)
+    seg = sentencesplit.Segmenter(language="en", clean=False, char_span=True)
     segments = seg.segment(text)
     expected_text_spans = [TextSpan(sent_w_span[0], sent_w_span[1], sent_w_span[2]) for sent_w_span in expected_sents_w_spans]
     assert segments == expected_text_spans

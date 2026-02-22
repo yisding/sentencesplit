@@ -1,11 +1,11 @@
 
-import pysbd
-from pysbd.lang.english import English
-from pysbd.lang.english import English as EnglishLang
-from pysbd.lists_item_replacer import ListItemReplacer
-from pysbd.processor import Processor
+import sentencesplit
+from sentencesplit.lang.english import English
+from sentencesplit.lang.english import English as EnglishLang
+from sentencesplit.lists_item_replacer import ListItemReplacer
+from sentencesplit.processor import Processor
 
-seg = pysbd.Segmenter(language="en", clean=False)
+seg = sentencesplit.Segmenter(language="en", clean=False)
 
 # Test 1: Number-period merges
 tests = [

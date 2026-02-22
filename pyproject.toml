@@ -3,9 +3,9 @@ requires = ["uv_build>=0.10.4,<0.11.0"]
 build-backend = "uv_build"
 
 [project]
-name = "pysbd"
-version = "0.3.4"
-description = "pysbd (Python Sentence Boundary Disambiguation) is a rule-based sentence boundary detection that works out-of-the-box across many languages."
+name = "sentencesplit"
+version = "0.4.0"
+description = "sentencesplit is a rule-based sentence boundary detection library, derived from pySBD (Python Sentence Boundary Disambiguation), that works out-of-the-box across many languages."
 readme = "README.md"
 requires-python = ">=3.11"
 license = "MIT"
@@ -33,7 +33,8 @@ dependencies = []
 
 [project.urls]
 Homepage = "http://nipunsadvilkar.github.io/"
-Repository = "https://github.com/nipunsadvilkar/pySBD"
+Repository = "https://github.com/yisding/pySBD"
+Upstream = "https://github.com/nipunsadvilkar/pySBD"
 
 [project.optional-dependencies]
 benchmark = [
@@ -45,7 +46,7 @@ benchmark = [
 ]
 
 [project.entry-points."spacy_factories"]
-pysbd = "pysbd.spacy_component:PySBDFactory"
+sentencesplit = "sentencesplit.spacy_component:SentenceSplitFactory"
 
 [dependency-groups]
 dev = [
@@ -67,11 +68,11 @@ mccabe.max-complexity = 10
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["E501"]
-"pysbd/lang/**" = ["E501"]
-"pysbd/about.py" = ["E501"]
-"pysbd/exclamation_words.py" = ["E501"]
-"pysbd/lists_item_replacer.py" = ["E501"]
-"pysbd/processor.py" = ["C901"]
+"sentencesplit/lang/**" = ["E501"]
+"sentencesplit/about.py" = ["E501"]
+"sentencesplit/exclamation_words.py" = ["E501"]
+"sentencesplit/lists_item_replacer.py" = ["E501"]
+"sentencesplit/processor.py" = ["C901"]
 "benchmarks/english_golden_rules.py" = ["E501"]
 "analyze_differences.py" = ["C901"]
 "analyze_v2.py" = ["C901"]

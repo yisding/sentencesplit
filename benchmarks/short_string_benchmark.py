@@ -2,7 +2,7 @@
 
 import time
 
-import pysbd
+import sentencesplit
 
 SAMPLES = {
     "en": "Dr. Smith went to Washington. He arrived on Jan. 5th at 3 P.M. and met with Sen. Jones.",
@@ -21,7 +21,7 @@ N_ITERATIONS = 5000
 
 
 def benchmark_language(lang_code, text, n=N_ITERATIONS):
-    seg = pysbd.Segmenter(language=lang_code, clean=False, char_span=False)
+    seg = sentencesplit.Segmenter(language=lang_code, clean=False, char_span=False)
     # Warmup
     for _ in range(50):
         seg.segment(text)

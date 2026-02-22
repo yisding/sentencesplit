@@ -1,6 +1,6 @@
 import pytest
 
-from pysbd.languages import LANGUAGE_CODES, Language
+from sentencesplit.languages import LANGUAGE_CODES, Language
 
 
 def test_lang_code2instance_mapping():

@@ -7,7 +7,7 @@ import re
 import nltk.data
 import requests
 
-import pysbd
+import sentencesplit
 
 # ── Fetch Wikipedia articles ──────────────────────────────────────────────────
 
@@ -117,7 +117,7 @@ def get_paragraphs(text: str) -> list[str]:
 
 
 def compare(corpus: dict[str, str]):
-    seg = pysbd.Segmenter(language="en", clean=False)
+    seg = sentencesplit.Segmenter(language="en", clean=False)
     punkt = nltk.data.load("tokenizers/punkt_tab/english.pickle")
 
     total_paragraphs = 0

@@ -1,42 +1,42 @@
 import pytest
 
-import pysbd
-from pysbd.utils import TextSpan
+import sentencesplit
+from sentencesplit.utils import TextSpan
 
 
-def test_no_input(pysbd_default_en_no_clean_no_span_fixture, text=""):
-    segments = pysbd_default_en_no_clean_no_span_fixture.segment(text)
+def test_no_input(default_en_no_clean_no_span_fixture, text=""):
+    segments = default_en_no_clean_no_span_fixture.segment(text)
     assert segments == []
 
 
-def test_none_input(pysbd_default_en_no_clean_no_span_fixture, text=None):
-    segments = pysbd_default_en_no_clean_no_span_fixture.segment(text)
+def test_none_input(default_en_no_clean_no_span_fixture, text=None):
+    segments = default_en_no_clean_no_span_fixture.segment(text)
     assert segments == []
 
 
-def test_newline_input(pysbd_default_en_no_clean_no_span_fixture, text="\n"):
-    segments = pysbd_default_en_no_clean_no_span_fixture.segment(text)
+def test_newline_input(default_en_no_clean_no_span_fixture, text="\n"):
+    segments = default_en_no_clean_no_span_fixture.segment(text)
     assert segments == []
 
 
 def test_segmenter_doesnt_mutate_input(
-    pysbd_default_en_no_clean_no_span_fixture, text="My name is Jonas E. Smith. Please turn to p. 55."
+    default_en_no_clean_no_span_fixture, text="My name is Jonas E. Smith. Please turn to p. 55."
 ):
-    segments = pysbd_default_en_no_clean_no_span_fixture.segment(text)
+    segments = default_en_no_clean_no_span_fixture.segment(text)
     segments = [s.strip() for s in segments]
     assert text == "My name is Jonas E. Smith. Please turn to p. 55."
 
 
 def test_segment_spans_helper_returns_textspans(text="My name is Jonas E. Smith. Please turn to p. 55."):
-    seg = pysbd.Segmenter(language="en", clean=False, char_span=False)
+    seg = sentencesplit.Segmenter(language="en", clean=False, char_span=False)
     spans = seg.segment_spans(text)
     assert all(isinstance(span, TextSpan) for span in spans)
     assert text == "".join([seg_span.sent for seg_span in spans])
 
 
 def test_segment_clean_helper_matches_clean_segmenter(text="This is the U.S. Senate my friends. <em>Yes.</em>"):
-    seg = pysbd.Segmenter(language="en", clean=False, char_span=False)
-    clean_seg = pysbd.Segmenter(language="en", clean=True, char_span=False)
+    seg = sentencesplit.Segmenter(language="en", clean=False, char_span=False)
+    clean_seg = sentencesplit.Segmenter(language="en", clean=True, char_span=False)
     assert seg.segment_clean(text) == clean_seg.segment(text)
 
 
@@ -101,7 +101,7 @@ My life is too complicated right now trying to do my job.
 def test_exception_with_both_clean_and_span_true():
     """Test to not allow clean=True and char_span=True"""
     with pytest.raises(ValueError) as e:
-        pysbd.Segmenter(language="en", clean=True, char_span=True)
+        sentencesplit.Segmenter(language="en", clean=True, char_span=True)
     assert str(e.value) == "char_span must be False if clean is True. Since `clean=True` will modify original text."
 
 
@@ -110,7 +110,7 @@ def test_exception_with_doc_type_pdf_and_clean_false():
     Test to force clean=True when doc_type="pdf"
     """
     with pytest.raises(ValueError) as e:
-        pysbd.Segmenter(language="en", clean=False, doc_type="pdf")
+        sentencesplit.Segmenter(language="en", clean=False, doc_type="pdf")
     assert str(e.value) == (
         "`doc_type='pdf'` should have `clean=True` & `char_span` should be False since originaltext will be modified."
     )
@@ -122,7 +122,7 @@ def test_exception_with_doc_type_pdf_and_both_clean_char_span_true():
     both clean=True and char_span=True
     """
     with pytest.raises(ValueError) as e:
-        pysbd.Segmenter(language="en", clean=True, doc_type="pdf", char_span=True)
+        sentencesplit.Segmenter(language="en", clean=True, doc_type="pdf", char_span=True)
     assert str(e.value) == "char_span must be False if clean is True. Since `clean=True` will modify original text."
 
 
@@ -174,7 +174,7 @@ PDF_TEST_DATA = [
 @pytest.mark.parametrize("text,expected_sents", PDF_TEST_DATA)
 def test_en_pdf_type(text, expected_sents):
     """SBD tests from Pragmatic Segmenter for doctype:pdf"""
-    seg = pysbd.Segmenter(language="en", clean=True, doc_type="pdf")
+    seg = sentencesplit.Segmenter(language="en", clean=True, doc_type="pdf")
     segments = seg.segment(text)
     segments = [s.strip() for s in segments]
     assert segments == expected_sents

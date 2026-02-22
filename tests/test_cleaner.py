@@ -1,7 +1,7 @@
 import pytest
 
-from pysbd.cleaner import Cleaner
-from pysbd.languages import Language
+from sentencesplit.cleaner import Cleaner
+from sentencesplit.languages import Language
 
 TEST_TOBE_CLEANED_DATA = [
     ("It was a cold \nnight in the city.", "It was a cold night in the city."),

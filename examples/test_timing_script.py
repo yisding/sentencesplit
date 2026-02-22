@@ -4,9 +4,9 @@ import time
 
 from tqdm import tqdm
 
-import pysbd
+import sentencesplit
 
-segmenter = pysbd.Segmenter(language="en", clean=False)
+segmenter = sentencesplit.Segmenter(language="en", clean=False)
 
 n_trials = 10
 times = []

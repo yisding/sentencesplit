@@ -1,3 +1,6 @@
+# v0.4.0
+- Renamed package from `pysbd` to `sentencesplit`. The project is derived from pySBD with clear attribution.
+
 # v0.3.4
 - 🐛 Fix trailing period/ellipses with spaces - #83
 - 🐛 Regex escape for parenthesis - #87

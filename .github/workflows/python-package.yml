@@ -31,4 +31,4 @@ jobs:
         uv run ruff format --check .
     - name: Test with pytest
       run: |
-        uv run pytest --cov=pysbd tests/ --color yes
+        uv run pytest --cov=sentencesplit tests/ --color yes

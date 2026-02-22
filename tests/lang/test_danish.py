@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 import pytest
 
-import pysbd
+import sentencesplit
 
 GOLDEN_DA_RULES_TEST_CASES = [
     ("Hej Verden. Mit navn er Jonas.", ["Hej Verden.", "Mit navn er Jonas."]),
@@ -121,7 +121,7 @@ def test_da_sbd_clean(da_with_clean_no_span_fixture, text, expected_sents):
 @pytest.mark.parametrize("text,expected_sents", DA_PDF_TEST_DATA)
 def test_da_pdf_type(text, expected_sents):
     """SBD tests from Pragmatic Segmenter for doctype:pdf"""
-    seg = pysbd.Segmenter(language="da", clean=True, doc_type="pdf")
+    seg = sentencesplit.Segmenter(language="da", clean=True, doc_type="pdf")
     segments = seg.segment(text)
     segments = [s.strip() for s in segments]
     assert segments == expected_sents
