@@ -156,14 +156,6 @@ def compare(corpus: dict[str, str]):
 
 def judge_difference(para: str, pysbd_sents: list[str], punkt_sents: list[str]) -> str:
     """Simple heuristic to judge which splitter is correct."""
-    # Reconstruct and compare
-    pysbd_joined = " ".join(pysbd_sents)
-    punkt_joined = " ".join(punkt_sents)
-
-    # Check which one preserved more text
-    pysbd_loss = abs(len(para) - len(pysbd_joined))
-    punkt_loss = abs(len(para) - len(punkt_joined))
-
     reasons = []
 
     # Check for common error patterns

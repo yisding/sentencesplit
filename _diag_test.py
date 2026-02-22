@@ -1,5 +1,9 @@
 
 import pysbd
+from pysbd.lang.english import English
+from pysbd.lang.english import English as EnglishLang
+from pysbd.lists_item_replacer import ListItemReplacer
+from pysbd.processor import Processor
 
 seg = pysbd.Segmenter(language="en", clean=False)
 
@@ -8,7 +12,8 @@ tests = [
     ("April 14 merge", "Lincoln attended the play on the evening of April 14. At the last minute, Grant decided to go."),
     (
         "version 2 merge",
-        "The Linux kernel is licensed under the GPL, version 2. The GPL requires that anyone who distributes software must share source code.",
+        "The Linux kernel is licensed under the GPL, version 2."
+        " The GPL requires that anyone who distributes software must share source code.",
     ),
     ("April 14 simple", "It happened on April 14. The next day was different."),
     ("version 2 simple", "This is version 2. The new version is better."),
@@ -29,8 +34,6 @@ for i, s in enumerate(result):
     print(f"  [{i}] {s}")
 
 # Test 3: Check if "man" is in abbreviation list
-from pysbd.lang.english import English
-
 abbrs = English.Abbreviation.ABBREVIATIONS
 man_in_abbrs = "man" in abbrs
 print(f"\n'man' in abbreviations: {man_in_abbrs}")
@@ -48,13 +51,9 @@ for i, s in enumerate(result):
     print(f"  [{i}] {s}")
 
 # Test 5: Trace what happens to "version 2." through pipeline
-from pysbd.lang.english import English as EnglishLang
-from pysbd.processor import Processor
-
 p = Processor("This is version 2. The new version is better.", EnglishLang, char_span=False)
 # Manually step through
 p.text = p.text.replace("\n", "\r")
-from pysbd.lists_item_replacer import ListItemReplacer
 
 li = ListItemReplacer(p.text)
 p.text = li.add_line_break()

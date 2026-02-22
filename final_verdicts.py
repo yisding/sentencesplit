@@ -511,10 +511,8 @@ def determine_verdict(case_idx: int, case: dict) -> Tuple[str, str]:
     """
     pysbd = case["pysbd"]
     punkt = case["punkt"]
-    article = case["article"]
 
     analysis = find_split_differences(pysbd, punkt)
-    reasons = []
 
     # -----------------------------------------------------------------------
     # 1. HEADER_SPLIT: only difference is that pySBD separates the header

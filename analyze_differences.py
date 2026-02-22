@@ -312,12 +312,12 @@ both_bad = len(verdicts["BOTH_WRONG"])
 trivial = len(verdicts["TRIVIAL"])
 unclear = len(verdicts["UNCLEAR"])
 
-print(
-    f"  pySBD correct/better:      {pysbd_wins} ({len(verdicts['PYSBD_CORRECT'])} definite + {len(verdicts['PYSBD_LIKELY_CORRECT'])} likely)"
-)
-print(
-    f"  Punkt correct/better:      {punkt_wins} ({len(verdicts['PUNKT_CORRECT'])} definite + {len(verdicts['PUNKT_LIKELY_CORRECT'])} likely)"
-)
+pysbd_def = len(verdicts["PYSBD_CORRECT"])
+pysbd_likely = len(verdicts["PYSBD_LIKELY_CORRECT"])
+print(f"  pySBD correct/better:      {pysbd_wins} ({pysbd_def} definite + {pysbd_likely} likely)")
+punkt_def = len(verdicts["PUNKT_CORRECT"])
+punkt_likely = len(verdicts["PUNKT_LIKELY_CORRECT"])
+print(f"  Punkt correct/better:      {punkt_wins} ({punkt_def} definite + {punkt_likely} likely)")
 print(f"  Both wrong:                {both_bad}")
 print(f"  Trivial (header split):    {trivial}")
 print(f"  Unclear:                   {unclear}")
@@ -327,11 +327,17 @@ total = len(data["disagreements"])
 agree = data["agree"]
 total_paras = data["total_paragraphs"]
 print(f"  Agreement rate:            {agree}/{total_paras} = {100 * agree / total_paras:.1f}%")
+pysbd_err = punkt_wins + both_bad
+pysbd_err_pct = 100 * pysbd_err / total_paras
 print(
-    f"  pySBD error rate:          {punkt_wins + both_bad}/{total_paras} = {100 * (punkt_wins + both_bad) / total_paras:.1f}% (cases where Punkt was better or both wrong)"
+    f"  pySBD error rate:          {pysbd_err}/{total_paras} = {pysbd_err_pct:.1f}%"
+    f" (cases where Punkt was better or both wrong)"
 )
+punkt_err = pysbd_wins + both_bad
+punkt_err_pct = 100 * punkt_err / total_paras
 print(
-    f"  Punkt error rate:          {pysbd_wins + both_bad}/{total_paras} = {100 * (pysbd_wins + both_bad) / total_paras:.1f}% (cases where pySBD was better or both wrong)"
+    f"  Punkt error rate:          {punkt_err}/{total_paras} = {punkt_err_pct:.1f}%"
+    f" (cases where pySBD was better or both wrong)"
 )
 
 # Detailed examples of each category

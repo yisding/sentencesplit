@@ -23,10 +23,6 @@ def is_header(s: str) -> bool:
 
 def classify(para, pysbd_sents, punkt_sents):
     """Return (verdict, explanation, details)."""
-    # Check if the only difference is a header split
-    pysbd_headers = [i for i, s in enumerate(pysbd_sents) if is_header(s)]
-    punkt_headers = [i for i, s in enumerate(punkt_sents) if is_header(s)]
-
     # If pySBD splits header off and Punkt doesn't, remove headers and re-compare
     pysbd_content = [s for s in pysbd_sents if not is_header(s)]
     punkt_content = [s for s in punkt_sents if not is_header(s)]
