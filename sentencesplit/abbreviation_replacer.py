@@ -146,9 +146,7 @@ class AbbreviationReplacer:
         return self.text
 
     def replace_abbreviation_as_sentence_boundary(self) -> str:
-        boundary_abbr = "|".join(
-            re.escape(abbr).replace(r"\.", r"[.∯]") for abbr in self.SENTENCE_BOUNDARY_ABBREVIATIONS
-        )
+        boundary_abbr = "|".join(re.escape(abbr).replace(r"\.", r"[.∯]") for abbr in self.SENTENCE_BOUNDARY_ABBREVIATIONS)
         if not boundary_abbr:
             return self.text
         if self.SENTENCE_STARTERS:
