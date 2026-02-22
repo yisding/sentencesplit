@@ -73,6 +73,10 @@ class Common:
             r")[\s.]"
         )
 
+        # Normalize spaced AM/PM forms (e.g. "a. m.", "P. M.") so they
+        # behave like compact "a.m."/ "p.m." in boundary logic.
+        SpacedAmPmRule = Rule(r"\b([AaPp])\.(\s+)([Mm])\.(?=((\.|:|-|\?|,)|(\s)))", r"\1∯\2\3∯")
+
         # Rubular: http://rubular.com/r/Vnx3m4Spc8
         UpperCasePmRule = Rule(r"(?<= P∯M)∯(?=\s(?!" + _TZ + r")[A-Z])", ".")
 
@@ -85,7 +89,22 @@ class Common:
         # Rubular: http://rubular.com/r/DgUDq4mLz5
         LowerCaseAmRule = Rule(r"(?<=a∯m)∯(?=\s(?!" + _TZ + r")[A-Z])", ".")
 
-        All = [UpperCasePmRule, UpperCaseAmRule, LowerCasePmRule, LowerCaseAmRule]
+        SpacedUpperCasePmRule = Rule(r"\b(P∯\s+M)∯(?=\s(?!" + _TZ + r")[A-Z])", r"\1.")
+        SpacedUpperCaseAmRule = Rule(r"\b(A∯\s+M)∯(?=\s(?!" + _TZ + r")[A-Z])", r"\1.")
+        SpacedLowerCasePmRule = Rule(r"\b(p∯\s+m)∯(?=\s(?!" + _TZ + r")[A-Z])", r"\1.")
+        SpacedLowerCaseAmRule = Rule(r"\b(a∯\s+m)∯(?=\s(?!" + _TZ + r")[A-Z])", r"\1.")
+
+        All = [
+            SpacedAmPmRule,
+            UpperCasePmRule,
+            UpperCaseAmRule,
+            LowerCasePmRule,
+            LowerCaseAmRule,
+            SpacedUpperCasePmRule,
+            SpacedUpperCaseAmRule,
+            SpacedLowerCasePmRule,
+            SpacedLowerCaseAmRule,
+        ]
 
     class Numbers:
         # Rubular: http://rubular.com/r/oNyxBOqbyy
