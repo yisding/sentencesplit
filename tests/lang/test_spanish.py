@@ -226,3 +226,55 @@ def test_es_pdf_type(text, expected_sents):
     segments = seg.segment(text)
     segments = [s.strip() for s in segments]
     assert segments == expected_sents
+
+
+ES_CHALLENGING_TEST_CASES = [
+    (
+        "Se graduó con un Ph.D. en biología molecular.",
+        ["Se graduó con un Ph.D. en biología molecular."],
+    ),
+    (
+        "Completó su Ph.D. Ella obtuvo su M.D.",
+        ["Completó su Ph.D.", "Ella obtuvo su M.D."],
+    ),
+    (
+        "Tiene un B.A. en idiomas y un B.S. en informática.",
+        ["Tiene un B.A. en idiomas y un B.S. en informática."],
+    ),
+    (
+        "Ella recibió un M.B.A. Trabaja en consultoría.",
+        ["Ella recibió un M.B.A.", "Trabaja en consultoría."],
+    ),
+    (
+        "La llamada es a las 3 p.m. EST. Por favor sea puntual.",
+        ["La llamada es a las 3 p.m. EST.", "Por favor sea puntual."],
+    ),
+    (
+        "El lanzamiento fue a las 3 p.m. NASA lo transmitió en vivo.",
+        ["El lanzamiento fue a las 3 p.m.", "NASA lo transmitió en vivo."],
+    ),
+    (
+        "La repisa mide 3 pies 5 in. de ancho. Cabe perfectamente.",
+        ["La repisa mide 3 pies 5 in. de ancho.", "Cabe perfectamente."],
+    ),
+    (
+        "Yo almorcé a las 10 a. m. y luego salí.",
+        ["Yo almorcé a las 10 a. m. y luego salí."],
+    ),
+    (
+        "La reunión fue a las 3 p. m. en la oficina.",
+        ["La reunión fue a las 3 p. m. en la oficina."],
+    ),
+    (
+        "La reunión es a las 3 p. m. Por favor sea puntual.",
+        ["La reunión es a las 3 p. m.", "Por favor sea puntual."],
+    ),
+]
+
+
+@pytest.mark.parametrize("text,expected_sents", ES_CHALLENGING_TEST_CASES)
+def test_es_challenging(es_default_fixture, text, expected_sents):
+    """Spanish challenging SBD tests for parity with English edge-case coverage."""
+    segments = es_default_fixture.segment(text)
+    segments = [s.strip() for s in segments]
+    assert segments == expected_sents
