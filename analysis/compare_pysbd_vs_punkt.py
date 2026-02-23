@@ -251,9 +251,9 @@ def main():
         "disagree": len(disagreements),
         "disagreements": disagreements,
     }
-    with open("/Users/yi/Code/pySBD/comparison_results.json", "w") as f:
+    with open("analysis/pysbd_vs_punkt_results.json", "w") as f:
         json.dump(output, f, indent=2, ensure_ascii=False)
-    print(f"Full results saved to comparison_results.json ({len(disagreements)} disagreements)")
+    print(f"Full results saved to analysis/pysbd_vs_punkt_results.json ({len(disagreements)} disagreements)")
 
 
 if __name__ == "__main__":

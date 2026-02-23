@@ -4,7 +4,7 @@
 import json
 import re
 
-with open("/Users/yi/Code/pySBD/comparison_results.json") as f:
+with open("analysis/pysbd_vs_punkt_results.json") as f:
     data = json.load(f)
 
 # Known abbreviations that should NOT cause a sentence split
