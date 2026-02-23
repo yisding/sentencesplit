@@ -9,9 +9,9 @@ from dataclasses import asdict, dataclass
 
 import nltk
 import nltk.data
+import pysbd
 import requests
 
-import pysbd
 import sentencesplit
 
 ARTICLES = [
