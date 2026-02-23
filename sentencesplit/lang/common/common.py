@@ -62,6 +62,8 @@ class Common:
     class AmPmRules:
         # Timezone abbreviations that commonly follow a.m./p.m. and should
         # NOT be treated as sentence starters.
+        # Supports both plain (EST) and dotted/protected forms (E.S.T. / E∯S∯T∯)
+        # that exist after multi-period abbreviation replacement.
         _TZ = (
             r"(?:[ECMP][SD]T"  # US: EST, EDT, CST, CDT, MST, MDT, PST, PDT
             r"|GMT|UTC"  # Universal
@@ -70,14 +72,17 @@ class Common:
             r"|JST|KST|HKT|SGT"  # East Asia
             r"|(?:AE|NZ)[SD]T"  # Australia/NZ: AEST, AEDT, NZST, NZDT
             r"|AST|AKST|HST|NST"  # US/Canada outlying
-            r")[\s.]"
+            r"|E[.∯]S[.∯]T|E[.∯]D[.∯]T|C[.∯]S[.∯]T|C[.∯]D[.∯]T"
+            r"|M[.∯]S[.∯]T|M[.∯]D[.∯]T|P[.∯]S[.∯]T|P[.∯]D[.∯]T"
+            r"|A[.∯]S[.∯]T|A[.∯]D[.∯]T|G[.∯]M[.∯]T|U[.∯]T[.∯]C"
+            r")(?:\s|$|[.∯])"
         )
 
         # Rubular: http://rubular.com/r/Vnx3m4Spc8
-        UpperCasePmRule = Rule(r"(?<= P∯M)∯(?=\s(?!" + _TZ + r")[A-Z])", ".")
+        UpperCasePmRule = Rule(r"(?<=[\s\d]P∯M)∯(?=\s(?!" + _TZ + r")[A-Z])", ".")
 
         # Rubular: http://rubular.com/r/AJMCotJVbW
-        UpperCaseAmRule = Rule(r"(?<=A∯M)∯(?=\s(?!" + _TZ + r")[A-Z])", ".")
+        UpperCaseAmRule = Rule(r"(?<=[\s\d]A∯M)∯(?=\s(?!" + _TZ + r")[A-Z])", ".")
 
         # Rubular: http://rubular.com/r/13q7SnOhgA
         LowerCasePmRule = Rule(r"(?<=p∯m)∯(?=\s(?!" + _TZ + r")[A-Z])", ".")

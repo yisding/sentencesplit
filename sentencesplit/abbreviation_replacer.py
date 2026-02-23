@@ -132,13 +132,18 @@ class AbbreviationReplacer:
             lines.append(self.search_for_abbreviations_in_string(line))
         self.text = "".join(lines)
         self.replace_multi_period_abbreviations()
-        # Restore sentence-boundary period when a multi-period abbreviation
-        # with 3+ parts (e.g. "e∯s∯t∯") is followed by a space and
-        # uppercase letter.  Two-part abbreviations like U∯S∯ are handled
-        # separately by replace_abbreviation_as_sentence_boundary.
-        # Note: no IGNORECASE — [A-Z] in lookahead must only match uppercase
-        # so that "C.E.O. of" is not mistakenly split.
-        self.text = re.sub(r"(?<=[a-zA-Z]∯[a-zA-Z]∯[a-zA-Z])∯(?=\s[A-Z])", ".", self.text)
+        # Protect compact time tokens with no space before them (e.g. "3P.M.")
+        # so a.m./p.m. rules can decide boundary vs non-boundary using context.
+        self.text = re.sub(r"(?<=\d)([AaPp])\.([Mm])\.", r"\1∯\2∯", self.text)
+        # Restore sentence-boundary period for dotted timezones (e.g. E.S.T.)
+        # when followed by an uppercase token. A broad 3-letter restoration
+        # causes false splits for non-boundary abbreviations like "a.k.a." and
+        # "A.S.E." in the middle of a sentence.
+        self.text = re.sub(
+            r"(?<=(?:E∯S∯T|E∯D∯T|C∯S∯T|C∯D∯T|M∯S∯T|M∯D∯T|P∯S∯T|P∯D∯T|A∯S∯T|A∯D∯T|G∯M∯T|U∯T∯C))∯(?=\s[A-Z])",
+            ".",
+            self.text,
+        )
         self.text = apply_rules(self.text, *self.lang.AmPmRules.All)
         self.text = self.replace_abbreviation_as_sentence_boundary()
         return self.text

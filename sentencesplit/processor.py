@@ -110,7 +110,14 @@ class Processor:
                 ):
                     is_orphan = True
             if is_orphan:
-                merged[-1] = merged[-1] + " " + sent
+                # Keep punctuation or quote closers attached to the previous
+                # sentence without introducing an artificial space. Adding a
+                # space here can make the processed sentence impossible to map
+                # back to the original text span (e.g. `away.)` -> `away. )`).
+                if len(stripped) == 1 and stripped in _ORPHAN_SINGLE_CHARS:
+                    merged[-1] = merged[-1] + sent
+                else:
+                    merged[-1] = merged[-1] + " " + sent
             else:
                 merged.append(sent)
         return merged
