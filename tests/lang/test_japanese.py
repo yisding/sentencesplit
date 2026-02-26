@@ -23,7 +23,15 @@ def test_ja_sbd(ja_default_fixture, text, expected_sents):
     assert segments == expected_sents
 
 
-JA_TEST_CASES_CLEAN = [("これは父の\n家です。", ["これは父の家です。"])]
+JA_TEST_CASES_CLEAN = [
+    ("これは父の\n家です。", ["これは父の家です。"]),
+    ("東京タワーは\nきれいです。", ["東京タワーはきれいです。"]),
+    ("彼が\n来ました。", ["彼が来ました。"]),
+    (
+        "買い物リスト：\n・りんご\n・みかん",
+        ["買い物リスト：", "・りんご", "・みかん"],
+    ),
+]
 
 
 @pytest.mark.parametrize("text,expected_sents", JA_TEST_CASES_CLEAN)

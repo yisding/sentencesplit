@@ -21,7 +21,14 @@ class Japanese(Common, Standard):
             return self.text
 
         def remove_newline_in_middle_of_word(self):
-            NewLineInMiddleOfWordRule = Rule(r"(?<=の)\n(?=\S)", "")
+            japanese_char = r"[\u3040-\u30FF\u3400-\u9FFF々〆〤]"
+            list_like_line_start = (
+                r"(?:[・●○◦▪︎■□◆◇▼▽▶▷►▸※]|[-*]|[0-9０-９]+[.)、．]|[一二三四五六七八九十]+[、.)])"
+            )
+            NewLineInMiddleOfWordRule = Rule(
+                rf"(?<={japanese_char})\n(?=(?!\s*{list_like_line_start}){japanese_char})",
+                "",
+            )
             self.text = apply_rules(self.text, NewLineInMiddleOfWordRule)
 
     class AbbreviationReplacer(AbbreviationReplacer):
