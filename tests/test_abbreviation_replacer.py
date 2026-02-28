@@ -1,6 +1,6 @@
+import sentencesplit
 from sentencesplit.abbreviation_replacer import _AbbreviationData
 from sentencesplit.lang.english import English
-import sentencesplit
 
 
 def test_abbreviation_next_word_regex_reads_char_after_period_case_insensitive():
