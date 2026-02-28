@@ -34,15 +34,15 @@ class Chinese(Common, Standard):
             self.text = re.sub(BETWEEN_L_BRACKET_REGEX, replace_punctuation, self.text)
 
         def sub_punctuation_between_double_quotes_zh(self):
-            BETWEEN_DOUBLE_QUOTES_ZH_REGEX = r"“(?=(?P<tmp>[^”\\]+|\\{2}|\\.)*)(?P=tmp)”"
+            BETWEEN_DOUBLE_QUOTES_ZH_REGEX = r"(?<=[^\s。．.！!?？])“(?=(?P<tmp>[^”\\]+|\\{2}|\\.)*)(?P=tmp)”"
             self.text = re.sub(BETWEEN_DOUBLE_QUOTES_ZH_REGEX, replace_punctuation, self.text)
 
         def sub_punctuation_between_single_quotes_zh(self):
-            BETWEEN_SINGLE_QUOTES_ZH_REGEX = r"‘(?=(?P<tmp>[^’\\]+|\\{2}|\\.)*)(?P=tmp)’"
+            BETWEEN_SINGLE_QUOTES_ZH_REGEX = r"(?<=[^\s。．.！!?？])‘(?=(?P<tmp>[^’\\]+|\\{2}|\\.)*)(?P=tmp)’"
             self.text = re.sub(BETWEEN_SINGLE_QUOTES_ZH_REGEX, replace_punctuation, self.text)
 
         def sub_punctuation_between_corner_brackets(self):
-            BETWEEN_CORNER_BRACKETS_REGEX = r"『(?=(?P<tmp>[^』\\]+|\\{2}|\\.)*)(?P=tmp)』"
+            BETWEEN_CORNER_BRACKETS_REGEX = r"(?<=[^\s。．.！!?？])『(?=(?P<tmp>[^』\\]+|\\{2}|\\.)*)(?P=tmp)』"
             self.text = re.sub(BETWEEN_CORNER_BRACKETS_REGEX, replace_punctuation, self.text)
 
         def sub_punctuation_between_parens_zh(self):

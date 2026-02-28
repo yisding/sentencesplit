@@ -6,6 +6,9 @@ class Common:
     # added special case: r"[。．.！!? ]{2,}" to handle intermittent dots, exclamation, etc.
     # r"[。．.！!?] at end to handle single instances of these symbol inputs
     _SENTENCE_END_PUNCT = r"[。．.！!?？ȸȹ☉☈☇☄]"
+    # Optional trailing CJK closing quote after sentence-ending punctuation.
+    # Ensures closing quotes stay in the same segment as the sentence they close.
+    _CJK_CLOSE_QUOTE = "[\u201d\u2019\u300f\u300d]?"
     _SENTENCE_BOUNDARY_PARTS = [
         r"（(?:[^）])*）(?=\s?[A-Z])",
         r"「(?:[^」])*」(?=\s[A-Z])",
@@ -14,7 +17,7 @@ class Common:
         r"\"(?:[^\"])*[^,]\"(?=\s[A-Z])",
         r"\“(?:[^\”])*[^,]\”(?=\s[A-Z])",
         r"[。．.！!?？ ]{2,}",
-        r"\S[^\n。．.！!?？ȸȹ☉☈☇☄]*" + _SENTENCE_END_PUNCT,
+        r"\S[^\n。．.！!?？ȸȹ☉☈☇☄]*" + _SENTENCE_END_PUNCT + _CJK_CLOSE_QUOTE,
         r"[。．.！!?？]",
     ]
     SENTENCE_BOUNDARY_REGEX = "|".join(_SENTENCE_BOUNDARY_PARTS)

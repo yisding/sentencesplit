@@ -44,7 +44,7 @@ class Japanese(Common, Standard):
             self.text = re.sub(BETWEEN_QUOTE_JA_REGEX, replace_punctuation, self.text)
 
         def sub_punctuation_between_corner_brackets(self):
-            BETWEEN_CORNER_BRACKETS_REGEX = r"『(?=(?P<tmp>[^』\\]+|\\{2}|\\.)*)(?P=tmp)』"
+            BETWEEN_CORNER_BRACKETS_REGEX = r"(?<=[^\s。．.！!?？])『(?=(?P<tmp>[^』\\]+|\\{2}|\\.)*)(?P=tmp)』"
             self.text = re.sub(BETWEEN_CORNER_BRACKETS_REGEX, replace_punctuation, self.text)
 
         def sub_punctuation_between_black_lenticular_brackets(self):
@@ -64,7 +64,7 @@ class Japanese(Common, Standard):
             self.text = re.sub(BETWEEN_TORTOISE_SHELL_BRACKETS_REGEX, replace_punctuation, self.text)
 
         def sub_punctuation_between_double_quotes(self):
-            BETWEEN_DOUBLE_QUOTES_REGEX = r"“(?=(?P<tmp>[^”\\]+|\\{2}|\\.)*)(?P=tmp)”"
+            BETWEEN_DOUBLE_QUOTES_REGEX = r"(?<=[^\s。．.！!?？])“(?=(?P<tmp>[^”\\]+|\\{2}|\\.)*)(?P=tmp)”"
             self.text = re.sub(BETWEEN_DOUBLE_QUOTES_REGEX, replace_punctuation, self.text)
 
         def sub_punctuation_between_quotes_and_parens(self):
