@@ -5,7 +5,7 @@ from sentencesplit.utils import Rule
 class Common:
     # added special case: r"[。．.！!? ]{2,}" to handle intermittent dots, exclamation, etc.
     # r"[。．.！!?] at end to handle single instances of these symbol inputs
-    _SENTENCE_END_PUNCT = r"[。．.！!?？ȸȹ☉☈☇☄]"
+    _SENTENCE_END_PUNCT = r"[。．.！!?？ȸȹ☉☈☇☄☊☋☌☍]"
     _SENTENCE_BOUNDARY_PARTS = [
         r"（(?:[^）])*）(?=\s?[A-Z])",
         r"「(?:[^」])*」(?=\s[A-Z])",
@@ -14,7 +14,8 @@ class Common:
         r"\"(?:[^\"])*[^,]\"(?=\s[A-Z])",
         r"\“(?:[^\”])*[^,]\”(?=\s[A-Z])",
         r"[。．.！!?？ ]{2,}",
-        r"\S[^\n。．.！!?？ȸȹ☉☈☇☄]*" + _SENTENCE_END_PUNCT,
+        r"\S[^\n。．.！!?？ȸȹ☉☈☇☄☊☋☌☍]*[。．.！!?？](?:[\"'”」』】）》])(?=\S)",
+        r"\S[^\n。．.！!?？ȸȹ☉☈☇☄☊☋☌☍]*" + _SENTENCE_END_PUNCT + r"(?:[\"'”」』】）》])?",
         r"[。．.！!?？]",
     ]
     SENTENCE_BOUNDARY_REGEX = "|".join(_SENTENCE_BOUNDARY_PARTS)

@@ -44,6 +44,8 @@ class Processor:
         li = ListItemReplacer(self.text)
         self.text = li.add_line_break()
         self.replace_abbreviations()
+        if hasattr(self.lang, "CjkAbbreviationRules"):
+            self.text = apply_rules(self.text, *self.lang.CjkAbbreviationRules.All)
         self.replace_numbers()
         self.replace_continuous_punctuation()
         self.replace_periods_before_numeric_references()
@@ -88,7 +90,10 @@ class Processor:
         resplit = []
         for pps in postprocessed_sents:
             parts = re.split(r"(?<=[a-zA-Z]{2}\.\))\s+(?=[A-Z])", pps)
-            resplit.extend(p for p in parts if p)
+            tmp = []
+            for part in parts:
+                tmp.extend(re.split(r"(?<=[。．][」』】）》])(?=\S)", part))
+            resplit.extend(p for p in tmp if p)
         postprocessed_sents = resplit
         # Merge orphan fragments into the preceding sentence.
         # An orphan is either an ellipsis (3+ periods) or a very short
