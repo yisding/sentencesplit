@@ -93,7 +93,7 @@ class _AbbreviationData:
             escaped = re.escape(stripped)
             # Pre-compile the two findall patterns for this abbreviation
             match_re = re.compile(r"(?:^|\s|\r|\n){}".format(escaped), re.IGNORECASE)
-            next_word_re = re.compile(r"(?<={{{escaped}}} ).{{1}}".format(escaped=escaped))
+            next_word_re = re.compile(r"(?<={escaped}\. ).{{1}}".format(escaped=escaped), re.IGNORECASE)
             self.abbreviations.append(
                 (
                     stripped,
@@ -198,7 +198,8 @@ class AbbreviationReplacer:
             char = char_array[ind]
         except IndexError:
             char = ""
-        upper = char.isupper() if char else False
+        use_case_heuristic = bool(self.SENTENCE_STARTERS)
+        upper = char.isupper() if (char and use_case_heuristic) else False
         am_lower = am.strip().lower()
         if not upper or am_lower in self._data.prepositive_set:
             # Use match-derived escape to preserve original case
