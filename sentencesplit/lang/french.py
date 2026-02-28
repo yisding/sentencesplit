@@ -119,5 +119,5 @@ class French(Common, Standard):
             "z.i",
             "éd",
         ]
-        PREPOSITIVE_ABBREVIATIONS = ["av", "dr", "m", "mm", "mme", "mmes", "mlle", "mlles", "pr", "st", "ste"]
+        PREPOSITIVE_ABBREVIATIONS = ["av", "dr", "mm", "mme", "mmes", "mlle", "mlles", "pr", "st", "ste"]
         NUMBER_ABBREVIATIONS = ["art", "no", "p", "pp"]
