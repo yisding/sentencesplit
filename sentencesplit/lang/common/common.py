@@ -19,6 +19,8 @@ class Common:
     ]
     SENTENCE_BOUNDARY_REGEX = "|".join(_SENTENCE_BOUNDARY_PARTS)
 
+    LATIN_UPPERCASE_RESPLIT = True
+
     # # Rubular: http://rubular.com/r/NqCqv372Ix
     QUOTATION_AT_END_OF_SENTENCE_REGEX = r"[!?\.-][\"\'“”]\s{1}[A-Z]"
 

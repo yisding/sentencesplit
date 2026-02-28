@@ -85,11 +85,12 @@ class Processor:
                     postprocessed_sents.append(pps)
         postprocessed_sents = [apply_rules(ns, self.lang.SubSingleQuoteRule) for ns in postprocessed_sents]
         # Re-split at ".) Capital" boundaries (period inside closing paren before new sentence)
-        resplit = []
-        for pps in postprocessed_sents:
-            parts = re.split(r"(?<=[a-zA-Z]{2}\.\))\s+(?=[A-Z])", pps)
-            resplit.extend(p for p in parts if p)
-        postprocessed_sents = resplit
+        if getattr(self.lang, "LATIN_UPPERCASE_RESPLIT", True):
+            resplit = []
+            for pps in postprocessed_sents:
+                parts = re.split(r"(?<=[a-zA-Z]{2}\.\))\s+(?=[A-Z])", pps)
+                resplit.extend(p for p in parts if p)
+            postprocessed_sents = resplit
         # Merge orphan fragments into the preceding sentence.
         # An orphan is either an ellipsis (3+ periods) or a very short
         # lowercase abbreviation fragment ending with a period (e.g. "pp.").

@@ -32,3 +32,9 @@ def test_ja_sbd_clean(ja_with_clean_no_span_fixture, text, expected_sents):
     segments = ja_with_clean_no_span_fixture.segment(text)
     segments = [s.strip() for s in segments]
     assert segments == expected_sents
+
+
+def test_ja_quotes_and_brackets_without_latin_uppercase(ja_default_fixture):
+    text = "彼は「行こう！」）と言った。彼女は「はい。」と答えた。"
+    segments = [s.strip() for s in ja_default_fixture.segment(text)]
+    assert segments == ["彼は「行こう！」）と言った。", "彼女は「はい。」と答えた。"]

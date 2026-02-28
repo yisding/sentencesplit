@@ -19,3 +19,9 @@ def test_zsh_sbd(zh_default_fixture, text, expected_sents):
     segments = zh_default_fixture.segment(text)
     segments = [s.strip() for s in segments]
     assert segments == expected_sents
+
+
+def test_zh_quotes_and_brackets_without_latin_uppercase(zh_default_fixture):
+    text = "他说：“走吧！”）然后离开。她回答：「好。」"
+    segments = [s.strip() for s in zh_default_fixture.segment(text)]
+    assert segments == ["他说：“走吧！”）", "然后离开。", "她回答：「好。」"]
