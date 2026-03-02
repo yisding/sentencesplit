@@ -13,21 +13,17 @@ class Chinese(Common, Standard):
 
     class AbbreviationReplacer(AbbreviationReplacer):
         SENTENCE_STARTERS = []
-        SENTENCE_BOUNDARY_ABBREVIATIONS = []
 
         def replace_period_of_abbr(self, txt: str, abbr: str, escaped: str | None = None) -> str:
             txt = " " + txt
             if escaped is None:
                 escaped = re.escape(abbr.strip())
             txt = re.sub(
-                r"(?<=\s{abbr})\.(?=((\.|\:|-|\?|,)|(\s([a-z]|I\s|I'm|I'll|\d|\())|[\u4e00-\u9fff]))".format(
-                    abbr=escaped
-                ),
+                r"(?<=\s{abbr})\.(?=((\.|\:|-|\?|,)|(\s([a-z]|I\s|I'm|I'll|\d|\())|[\u4e00-\u9fff]))".format(abbr=escaped),
                 "∯",
                 txt,
             )
             return txt[1:]
-
 
     class CjkAbbreviationRules:
         IntraAbbreviationPeriodRule = Rule(r"(?<=[A-Za-z])\.(?=[A-Za-z]\.)", "∯")

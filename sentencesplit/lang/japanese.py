@@ -26,7 +26,6 @@ class Japanese(Common, Standard):
 
     class AbbreviationReplacer(AbbreviationReplacer):
         SENTENCE_STARTERS = []
-        SENTENCE_BOUNDARY_ABBREVIATIONS = []
 
         def replace_period_of_abbr(self, txt: str, abbr: str, escaped: str | None = None) -> str:
             txt = " " + txt
@@ -40,7 +39,6 @@ class Japanese(Common, Standard):
                 txt,
             )
             return txt[1:]
-
 
     class CjkAbbreviationRules:
         IntraAbbreviationPeriodRule = Rule(r"(?<=[A-Za-z])\.(?=[A-Za-z]\.)", "∯")
