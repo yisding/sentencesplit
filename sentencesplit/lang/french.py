@@ -35,6 +35,7 @@ class French(Common, Standard):
             "co",
             "contr",
             "dir",
+            "dr",
             "e.g",
             "e.v",
             "env",
@@ -61,8 +62,13 @@ class French(Common, Standard):
             "loc.cit",
             "ltd",
             "ltd",
+            "m",
             "masc",
             "mm",
+            "mme",
+            "mmes",
+            "mlle",
+            "mlles",
             "ms",
             "n.b",
             "n.d",
@@ -73,12 +79,14 @@ class French(Common, Standard):
             "n.s",
             "n/réf",
             "nn.ss",
+            "no",
             "p.c.c",
             "p.ex",
             "p.j",
             "p.s",
             "pl",
             "pp",
+            "pr",
             "r.-v",
             "r.a.s",
             "r.i.p",
@@ -97,6 +105,8 @@ class French(Common, Standard):
             "sq",
             "sqq",
             "ss",
+            "st",
+            "ste",
             "suiv",
             "sup",
             "suppl",
@@ -109,5 +119,5 @@ class French(Common, Standard):
             "z.i",
             "éd",
         ]
-        PREPOSITIVE_ABBREVIATIONS = []
-        NUMBER_ABBREVIATIONS = []
+        PREPOSITIVE_ABBREVIATIONS = ["av", "dr", "mm", "mme", "mmes", "mlle", "mlles", "pr", "st", "ste"]
+        NUMBER_ABBREVIATIONS = ["art", "no", "p", "pp"]

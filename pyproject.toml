@@ -11,7 +11,8 @@ requires-python = ">=3.11"
 license = "MIT"
 license-files = ["LICENSE"]
 authors = [
-  { name = "Nipun Sadvilkar", email = "nipunsadvilkar@gmail.com" }
+  { name = "Nipun Sadvilkar", email = "nipunsadvilkar@gmail.com" },
+  { name = "Yi Ding", email = "yi.s.ding@gmail.com" },
 ]
 keywords = ["natural-language-processing", "nlp"]
 classifiers = [
@@ -32,9 +33,7 @@ classifiers = [
 dependencies = []
 
 [project.urls]
-Homepage = "http://nipunsadvilkar.github.io/"
-Repository = "https://github.com/yisding/pySBD"
-Upstream = "https://github.com/nipunsadvilkar/pySBD"
+Repository = "https://github.com/yisding/sentencesplit"
 
 [project.optional-dependencies]
 benchmark = [
@@ -74,10 +73,10 @@ mccabe.max-complexity = 10
 "sentencesplit/lists_item_replacer.py" = ["E501"]
 "sentencesplit/processor.py" = ["C901"]
 "benchmarks/english_golden_rules.py" = ["E501"]
-"analyze_differences.py" = ["C901"]
-"analyze_v2.py" = ["C901"]
-"compare_splitters.py" = ["C901"]
-"final_verdicts.py" = ["C901"]
+"analysis/analyze_disagreements_v1.py" = ["C901"]
+"analysis/analyze_disagreements_v2.py" = ["C901"]
+"analysis/compare_pysbd_vs_punkt.py" = ["C901"]
+"analysis/assign_verdicts.py" = ["C901"]
 "examples/test_timing_script.py" = ["E501", "E402"]
 
 [tool.pytest.ini_options]
