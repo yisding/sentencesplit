@@ -74,6 +74,27 @@ class Segmenter:
         end_idx = prior_end + match.end()
         return start_idx, end_idx
 
+    def _next_sentence_start(self, sentences: List[str], start_at: int, original_text: str, prior_end: int):
+        """Find start index for the next matchable sentence after ``start_at``."""
+        for next_sent in sentences[start_at:]:
+            if not next_sent:
+                continue
+            next_match = self._find_sentence_start(next_sent, original_text, prior_end)
+            if next_match is not None:
+                return next_match[0]
+        return None
+
+    def _unmatched_span(self, sentences: List[str], idx: int, original_text: str, prior_end: int):
+        """Return fallback span when current processed sentence cannot be matched."""
+        next_start = self._next_sentence_start(sentences, idx + 1, original_text, prior_end)
+        if next_start is None:
+            if prior_end < len(original_text):
+                return original_text[prior_end:], prior_end, len(original_text)
+            return None
+        if next_start > prior_end:
+            return original_text[prior_end:next_start], prior_end, next_start
+        return None
+
     def _match_spans(self, sentences: List[str], original_text: str):
         """Match processed sentences back to spans in the original text.
 
@@ -87,25 +108,11 @@ class Segmenter:
                 continue
             match_span = self._find_sentence_start(sent, original_text, prior_end)
             if match_span is None:
-                # Final fallback: avoid dropping text if a sentence cannot be
-                # matched exactly. Attach the unmatched region to this sentence
-                # using the next matched sentence boundary if available.
-                next_start = None
-                for next_sent in sentences[idx + 1 :]:
-                    if not next_sent:
-                        continue
-                    next_match = self._find_sentence_start(next_sent, original_text, prior_end)
-                    if next_match is not None:
-                        next_start = next_match[0]
-                        break
-
-                if next_start is None:
-                    if prior_end < len(original_text):
-                        yield original_text[prior_end:], prior_end, len(original_text)
-                        prior_end = len(original_text)
-                elif next_start > prior_end:
-                    yield original_text[prior_end:next_start], prior_end, next_start
-                    prior_end = next_start
+                fallback_span = self._unmatched_span(sentences, idx, original_text, prior_end)
+                if fallback_span is not None:
+                    txt, start, end = fallback_span
+                    yield txt, start, end
+                    prior_end = end
                 continue
 
             start_idx, end_idx = match_span
