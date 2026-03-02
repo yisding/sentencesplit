@@ -25,3 +25,9 @@ def test_zh_quotes_and_brackets_without_latin_uppercase(zh_default_fixture):
     text = "他说：“走吧！”）然后离开。她回答：「好。」"
     segments = [s.strip() for s in zh_default_fixture.segment(text)]
     assert segments == ["他说：“走吧！”）", "然后离开。", "她回答：「好。」"]
+
+
+def test_zh_double_ascii_punctuation_boundary(zh_default_fixture):
+    text = "真的?!下一句。还有!!结束。"
+    segments = [s.strip() for s in zh_default_fixture.segment(text)]
+    assert segments == ["真的?!", "下一句。", "还有!!", "结束。"]

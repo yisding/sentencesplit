@@ -38,3 +38,9 @@ def test_ja_quotes_and_brackets_without_latin_uppercase(ja_default_fixture):
     text = "彼は「行こう！」）と言った。彼女は「はい。」と答えた。"
     segments = [s.strip() for s in ja_default_fixture.segment(text)]
     assert segments == ["彼は「行こう！」）と言った。", "彼女は「はい。」と答えた。"]
+
+
+def test_ja_double_ascii_punctuation_boundary(ja_default_fixture):
+    text = "本当?!次。さらに!!終わり。"
+    segments = [s.strip() for s in ja_default_fixture.segment(text)]
+    assert segments == ["本当?!", "次。", "さらに!!", "終わり。"]

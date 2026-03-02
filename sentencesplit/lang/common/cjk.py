@@ -4,7 +4,9 @@
 class CJKBoundaryProfile:
     """Boundary defaults for CJK scripts that do not assume Latin uppercase starts."""
 
-    _CJK_SENTENCE_END = r"[。．.！!?？]"
+    # Include temporary placeholders from DoublePunctuationRules so CJK
+    # boundary matching still works before SubSymbols restoration.
+    _CJK_SENTENCE_END = r"[。．.！!?？☉☈☇☄]"
     _CJK_CLOSERS = r"[\"'“”’」』》〉】）〕〗〙〛]"
 
     SENTENCE_BOUNDARY_REGEX = rf".*?{_CJK_SENTENCE_END}{_CJK_CLOSERS}*|.*?$"
