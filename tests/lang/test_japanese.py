@@ -31,6 +31,9 @@ JA_TEST_CASES_CLEAN = [
         "買い物リスト：\n・りんご\n・みかん",
         ["買い物リスト：", "・りんご", "・みかん"],
     ),
+    # Headings / short paragraphs without terminal punctuation must stay separate
+    ("第一章\n概要", ["第一章", "概要"]),
+    ("見出し\n本文", ["見出し", "本文"]),
 ]
 
 
