@@ -12,6 +12,26 @@ GOLDEN_JA_RULES_TEST_CASES = [
             "２％台後半を目指すとする方向で最終調整に入りました。",
         ],
     ),
+    (
+        "彼は「本当に来るの？」と聞いた。私は『行きます！』と答えた。",
+        ["彼は「本当に来るの？」と聞いた。", "私は『行きます！』と答えた。"],
+    ),
+    (
+        "リリースはver.2.1です。次は2.2を予定しています。",
+        ["リリースはver.2.1です。", "次は2.2を予定しています。"],
+    ),
+    (
+        "今日はAIとU.S.の事例を調査する。明日まとめる。",
+        ["今日はAIとU.S.の事例を調査する。", "明日まとめる。"],
+    ),
+    (
+        "まず確認する……次に実装する。最後に共有する！",
+        ["まず確認する……次に実装する。", "最後に共有する！"],
+    ),
+    (
+        "本当に大丈夫？！たぶん大丈夫。",
+        ["本当に大丈夫？！", "たぶん大丈夫。"],
+    ),
 ]
 
 
@@ -61,3 +81,22 @@ def test_ja_char_spans(ja_no_clean_with_span_fixture):
     assert text == "".join(s.sent for s in spans)
     assert spans[0].start == 0
     assert spans[-1].end == len(text)
+
+
+def test_ja_fullwidth_double_punctuation(ja_default_fixture):
+    """All 4 full-width double punctuation combos split correctly."""
+    # ？！
+    assert [s.strip() for s in ja_default_fixture.segment("本当？！次。")] == ["本当？！", "次。"]
+    # ！？
+    assert [s.strip() for s in ja_default_fixture.segment("本当！？次。")] == ["本当！？", "次。"]
+    # ？？
+    assert [s.strip() for s in ja_default_fixture.segment("本当？？次。")] == ["本当？？", "次。"]
+    # ！！
+    assert [s.strip() for s in ja_default_fixture.segment("本当！！次。")] == ["本当！！", "次。"]
+
+
+def test_ja_corner_quote_spans(ja_no_clean_with_span_fixture):
+    """Char spans round-trip correctly with corner brackets."""
+    text = "彼は「本当に来るの？」と聞いた。私は『行きます！』と答えた。"
+    spans = ja_no_clean_with_span_fixture.segment(text)
+    assert text == "".join(s.sent for s in spans)

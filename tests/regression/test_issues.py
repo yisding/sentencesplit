@@ -204,6 +204,14 @@ def test_issue(issue_no, text, expected_sents):
     assert text == " ".join(segments)
 
 
+def test_english_smart_quotes_unaffected():
+    """Verify English smart-quote segmentation is not broken by CJK changes to common.py."""
+    seg = sentencesplit.Segmenter(language="en", clean=False)
+    text = "He said \u201cHello.\u201d She replied \u201cGoodbye.\u201d"
+    segments = [s.strip() for s in seg.segment(text)]
+    assert segments == ["He said \u201cHello.\u201d", "She replied \u201cGoodbye.\u201d"]
+
+
 @pytest.mark.parametrize("issue_no,text,expected_sents_w_spans", TEST_ISSUE_DATA_CHAR_SPANS)
 def test_issues_with_char_spans(issue_no, text, expected_sents_w_spans):
     """pySBD issues tests from https://github.com/nipunsadvilkar/pySBD/issues/"""

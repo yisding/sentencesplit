@@ -17,6 +17,7 @@ _TRAILING_EXCL_RE = re.compile(r"&ᓴ&$")
 _PAREN_SPACE_BEFORE_RE = re.compile(r"\s(?=\()")
 _PAREN_SPACE_AFTER_RE = re.compile(r"(?<=\))\s")
 _ORPHAN_SINGLE_CHARS = frozenset("'\")\u2019\u201d")
+_CJK_QUOTE_RESPLIT_RE = re.compile(r"(?<=[。．][」』】）》])(?=[\u4e00-\u9fff\u3040-\u30ff\u31f0-\u31ffA-Za-z0-9「『【（《])")
 
 
 def _sub_symbols_fast(text, lang):
@@ -36,6 +37,8 @@ class Processor:
         self._has_between_punct = hasattr(lang, "BetweenPunctuation")
         self._has_colon_rule = hasattr(lang, "ReplaceColonBetweenNumbersRule")
         self._has_comma_rule = hasattr(lang, "ReplaceNonSentenceBoundaryCommaRule")
+        self._has_cjk_abbr_rules = hasattr(lang, "CjkAbbreviationRules")
+        self._latin_uppercase_resplit = getattr(lang, "LATIN_UPPERCASE_RESPLIT", True)
 
     def process(self) -> List[str]:
         if not self.text:
@@ -44,6 +47,8 @@ class Processor:
         li = ListItemReplacer(self.text)
         self.text = li.add_line_break()
         self.replace_abbreviations()
+        if self._has_cjk_abbr_rules:
+            self.text = apply_rules(self.text, *self.lang.CjkAbbreviationRules.All)
         self.replace_numbers()
         self.replace_continuous_punctuation()
         self.replace_periods_before_numeric_references()
@@ -84,11 +89,18 @@ class Processor:
                 if pps:
                     postprocessed_sents.append(pps)
         postprocessed_sents = [apply_rules(ns, self.lang.SubSingleQuoteRule) for ns in postprocessed_sents]
-        # Re-split at ".) Capital" boundaries (period inside closing paren before new sentence)
-        if getattr(self.lang, "LATIN_UPPERCASE_RESPLIT", True):
+        if self._latin_uppercase_resplit:
+            # Re-split at ".) Capital" boundaries (period inside closing paren before new sentence)
             resplit = []
             for pps in postprocessed_sents:
                 parts = re.split(r"(?<=[a-zA-Z]{2}\.\))\s+(?=[A-Z])", pps)
+                resplit.extend(p for p in parts if p)
+            postprocessed_sents = resplit
+        else:
+            # CJK: Re-split at closing-quote boundaries
+            resplit = []
+            for pps in postprocessed_sents:
+                parts = _CJK_QUOTE_RESPLIT_RE.split(pps)
                 resplit.extend(p for p in parts if p)
             postprocessed_sents = resplit
         # Merge orphan fragments into the preceding sentence.

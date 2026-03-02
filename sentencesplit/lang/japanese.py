@@ -39,6 +39,25 @@ class Japanese(CJKBoundaryProfile, Common, Standard):
     class AbbreviationReplacer(AbbreviationReplacer):
         SENTENCE_STARTERS = []
 
+        def replace_period_of_abbr(self, txt: str, abbr: str, escaped: str | None = None) -> str:
+            txt = " " + txt
+            if escaped is None:
+                escaped = re.escape(abbr.strip())
+            txt = re.sub(
+                r"(?<=\s{abbr})\.(?=((\.|\:|-|\?|,)|(\s([a-z]|I\s|I'm|I'll|\d|\())|[\u3040-\u30ff\u4e00-\u9fff]))".format(
+                    abbr=escaped
+                ),
+                "∯",
+                txt,
+            )
+            return txt[1:]
+
+    class CjkAbbreviationRules:
+        IntraAbbreviationPeriodRule = Rule(r"(?<=[A-Za-z])\.(?=[A-Za-z]\.)", "∯")
+        EndAbbreviationBeforeCjkRule = Rule(r"(?<=[A-Za-z]∯[A-Za-z])\.(?=[\u3040-\u30ff\u4e00-\u9fff])", "∯")
+
+        All = [IntraAbbreviationPeriodRule, EndAbbreviationBeforeCjkRule]
+
     class BetweenPunctuation(BetweenPunctuation):
         def __init__(self, text):
             super().__init__(text)
@@ -48,13 +67,18 @@ class Japanese(CJKBoundaryProfile, Common, Standard):
             return self.text
 
         def sub_punctuation_between_parens_ja(self):
-            BETWEEN_PARENS_JA_REGEX = r"（(?=(?P<tmp>[^（）]+|\\{2}|\\.)*)(?P=tmp)）"
-            self.text = re.sub(BETWEEN_PARENS_JA_REGEX, replace_punctuation, self.text)
+            regex = r"（(?=(?P<tmp>[^（）]+|\\{2}|\\.)*)(?P=tmp)）"
+            self.text = re.sub(regex, replace_punctuation, self.text)
 
         def sub_punctuation_between_quotes_ja(self):
-            BETWEEN_QUOTE_JA_REGEX = r"「(?=(?P<tmp>[^「」]+|\\{2}|\\.)*)(?P=tmp)」"
-            self.text = re.sub(BETWEEN_QUOTE_JA_REGEX, replace_punctuation, self.text)
+            regex = r"「(?=(?P<tmp>[^「」]+|\\{2}|\\.)*)(?P=tmp)」"
+            self.text = re.sub(regex, replace_punctuation, self.text)
+
+        def sub_punctuation_between_corner_quotes_ja(self):
+            regex = r"『(?=(?P<tmp>[^『』]+|\\{2}|\\.)*)(?P=tmp)』"
+            self.text = re.sub(regex, replace_punctuation, self.text)
 
         def sub_punctuation_between_quotes_and_parens(self):
             self.sub_punctuation_between_parens_ja()
             self.sub_punctuation_between_quotes_ja()
+            self.sub_punctuation_between_corner_quotes_ja()

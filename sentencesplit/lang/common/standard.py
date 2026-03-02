@@ -263,8 +263,21 @@ class Standard:
         SecondRule = Rule(r"!\?", "☈")
         ThirdRule = Rule(r"\?\?", "☇")
         ForthRule = Rule(r"!!", "☄")
-        DoublePunctuation = r"\?!|!\?|\?\?|!!"
-        All = [FirstRule, SecondRule, ThirdRule, ForthRule]
+        FullWidthFirstRule = Rule(r"？！", "☋")
+        FullWidthSecondRule = Rule(r"！？", "☌")
+        FullWidthThirdRule = Rule(r"？？", "☊")
+        FullWidthForthRule = Rule(r"！！", "☍")
+        DoublePunctuation = r"\?!|!\?|\?\?|!!|？！|！？|？？|！！"
+        All = [
+            FirstRule,
+            SecondRule,
+            ThirdRule,
+            ForthRule,
+            FullWidthFirstRule,
+            FullWidthSecondRule,
+            FullWidthThirdRule,
+            FullWidthForthRule,
+        ]
 
     class ExclamationPointRules:
         # Rubular: http://rubular.com/r/XS1XXFRfM2
@@ -299,6 +312,10 @@ class Standard:
             ("☇", "??"),
             ("☈", "!?"),
             ("☄", "!!"),
+            ("☊", "？？"),
+            ("☋", "？！"),
+            ("☌", "！？"),
+            ("☍", "！！"),
             ("&✂&", "("),
             ("&⌬&", ")"),
             ("ȸ", ""),
