@@ -29,6 +29,20 @@ GOLDEN_FR_RULES_TEST_CASES = [
         ],
     ),
     ("Les derniers ouvrages de Intercept Ltd. sont ici.", ["Les derniers ouvrages de Intercept Ltd. sont ici."]),
+    ("J'ai parlé à Mme. Dupont hier.", ["J'ai parlé à Mme. Dupont hier."]),
+    ("Le Dr. Martin est arrivé. Il est reparti.", ["Le Dr. Martin est arrivé.", "Il est reparti."]),
+    (
+        "Rendez-vous avec Pr. Durand demain. Merci de confirmer.",
+        ["Rendez-vous avec Pr. Durand demain.", "Merci de confirmer."],
+    ),
+    ("Nous avons vu Ste. Anne hier.", ["Nous avons vu Ste. Anne hier."]),
+    ("No. 12 est disponible. Merci.", ["No. 12 est disponible.", "Merci."]),
+    ("Mmes. Dupont et Durand sont là.", ["Mmes. Dupont et Durand sont là."]),
+    ("MM. Dupont et Durand sont là.", ["MM. Dupont et Durand sont là."]),
+    (
+        "Il habite av. Victor-Hugo. Il travaille ici.",
+        ["Il habite av. Victor-Hugo.", "Il travaille ici."],
+    ),
 ]
 
 

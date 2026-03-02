@@ -519,10 +519,71 @@ CHALLENGING_EN_TEST_CASES = [
         "The update was at 3 p.m. ASST prepared the report.",
         ["The update was at 3 p.m.", "ASST prepared the report."],
     ),
+    # 119d) Mid-sentence multi-period abbreviation should not force a split
+    (
+        "In early Dixieland, a.k.a. New Orleans jazz, musicians improvised freely.",
+        ["In early Dixieland, a.k.a. New Orleans jazz, musicians improvised freely."],
+    ),
+    # 119e) Name initials with three letters should not force a split
+    # xfail: all-uppercase initials are indistinguishable from acronyms at
+    # sentence boundaries; the broad restore regex treats them the same.
+    pytest.param(
+        "A.S.E. Ackermann and team published the findings in 2007.",
+        ["A.S.E. Ackermann and team published the findings in 2007."],
+        marks=pytest.mark.xfail,
+    ),
+    # 119f) No-space time token + dotted timezone should stay in one sentence
+    (
+        "I had lunch at 3P.M. E.S.T.",
+        ["I had lunch at 3P.M. E.S.T."],
+    ),
+    # 119g) No-space time token + non-timezone dotted acronym remains a boundary
+    (
+        "I had lunch at 3P.M. S.A.T. scored are coming out tomorrow.",
+        ["I had lunch at 3P.M.", "S.A.T. scored are coming out tomorrow."],
+    ),
+    # 119h) Uppercase acronym at sentence end splits before new sentence
+    (
+        "I studied for the S.A.T. Tomorrow is test day.",
+        ["I studied for the S.A.T.", "Tomorrow is test day."],
+    ),
+    # 119i) Lowercase multi-period abbreviation should not force a split
+    (
+        "In early Dixieland, a.k.a. New Orleans jazz, musicians improvised freely.",
+        ["In early Dixieland, a.k.a. New Orleans jazz, musicians improvised freely."],
+    ),
+    # 119j) Two-part abbreviation U.S. followed by uppercase does not split
+    (
+        "The U.S. Government issued a statement.",
+        ["The U.S. Government issued a statement."],
+    ),
+    # 119k) H.R. followed by a number does not split
+    (
+        "They discussed H.R. 1234. No agreement was reached.",
+        ["They discussed H.R. 1234.", "No agreement was reached."],
+    ),
     # 120) Sentence with "no." followed by digit (ambiguous list vs. abbreviation)
     (
         "He is ranked no. 1 in the world. She is no. 3.",
         ["He is ranked no. 1 in the world.", "She is no. 3."],
+    ),
+    # 121) Preserve parenthetical closer after split at interior period
+    (
+        "\n".join(
+            [
+                '"Peak XV" (temporary, assigned by British Imperial Survey)',
+                '"Deodungha" (Old Darjeeling)',
+                '"Gauri Shankar", "Gaurishankar", or "Gaurisankar" (misattribution; used occasionally until about 1900. In modern times the name is used for a different peak about 30 miles (48 kilometres) away.)',
+            ]
+        ),
+        [
+            '"Peak XV"',
+            "(temporary, assigned by British Imperial Survey)",
+            '"Deodungha"',
+            "(Old Darjeeling)",
+            '"Gauri Shankar", "Gaurishankar", or "Gaurisankar" (misattribution; used occasionally until about 1900.',
+            "In modern times the name is used for a different peak about 30 miles (48 kilometres) away.)",
+        ],
     ),
 ]
 

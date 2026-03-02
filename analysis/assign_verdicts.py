@@ -16,7 +16,7 @@ from typing import List, Optional, Tuple
 # Constants
 # ---------------------------------------------------------------------------
 
-RESULTS_FILE = "comparison_results.json"
+RESULTS_FILE = "analysis/pysbd_vs_punkt_results.json"
 
 # Header pattern: == Title == or === Title === etc.
 HEADER_RE = re.compile(r"^={2,}\s.*={2,}$")
@@ -890,7 +890,7 @@ def main():
     # -----------------------------------------------------------------------
     # Write machine-readable results
     # -----------------------------------------------------------------------
-    output_file = "final_verdicts.json"
+    output_file = "analysis/verdicts.json"
     output = {
         "summary": {
             "total_paragraphs": total_assessed,
