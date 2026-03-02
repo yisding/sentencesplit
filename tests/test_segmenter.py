@@ -98,6 +98,18 @@ My life is too complicated right now trying to do my job.
     assert text == "".join([seg.sent for seg in segments_w_spans])
 
 
+def test_nondestructive_when_processed_sentence_cannot_be_matched_exactly():
+    text = 'S";!fR-.\'UOEV(txU(yZci2(3WsgIExZ(XQBEFL[megJ3HXr\nA]6jx.SnLA-w",'
+    seg = sentencesplit.Segmenter(language="en", clean=False, char_span=False)
+    spans_seg = sentencesplit.Segmenter(language="en", clean=False, char_span=True)
+
+    segments = seg.segment(text)
+    spans = spans_seg.segment(text)
+
+    assert "".join(segments) == text
+    assert "".join(span.sent for span in spans) == text
+
+
 def test_exception_with_both_clean_and_span_true():
     """Test to not allow clean=True and char_span=True"""
     with pytest.raises(ValueError) as e:
