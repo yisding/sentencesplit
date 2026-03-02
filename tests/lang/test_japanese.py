@@ -32,3 +32,19 @@ def test_ja_sbd_clean(ja_with_clean_no_span_fixture, text, expected_sents):
     segments = ja_with_clean_no_span_fixture.segment(text)
     segments = [s.strip() for s in segments]
     assert segments == expected_sents
+
+
+def test_ja_mixed_cjk_latin(ja_default_fixture):
+    """CJK boundary regex handles embedded Latin text correctly."""
+    text = "リリースはver.2.1です。次は2.2です。"
+    segments = [s.strip() for s in ja_default_fixture.segment(text)]
+    assert segments == ["リリースはver.2.1です。", "次は2.2です。"]
+
+
+def test_ja_char_spans(ja_no_clean_with_span_fixture):
+    """Char spans round-trip correctly for Japanese text."""
+    text = "これはペンです。それはマーカーです。"
+    spans = ja_no_clean_with_span_fixture.segment(text)
+    assert text == "".join(s.sent for s in spans)
+    assert spans[0].start == 0
+    assert spans[-1].end == len(text)

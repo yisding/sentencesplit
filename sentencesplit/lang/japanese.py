@@ -5,11 +5,12 @@ from sentencesplit.abbreviation_replacer import AbbreviationReplacer
 from sentencesplit.between_punctuation import BetweenPunctuation
 from sentencesplit.cleaner import Cleaner
 from sentencesplit.lang.common import Common, Standard
+from sentencesplit.lang.common.cjk import CJKBoundaryProfile
 from sentencesplit.punctuation_replacer import replace_punctuation
 from sentencesplit.utils import Rule, apply_rules
 
 
-class Japanese(Common, Standard):
+class Japanese(CJKBoundaryProfile, Common, Standard):
     iso_code = "ja"
 
     class Cleaner(Cleaner):

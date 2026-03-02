@@ -19,3 +19,19 @@ def test_zsh_sbd(zh_default_fixture, text, expected_sents):
     segments = zh_default_fixture.segment(text)
     segments = [s.strip() for s in segments]
     assert segments == expected_sents
+
+
+def test_zh_mixed_cjk_latin(zh_default_fixture):
+    """CJK boundary regex handles embedded Latin text correctly."""
+    text = "版本号是3.14。下一句话。"
+    segments = [s.strip() for s in zh_default_fixture.segment(text)]
+    assert segments == ["版本号是3.14。", "下一句话。"]
+
+
+def test_zh_char_spans(zh_no_clean_with_span_fixture):
+    """Char spans round-trip correctly for Chinese text."""
+    text = "这是第一句。这是第二句。"
+    spans = zh_no_clean_with_span_fixture.segment(text)
+    assert text == "".join(s.sent for s in spans)
+    assert spans[0].start == 0
+    assert spans[-1].end == len(text)

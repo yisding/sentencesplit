@@ -175,3 +175,15 @@ def kk_default_fixture():
 def sk_default_fixture():
     sk_segmenter = sentencesplit.Segmenter(language="sk", clean=False, char_span=False)
     return sk_segmenter
+
+
+@pytest.fixture()
+def zh_no_clean_with_span_fixture():
+    zh_segmenter = sentencesplit.Segmenter(language="zh", clean=False, char_span=True)
+    return zh_segmenter
+
+
+@pytest.fixture()
+def ja_no_clean_with_span_fixture():
+    ja_segmenter = sentencesplit.Segmenter(language="ja", clean=False, char_span=True)
+    return ja_segmenter

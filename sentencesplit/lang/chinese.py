@@ -4,10 +4,11 @@ import re
 from sentencesplit.abbreviation_replacer import AbbreviationReplacer
 from sentencesplit.between_punctuation import BetweenPunctuation
 from sentencesplit.lang.common import Common, Standard
+from sentencesplit.lang.common.cjk import CJKBoundaryProfile
 from sentencesplit.punctuation_replacer import replace_punctuation
 
 
-class Chinese(Common, Standard):
+class Chinese(CJKBoundaryProfile, Common, Standard):
     iso_code = "zh"
 
     class AbbreviationReplacer(AbbreviationReplacer):
