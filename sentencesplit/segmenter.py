@@ -57,6 +57,44 @@ class Segmenter:
         else:
             return Processor(text, self.language_module, char_span=self.char_span)
 
+    def _find_sentence_start(self, sent: str, original_text: str, prior_end: int):
+        """Return start/end indices for ``sent`` from ``prior_end`` if found."""
+        start_idx = original_text.find(sent, prior_end)
+        if start_idx != -1:
+            return start_idx, start_idx + len(sent)
+
+        # Some post-processing rules may normalize spaces around punctuation,
+        # so allow flexible whitespace when mapping back to original text.
+        whitespace_flexible = re.escape(sent).replace(r"\ ", r"\s*")
+        match = re.search(whitespace_flexible, original_text[prior_end:])
+        if match is None:
+            return None
+
+        start_idx = prior_end + match.start()
+        end_idx = prior_end + match.end()
+        return start_idx, end_idx
+
+    def _next_sentence_start(self, sentences: List[str], start_at: int, original_text: str, prior_end: int):
+        """Find start index for the next matchable sentence after ``start_at``."""
+        for next_sent in sentences[start_at:]:
+            if not next_sent:
+                continue
+            next_match = self._find_sentence_start(next_sent, original_text, prior_end)
+            if next_match is not None:
+                return next_match[0]
+        return None
+
+    def _unmatched_span(self, sentences: List[str], idx: int, original_text: str, prior_end: int):
+        """Return fallback span when current processed sentence cannot be matched."""
+        next_start = self._next_sentence_start(sentences, idx + 1, original_text, prior_end)
+        if next_start is None:
+            if prior_end < len(original_text):
+                return original_text[prior_end:], prior_end, len(original_text)
+            return None
+        if next_start > prior_end:
+            return original_text[prior_end:next_start], prior_end, next_start
+        return None
+
     def _match_spans(self, sentences: List[str], original_text: str):
         """Match processed sentences back to spans in the original text.
 
@@ -65,19 +103,19 @@ class Segmenter:
         does not capture, keeping the segmentation non-destructive.
         """
         prior_end = 0
-        for sent in sentences:
+        for idx, sent in enumerate(sentences):
             if not sent:
                 continue
-            start_idx = original_text.find(sent, prior_end)
-            if start_idx == -1:
-                for match in re.finditer(rf"{re.escape(sent)}\s*", original_text):
-                    match_start, match_end = match.span()
-                    if match_end > prior_end:
-                        yield match.group(), match_start, match_end
-                        prior_end = match_end
-                        break
+            match_span = self._find_sentence_start(sent, original_text, prior_end)
+            if match_span is None:
+                fallback_span = self._unmatched_span(sentences, idx, original_text, prior_end)
+                if fallback_span is not None:
+                    txt, start, end = fallback_span
+                    yield txt, start, end
+                    prior_end = end
                 continue
-            end_idx = start_idx + len(sent)
+
+            start_idx, end_idx = match_span
             while end_idx < len(original_text) and original_text[end_idx].isspace():
                 end_idx += 1
             yield original_text[start_idx:end_idx], start_idx, end_idx
