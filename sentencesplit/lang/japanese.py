@@ -22,7 +22,18 @@ class Japanese(CJKBoundaryProfile, Common, Standard):
             return self.text
 
         def remove_newline_in_middle_of_word(self):
-            NewLineInMiddleOfWordRule = Rule(r"(?<=の)\n(?=\S)", "")
+            # Only join lines when the preceding character is a common Japanese
+            # particle, which strongly indicates the sentence continues on the
+            # next line (e.g. line-wrapped text).  Matching any Japanese character
+            # would incorrectly merge headings/short paragraphs that lack
+            # terminal punctuation (e.g. 第一章\n概要).
+            continuation_particle = r"[のはがをにでともへ]"
+            japanese_char = r"[\u3040-\u30FF\u3400-\u9FFF々〆〤]"
+            list_like_line_start = r"(?:[・●○◦▪■□◆◇▼▽▶▷►▸※]|[-*]|[0-9０-９]+[.)、．]|[一二三四五六七八九十]+[、.)])"
+            NewLineInMiddleOfWordRule = Rule(
+                rf"(?<={continuation_particle})\n(?=(?!\s*{list_like_line_start}){japanese_char})",
+                "",
+            )
             self.text = apply_rules(self.text, NewLineInMiddleOfWordRule)
 
     class AbbreviationReplacer(AbbreviationReplacer):
