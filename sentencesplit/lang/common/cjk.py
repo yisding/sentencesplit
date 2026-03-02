@@ -7,7 +7,7 @@ class CJKBoundaryProfile:
     _CJK_SENTENCE_END = r"[。．.！!?？]"
     _CJK_CLOSERS = r"[\"'“”’」』》〉】）〕〗〙〛]"
 
-    SENTENCE_BOUNDARY_REGEX = rf"\S[^\n。．.！!?？]*{_CJK_SENTENCE_END}{_CJK_CLOSERS}*|.+$"
+    SENTENCE_BOUNDARY_REGEX = rf".*?{_CJK_SENTENCE_END}{_CJK_CLOSERS}*|.*?$"
     QUOTATION_AT_END_OF_SENTENCE_REGEX = rf"{_CJK_SENTENCE_END}{_CJK_CLOSERS}\s+[^\s]"
     SPLIT_SPACE_QUOTATION_AT_END_OF_SENTENCE_REGEX = rf"(?<={_CJK_SENTENCE_END}{_CJK_CLOSERS})\s+(?=[^\s])"
 
