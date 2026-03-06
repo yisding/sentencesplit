@@ -269,6 +269,66 @@ ES_CHALLENGING_TEST_CASES = [
         "La reunión es a las 3 p. m. Por favor sea puntual.",
         ["La reunión es a las 3 p. m.", "Por favor sea puntual."],
     ),
+    (
+        "Habló con el Sr. Gómez ayer. Luego volvió.",
+        ["Habló con el Sr. Gómez ayer.", "Luego volvió."],
+    ),
+    (
+        "Llamó a la Dra. Pérez a las 6 p. m. Luego salió.",
+        ["Llamó a la Dra. Pérez a las 6 p. m.", "Luego salió."],
+    ),
+    (
+        '"¿Vendrás hoy?", preguntó Marta. Nadie respondió.',
+        ['"¿Vendrás hoy?", preguntó Marta.', "Nadie respondió."],
+    ),
+    (
+        'El informe decía: "Rev. 3.2 lista". Todo siguió igual.',
+        ['El informe decía: "Rev. 3.2 lista".', "Todo siguió igual."],
+    ),
+    (
+        "Publicó la versión 2.1.4. Después corrigió el error.",
+        ["Publicó la versión 2.1.4.", "Después corrigió el error."],
+    ),
+    (
+        "Llegó a las 8 a. m. en punto. Empezó a trabajar.",
+        ["Llegó a las 8 a. m. en punto.", "Empezó a trabajar."],
+    ),
+    (
+        "La sede está en EE. UU. y sigue abierta.",
+        ["La sede está en EE. UU. y sigue abierta."],
+    ),
+    (
+        "El memo decía «Rev. 2.0 lista». Luego llegó la Lic. Ortega.",
+        ["El memo decía «Rev. 2.0 lista».", "Luego llegó la Lic. Ortega."],
+    ),
+    (
+        "La transmisión empieza a las 5 a. m. GMT. Después no hay servicio.",
+        ["La transmisión empieza a las 5 a. m. GMT.", "Después no hay servicio."],
+    ),
+    (
+        "La oferta vence el Vie. 12 de Dic. a las 8 p. m. Aprovecha hoy.",
+        ["La oferta vence el Vie. 12 de Dic. a las 8 p. m.", "Aprovecha hoy."],
+    ),
+    (
+        "Visitó EE. UU., Canadá y México. Regresó el Lun. 4 de Ene.",
+        ["Visitó EE. UU., Canadá y México.", "Regresó el Lun. 4 de Ene."],
+    ),
+    (
+        "Dijo «¡No!». Luego se fue.",
+        ["Dijo «¡No!».", "Luego se fue."],
+    ),
+    (
+        "La Sra. Pérez, Ph.D., llegó a las 7 p. m. y habló.",
+        ["La Sra. Pérez, Ph.D., llegó a las 7 p. m. y habló."],
+    ),
+    (
+        "El corredor Núm. 4 ganó. Después saludó al público.",
+        ["El corredor Núm. 4 ganó.", "Después saludó al público."],
+    ),
+    (
+        "El informe del Lic. Gómez llegó a las 6 p. m. EST. Todo salió bien.",
+        ["El informe del Lic. Gómez llegó a las 6 p. m. EST.", "Todo salió bien."],
+    ),
 ]
 
 
@@ -276,5 +336,13 @@ ES_CHALLENGING_TEST_CASES = [
 def test_es_challenging(es_default_fixture, text, expected_sents):
     """Spanish challenging SBD tests for parity with English edge-case coverage."""
     segments = es_default_fixture.segment(text)
+    segments = [s.strip() for s in segments]
+    assert segments == expected_sents
+
+
+@pytest.mark.parametrize("text,expected_sents", ES_CHALLENGING_TEST_CASES)
+def test_es_challenging_shared_splitter(en_es_zh_default_fixture, text, expected_sents):
+    """Shared en/es/zh splitter should preserve Spanish challenging-case parity."""
+    segments = en_es_zh_default_fixture.segment(text)
     segments = [s.strip() for s in segments]
     assert segments == expected_sents

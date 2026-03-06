@@ -17,7 +17,9 @@ _TRAILING_EXCL_RE = re.compile(r"&ᓴ&$")
 _PAREN_SPACE_BEFORE_RE = re.compile(r"\s(?=\()")
 _PAREN_SPACE_AFTER_RE = re.compile(r"(?<=\))\s")
 _ORPHAN_SINGLE_CHARS = frozenset("'\")\u2019\u201d")
-_CJK_QUOTE_RESPLIT_RE = re.compile(r"(?<=[。．][」』】）》])(?=[\u4e00-\u9fff\u3040-\u30ff\u31f0-\u31ffA-Za-z0-9「『【（《])")
+_CJK_QUOTE_RESPLIT_RE = re.compile(
+    r"(?<=[。．][\"'”’」』】）》])(?=[\u4e00-\u9fff\u3040-\u30ff\u31f0-\u31ffA-Za-z0-9「『【（《])"
+)
 
 
 def _sub_symbols_fast(text, lang):

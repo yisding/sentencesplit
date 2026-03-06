@@ -5,13 +5,16 @@ from sentencesplit.abbreviation_replacer import AbbreviationReplacer
 from sentencesplit.between_punctuation import BetweenPunctuation
 from sentencesplit.cleaner import Cleaner
 from sentencesplit.lang.common import Common, Standard
-from sentencesplit.lang.common.cjk import CJKBoundaryProfile
+from sentencesplit.lang.common.cjk import CJKBoundaryProfile, CJKProcessor
 from sentencesplit.punctuation_replacer import replace_punctuation
 from sentencesplit.utils import Rule, apply_rules
 
 
 class Japanese(CJKBoundaryProfile, Common, Standard):
     iso_code = "ja"
+    CJK_REPORTING_CLAUSE_REGEX = re.compile(
+        r"^(?:彼|彼女|私は|僕は|俺は|記者は|母は|父は).{0,6}(?:言った|話した|尋ねた|答えた|叫んだ|述べた|説明した)"
+    )
 
     class Cleaner(Cleaner):
         def __init__(self, text, lang, doc_type=None):
@@ -57,6 +60,9 @@ class Japanese(CJKBoundaryProfile, Common, Standard):
         EndAbbreviationBeforeCjkRule = Rule(r"(?<=[A-Za-z]∯[A-Za-z])\.(?=[\u3040-\u30ff\u4e00-\u9fff])", "∯")
 
         All = [IntraAbbreviationPeriodRule, EndAbbreviationBeforeCjkRule]
+
+    class Processor(CJKProcessor):
+        pass
 
     class BetweenPunctuation(BetweenPunctuation):
         def __init__(self, text):
