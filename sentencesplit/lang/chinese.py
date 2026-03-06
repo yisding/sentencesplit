@@ -72,9 +72,7 @@ class Chinese(CJKBoundaryProfile, Common, Standard):
         def sub_punctuation_between_slanted_quotes(self):
             regex = r"“(?=(?P<tmp>[^”\\]+|\\{2}|\\.)*)(?P=tmp)”"
             self.text = re.sub(regex, replace_punctuation, self.text)
-            self.text = _CJK_SLANTED_QUOTE_END_RE.sub(
-                lambda match: _RESTORE_CJK_TERMINAL_PUNCT[match.group(1)], self.text
-            )
+            self.text = _CJK_SLANTED_QUOTE_END_RE.sub(lambda match: _RESTORE_CJK_TERMINAL_PUNCT[match.group(1)], self.text)
 
         def sub_punctuation_between_cn_parens(self):
             regex = r"（(?=(?P<tmp>[^）\\]+|\\{2}|\\.)*)(?P=tmp)）"
