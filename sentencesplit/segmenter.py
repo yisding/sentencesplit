@@ -250,7 +250,11 @@ class Segmenter:
         return segments
 
     def should_wait_for_more(self, text: str | None) -> bool:
-        """Return whether the last emitted segment should wait for more input."""
+        """Return whether the last emitted segment should wait for more input.
+
+        This is continuation-sensitive by design: we probe with tiny suffixes to
+        detect whether the last boundary remains stable if more text arrives.
+        """
         analysis_text, _, comparison_segments = self._segment_result(text)
         return self._wait_for_last_segment(analysis_text, comparison_segments)
 

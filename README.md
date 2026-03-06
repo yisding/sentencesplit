@@ -39,6 +39,15 @@ print(seg.should_wait_for_more("This is the finale."))
 # False
 ```
 
+### Why lookahead uses probes
+
+`should_wait_for_more()` answers a *counterfactual* question: "if more characters arrived, would the last boundary stay a boundary?"  
+The existing regex/rule pipeline is deterministic for the text you pass in, but it cannot directly encode every continuation-sensitive case in one pass (for example `"Dr."` vs `"This is the finale."`, numeric endings, and language-specific abbreviation/starter interactions) without effectively duplicating parser state.
+
+Instead, lookahead appends a few tiny probe suffixes and re-runs segmentation to see whether the final segment remains stable. If adding plausible continuation tokens changes that final boundary, we return `should_wait_for_more=True`; otherwise `False`.
+
+To keep this efficient for streaming inputs, lookahead probes only the located tail segment when possible and falls back to full-text probing only when needed.
+
 -   Use `sentencesplit` as a [spaCy](https://spacy.io/usage/processing-pipelines) pipeline component. (recommended)</br>Please refer to example [sentencesplit\_as\_spacy\_component.py](examples/sentencesplit_as_spacy_component.py)
 - Use sentencesplit through [entry points](https://spacy.io/usage/saving-loading#entry-points-components)
 
