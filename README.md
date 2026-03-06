@@ -24,6 +24,21 @@ print(seg.segment(text))
 # ['My name is Jonas E. Smith.', 'Please turn to p. 55.']
 ```
 
+```python
+import sentencesplit
+
+seg = sentencesplit.Segmenter(language="en", clean=False)
+
+result = seg.segment_with_lookahead("The model is GPT 3.")
+print(result.segments)
+# ['The model is GPT 3.']
+print(result.should_wait_for_more)
+# True
+
+print(seg.should_wait_for_more("This is the finale."))
+# False
+```
+
 -   Use `sentencesplit` as a [spaCy](https://spacy.io/usage/processing-pipelines) pipeline component. (recommended)</br>Please refer to example [sentencesplit\_as\_spacy\_component.py](examples/sentencesplit_as_spacy_component.py)
 - Use sentencesplit through [entry points](https://spacy.io/usage/saving-loading#entry-points-components)
 
