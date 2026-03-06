@@ -37,6 +37,7 @@ HYBRID_RULES_TEST_CASES = [
         "「今天先这样。」他说。然后离开。",
         ["「今天先这样。」他说。", "然后离开。"],
     ),
+    ("Dijo adiós. Él.", ["Dijo adiós.", "Él."]),
     ("¿Cómo está hoy? 我很好。See you soon.", ["¿Cómo está hoy?", "我很好。", "See you soon."]),
     ("版本号是3.14。The next release is 4.0.", ["版本号是3.14。", "The next release is 4.0."]),
 ]

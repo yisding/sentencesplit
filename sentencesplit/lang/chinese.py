@@ -9,6 +9,7 @@ from sentencesplit.punctuation_replacer import replace_punctuation
 from sentencesplit.utils import Rule
 
 _CJK_SLANTED_QUOTE_END_RE = re.compile(r"(&ᓰ&|&ᓱ&|&ᓳ&|&ᓴ&|&ᓷ&|&ᓸ&)(?=[”’][^\s])")
+_CJK_REPORTING_CLAUSE_BOUNDARY = r"(?=$|[，,：:。．.!！?？…])"
 _RESTORE_CJK_TERMINAL_PUNCT = {
     "&ᓰ&": "。",
     "&ᓱ&": "．",
@@ -22,7 +23,7 @@ _RESTORE_CJK_TERMINAL_PUNCT = {
 class Chinese(CJKBoundaryProfile, Common, Standard):
     iso_code = "zh"
     CJK_REPORTING_CLAUSE_REGEX = re.compile(
-        r"^(?:他|她|他们|她们|我|我们|记者|警方|老师|母亲|父亲|主持人|发言人).{0,6}(?:说|问|答|表示|回应|补充|解释)"
+        rf"^(?:他|她|他们|她们|我|我们|记者|警方|老师|母亲|父亲|主持人|发言人).{{0,6}}(?:说|问|答|表示|回应|补充|解释){_CJK_REPORTING_CLAUSE_BOUNDARY}"
     )
 
     class AbbreviationReplacer(AbbreviationReplacer):

@@ -24,8 +24,9 @@ _CJK_FOLLOWING_CHAR_RE = re.compile(r"[\u3400-\u9FFF]")
 _ENGLISH_HEURISTIC_ABBREVIATIONS = frozenset(a.lower() for a in Standard.Abbreviation.ABBREVIATIONS)
 _QUOTE_CLOSER_RE = re.compile(r"""["'”’」』》】]+$""")
 _CJK_SLANTED_QUOTE_END_RE = re.compile(r"(&ᓰ&|&ᓱ&|&ᓳ&|&ᓴ&|&ᓷ&|&ᓸ&)(?=[”’][^\s])")
+_CJK_REPORTING_CLAUSE_BOUNDARY = r"(?=$|[，,：:。．.!！?？…])"
 _CJK_REPORTING_CLAUSE_RE = re.compile(
-    r"^(?:他|她|他们|她们|我|我们|记者|警方|老师|母亲|父亲|主持人|发言人).{0,6}(?:说|问|答|表示|回应|补充|解释)"
+    rf"^(?:他|她|他们|她们|我|我们|记者|警方|老师|母亲|父亲|主持人|发言人).{{0,6}}(?:说|问|答|表示|回应|补充|解释){_CJK_REPORTING_CLAUSE_BOUNDARY}"
 )
 _RESTORE_CJK_TERMINAL_PUNCT = {
     "&ᓰ&": "。",
@@ -181,7 +182,7 @@ class EnglishSpanishChinese(CJKBoundaryProfile, Common, Standard):
                     elif (
                         len(stripped) <= 10
                         and stripped.endswith(".")
-                        and not (stripped[0].isascii() and stripped[0].isupper())
+                        and not stripped[0].isupper()
                         and any(c.isalnum() or _CJK_FOLLOWING_CHAR_RE.match(c) for c in stripped)
                     ):
                         is_orphan = True
