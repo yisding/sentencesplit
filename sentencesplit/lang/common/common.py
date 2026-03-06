@@ -45,8 +45,11 @@ class Common:
     # # Rubular: http://rubular.com/r/NEv265G2X2
     KommanditgesellschaftRule = Rule(r"(?<=Co)\.(?=\sKG)", "∯")
 
-    # # Rubular: http://rubular.com/r/xDkpFZ0EgH
-    MULTI_PERIOD_ABBREVIATION_REGEX = r"\b[a-z](?:\.[a-z])+[.]"
+    # Match dotted abbreviations without relying on \b, which treats CJK
+    # letters as word characters and misses cases like "中文A.I.-7". Limit the
+    # final segment to a single letter so domains such as "example.co.uk." are
+    # not mistaken for abbreviations.
+    MULTI_PERIOD_ABBREVIATION_REGEX = r"(?<![A-Za-z0-9_])(?:[A-Za-z]{1,3}\.)+[A-Za-z]\."
 
     class SingleLetterAbbreviationRules:
         """Searches for periods within an abbreviation and

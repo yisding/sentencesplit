@@ -297,6 +297,38 @@ ES_CHALLENGING_TEST_CASES = [
         "La sede está en EE. UU. y sigue abierta.",
         ["La sede está en EE. UU. y sigue abierta."],
     ),
+    (
+        "El memo decía «Rev. 2.0 lista». Luego llegó la Lic. Ortega.",
+        ["El memo decía «Rev. 2.0 lista».", "Luego llegó la Lic. Ortega."],
+    ),
+    (
+        "La transmisión empieza a las 5 a. m. GMT. Después no hay servicio.",
+        ["La transmisión empieza a las 5 a. m. GMT.", "Después no hay servicio."],
+    ),
+    (
+        "La oferta vence el Vie. 12 de Dic. a las 8 p. m. Aprovecha hoy.",
+        ["La oferta vence el Vie. 12 de Dic. a las 8 p. m.", "Aprovecha hoy."],
+    ),
+    (
+        "Visitó EE. UU., Canadá y México. Regresó el Lun. 4 de Ene.",
+        ["Visitó EE. UU., Canadá y México.", "Regresó el Lun. 4 de Ene."],
+    ),
+    (
+        "Dijo «¡No!». Luego se fue.",
+        ["Dijo «¡No!».", "Luego se fue."],
+    ),
+    (
+        "La Sra. Pérez, Ph.D., llegó a las 7 p. m. y habló.",
+        ["La Sra. Pérez, Ph.D., llegó a las 7 p. m. y habló."],
+    ),
+    (
+        "El corredor Núm. 4 ganó. Después saludó al público.",
+        ["El corredor Núm. 4 ganó.", "Después saludó al público."],
+    ),
+    (
+        "El informe del Lic. Gómez llegó a las 6 p. m. EST. Todo salió bien.",
+        ["El informe del Lic. Gómez llegó a las 6 p. m. EST.", "Todo salió bien."],
+    ),
 ]
 
 

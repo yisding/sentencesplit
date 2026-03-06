@@ -8,6 +8,16 @@ from sentencesplit.lang.common.cjk import CJKBoundaryProfile, CJKProcessor
 from sentencesplit.punctuation_replacer import replace_punctuation
 from sentencesplit.utils import Rule
 
+_CJK_SLANTED_QUOTE_END_RE = re.compile(r"(&ᓰ&|&ᓱ&|&ᓳ&|&ᓴ&|&ᓷ&|&ᓸ&)(?=[”’][^\s])")
+_RESTORE_CJK_TERMINAL_PUNCT = {
+    "&ᓰ&": "。",
+    "&ᓱ&": "．",
+    "&ᓳ&": "！",
+    "&ᓴ&": "!",
+    "&ᓷ&": "?",
+    "&ᓸ&": "？",
+}
+
 
 class Chinese(CJKBoundaryProfile, Common, Standard):
     iso_code = "zh"
@@ -58,12 +68,20 @@ class Chinese(CJKBoundaryProfile, Common, Standard):
             regex = r"『(?=(?P<tmp>[^』\\]+|\\{2}|\\.)*)(?P=tmp)』"
             self.text = re.sub(regex, replace_punctuation, self.text)
 
+        def sub_punctuation_between_slanted_quotes(self):
+            regex = r"“(?=(?P<tmp>[^”\\]+|\\{2}|\\.)*)(?P=tmp)”"
+            self.text = re.sub(regex, replace_punctuation, self.text)
+            self.text = _CJK_SLANTED_QUOTE_END_RE.sub(
+                lambda match: _RESTORE_CJK_TERMINAL_PUNCT[match.group(1)], self.text
+            )
+
         def sub_punctuation_between_cn_parens(self):
             regex = r"（(?=(?P<tmp>[^）\\]+|\\{2}|\\.)*)(?P=tmp)）"
             self.text = re.sub(regex, replace_punctuation, self.text)
 
         def sub_punctuation_between_quotes_and_parens(self):
             self.sub_punctuation_between_double_angled_quotation_marks()
+            self.sub_punctuation_between_slanted_quotes()
             self.sub_punctuation_between_l_bracket()
             self.sub_punctuation_between_cn_corner_quotes()
             self.sub_punctuation_between_cn_parens()

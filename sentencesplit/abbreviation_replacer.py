@@ -154,17 +154,28 @@ class AbbreviationReplacer:
             return self.text
         if self.SENTENCE_STARTERS:
             sent_starters = "|".join((r"(?=\s{}\s)".format(word) for word in self.SENTENCE_STARTERS))
-            regex = r"({})∯({})".format(boundary_abbr, sent_starters)
+            regex = r"(?<![A-Za-z0-9_∯])({})∯({})".format(boundary_abbr, sent_starters)
         else:
-            regex = r"({})∯".format(boundary_abbr)
+            regex = r"(?<![A-Za-z0-9_∯])({})∯".format(boundary_abbr)
         self.text = re.sub(regex, "\\1.", self.text)
         return self.text
 
     def replace_multi_period_abbreviations(self) -> None:
         def mpa_replace(match):
-            match = match.group()
-            match = match.replace(".", "∯")
-            return match
+            matched = match.group()
+            parts = matched[:-1].split(".")
+            next_text = self.text[match.end() :]
+            protect_final_period = True
+
+            # Keep sentence-final boundaries for mixed abbreviations like Ph.D.
+            # when a likely new sentence starts next, but continue protecting
+            # pure initialisms like A.I. before uppercase nouns.
+            if re.match(r"\s[A-Z]", next_text) and any(len(part) > 1 for part in parts):
+                protect_final_period = False
+
+            body = matched[:-1].replace(".", "∯")
+            tail = "∯" if protect_final_period else "."
+            return body + tail
 
         self.text = re.sub(self.lang.MULTI_PERIOD_ABBREVIATION_REGEX, mpa_replace, self.text, flags=re.IGNORECASE)
 
