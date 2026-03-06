@@ -4,13 +4,16 @@ import re
 from sentencesplit.abbreviation_replacer import AbbreviationReplacer
 from sentencesplit.between_punctuation import BetweenPunctuation
 from sentencesplit.lang.common import Common, Standard
-from sentencesplit.lang.common.cjk import CJKBoundaryProfile
+from sentencesplit.lang.common.cjk import CJKBoundaryProfile, CJKProcessor
 from sentencesplit.punctuation_replacer import replace_punctuation
 from sentencesplit.utils import Rule
 
 
 class Chinese(CJKBoundaryProfile, Common, Standard):
     iso_code = "zh"
+    CJK_REPORTING_CLAUSE_REGEX = re.compile(
+        r"^(?:他|她|他们|她们|我|我们|记者|警方|老师|母亲|父亲|主持人|发言人).{0,6}(?:说|问|答|表示|回应|补充|解释)"
+    )
 
     class AbbreviationReplacer(AbbreviationReplacer):
         SENTENCE_STARTERS = []
@@ -31,6 +34,9 @@ class Chinese(CJKBoundaryProfile, Common, Standard):
         EndAbbreviationBeforeCjkRule = Rule(r"(?<=[A-Za-z]∯[A-Za-z])\.(?=[\u4e00-\u9fff])", "∯")
 
         All = [IntraAbbreviationPeriodRule, EndAbbreviationBeforeCjkRule]
+
+    class Processor(CJKProcessor):
+        pass
 
     class BetweenPunctuation(BetweenPunctuation):
         def __init__(self, text):

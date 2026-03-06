@@ -187,3 +187,15 @@ def zh_no_clean_with_span_fixture():
 def ja_no_clean_with_span_fixture():
     ja_segmenter = sentencesplit.Segmenter(language="ja", clean=False, char_span=True)
     return ja_segmenter
+
+
+@pytest.fixture()
+def en_es_zh_default_fixture():
+    hybrid_segmenter = sentencesplit.Segmenter(language="en_es_zh", clean=False, char_span=False)
+    return hybrid_segmenter
+
+
+@pytest.fixture()
+def en_es_zh_no_clean_with_span_fixture():
+    hybrid_segmenter = sentencesplit.Segmenter(language="en_es_zh", clean=False, char_span=True)
+    return hybrid_segmenter
