@@ -99,6 +99,39 @@ class Segmenter:
             return processed_sents
         return [s for s, _, _ in self._match_spans(processed_sents, analysis_text)]
 
+    def _expected_last_segment_for_probe(self, last_segment: str, suffix: str) -> str:
+        if self.clean:
+            return last_segment
+        leading_whitespace = suffix[: len(suffix) - len(suffix.lstrip())]
+        return last_segment + leading_whitespace
+
+    def _wait_with_tail_probe(self, base_tail: str, last_segment: str, probe_suffixes: tuple[str, ...]) -> bool:
+        for suffix in probe_suffixes:
+            probe_segments = self._comparison_segments_from_analysis_text(base_tail + suffix)
+            if not probe_segments:
+                return True
+
+            expected_last_segment = self._expected_last_segment_for_probe(last_segment, suffix)
+            if probe_segments[0] != expected_last_segment:
+                return True
+        return False
+
+    def _wait_with_full_probe(
+        self,
+        analysis_text: str,
+        comparison_segments: list[str],
+        last_segment: str,
+        probe_suffixes: tuple[str, ...],
+    ) -> bool:
+        expected_prefix = comparison_segments[:-1]
+        for suffix in probe_suffixes:
+            probe_segments = self._comparison_segments_from_analysis_text(analysis_text + suffix)
+            expected_last_segment = self._expected_last_segment_for_probe(last_segment, suffix)
+            probe_prefix = probe_segments[: len(comparison_segments)]
+            if probe_prefix != [*expected_prefix, expected_last_segment]:
+                return True
+        return False
+
     def _segment_result(self, text: str | None) -> tuple[str, list[str] | list[TextSpan], list[str]]:
         if not text:
             return "", [], []
@@ -135,20 +168,18 @@ class Segmenter:
         if punct not in _PERIOD_END_PUNCTUATION:
             return False
 
-        expected_prefix = comparison_segments[:-1]
-        for suffix in self._lookahead_probes_for_text(
+        probe_suffixes = self._lookahead_probes_for_text(
             terminal_text,
             punct_index,
             punct,
             has_trailing_whitespace=has_trailing_whitespace,
-        ):
-            probe_segments = self._comparison_segments_from_analysis_text(analysis_text + suffix)
-            leading_whitespace = suffix[: len(suffix) - len(suffix.lstrip())]
-            expected_last_segment = last_segment + leading_whitespace
-            probe_prefix = probe_segments[: len(comparison_segments)]
-            if probe_prefix != [*expected_prefix, expected_last_segment]:
-                return True
-        return False
+        )
+
+        start_index = analysis_text.rfind(last_segment)
+        if start_index != -1:
+            return self._wait_with_tail_probe(analysis_text[start_index:], last_segment, probe_suffixes)
+
+        return self._wait_with_full_probe(analysis_text, comparison_segments, last_segment, probe_suffixes)
 
     def _find_sentence_start(self, sent: str, original_text: str, prior_end: int):
         """Return start/end indices for ``sent`` from ``prior_end`` if found."""

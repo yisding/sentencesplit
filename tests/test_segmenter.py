@@ -97,6 +97,35 @@ def test_segment_with_lookahead_tracks_only_last_segment(text, expected_segments
     assert seg.should_wait_for_more(text) is expected_wait
 
 
+def test_segment_with_lookahead_char_span_returns_textspans():
+    seg = sentencesplit.Segmenter(language="en", clean=False, char_span=True)
+
+    result = seg.segment_with_lookahead("Hello. The model is GPT 3.")
+
+    assert all(isinstance(span, TextSpan) for span in result.segments)
+    assert [span.sent for span in result.segments] == ["Hello. ", "The model is GPT 3."]
+    assert result.should_wait_for_more is True
+
+
+def test_segment_with_lookahead_handles_empty_and_none_inputs():
+    seg = sentencesplit.Segmenter(language="en", clean=False, char_span=False)
+
+    assert seg.segment_with_lookahead("") == SegmentLookahead([], should_wait_for_more=False)
+    assert seg.segment_with_lookahead(None) == SegmentLookahead([], should_wait_for_more=False)
+
+
+def test_should_wait_for_more_clean_mode_period_sentence():
+    seg = sentencesplit.Segmenter(language="en", clean=True, char_span=False)
+
+    assert seg.should_wait_for_more("This is the finale.") is False
+
+
+def test_should_wait_for_more_pdf_mode_period_sentence():
+    seg = sentencesplit.Segmenter(language="en", clean=True, doc_type="pdf", char_span=False)
+
+    assert seg.should_wait_for_more("This is the finale.\n") is False
+
+
 def _lookahead_sample_for_language(code, language_module):
     token = _LOOKAHEAD_TEST_TOKENS.get(code, "A")
     punct = next(
