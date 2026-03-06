@@ -2,6 +2,7 @@ import pytest
 
 import sentencesplit
 from sentencesplit.languages import LANGUAGE_CODES
+from sentencesplit.segmenter import _DIGIT_LOOKAHEAD_STEM, _LANGUAGE_LOOKAHEAD_STEMS
 from sentencesplit.utils import SegmentLookahead, TextSpan
 
 _LOOKAHEAD_TEST_TOKENS = {
@@ -95,6 +96,57 @@ def test_segment_with_lookahead_tracks_only_last_segment(text, expected_segments
     assert result.segments == expected_segments
     assert result.should_wait_for_more is expected_wait
     assert seg.should_wait_for_more(text) is expected_wait
+
+
+@pytest.mark.parametrize("language_code", sorted(LANGUAGE_CODES))
+def test_lookahead_probes_are_normalized_for_supported_languages(language_code):
+    seg = sentencesplit.Segmenter(language=language_code, clean=False, char_span=False)
+
+    probes_no_space = seg._lookahead_probes_for_text("A.", 1, ".", has_trailing_whitespace=True)
+    probes_with_space = seg._lookahead_probes_for_text("A.", 1, ".", has_trailing_whitespace=False)
+
+    assert probes_no_space
+    assert probes_with_space
+    assert len(probes_no_space) == len(set(probes_no_space))
+    assert len(probes_with_space) == len(set(probes_with_space))
+    assert all(not probe.startswith(" ") for probe in probes_no_space)
+    assert all(probe.startswith(" ") for probe in probes_with_space)
+    assert _DIGIT_LOOKAHEAD_STEM in probes_no_space
+    assert f" {_DIGIT_LOOKAHEAD_STEM}" in probes_with_space
+
+    expected_language_stems = _LANGUAGE_LOOKAHEAD_STEMS.get(language_code, ("a", "A"))
+    for stem in expected_language_stems:
+        assert stem in probes_no_space
+        assert f" {stem}" in probes_with_space
+
+
+def test_segment_with_lookahead_char_span_returns_textspans():
+    seg = sentencesplit.Segmenter(language="en", clean=False, char_span=True)
+
+    result = seg.segment_with_lookahead("Hello. The model is GPT 3.")
+
+    assert all(isinstance(span, TextSpan) for span in result.segments)
+    assert [span.sent for span in result.segments] == ["Hello. ", "The model is GPT 3."]
+    assert result.should_wait_for_more is True
+
+
+def test_segment_with_lookahead_handles_empty_and_none_inputs():
+    seg = sentencesplit.Segmenter(language="en", clean=False, char_span=False)
+
+    assert seg.segment_with_lookahead("") == SegmentLookahead([], should_wait_for_more=False)
+    assert seg.segment_with_lookahead(None) == SegmentLookahead([], should_wait_for_more=False)
+
+
+def test_should_wait_for_more_clean_mode_period_sentence():
+    seg = sentencesplit.Segmenter(language="en", clean=True, char_span=False)
+
+    assert seg.should_wait_for_more("This is the finale.") is False
+
+
+def test_should_wait_for_more_pdf_mode_period_sentence():
+    seg = sentencesplit.Segmenter(language="en", clean=True, doc_type="pdf", char_span=False)
+
+    assert seg.should_wait_for_more("This is the finale.\n") is False
 
 
 def _lookahead_sample_for_language(code, language_module):

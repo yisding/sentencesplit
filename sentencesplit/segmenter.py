@@ -9,7 +9,24 @@ from sentencesplit.languages import Language
 from sentencesplit.processor import Processor
 from sentencesplit.utils import SegmentLookahead, TextSpan
 
-_LOOKAHEAD_PROBES = (" a", " A", " 1")
+_DEFAULT_LOOKAHEAD_STEMS = ("a", "A")
+_LANGUAGE_LOOKAHEAD_STEMS = {
+    "am": ("ሀ",),
+    "ar": ("ا",),
+    "bg": ("А",),
+    "el": ("Α",),
+    "fa": ("ا",),
+    "hi": ("अ",),
+    "hy": ("Ա",),
+    "ja": ("あ",),
+    "kk": ("А",),
+    "mr": ("अ",),
+    "my": ("က",),
+    "ru": ("А",),
+    "ur": ("ا",),
+    "zh": ("甲",),
+}
+_DIGIT_LOOKAHEAD_STEM = "1"
 _PERIOD_END_PUNCTUATION = frozenset({".", "．"})
 _TRAILING_SENTENCE_CLOSERS = frozenset("\"')]}»”’）】》」』")
 
@@ -77,27 +94,64 @@ class Segmenter:
             return None
         return idx, punct
 
+    def _lookahead_probe_stems(self) -> tuple[str, ...]:
+        stems = _LANGUAGE_LOOKAHEAD_STEMS.get(self.language, _DEFAULT_LOOKAHEAD_STEMS)
+        return (*stems, _DIGIT_LOOKAHEAD_STEM)
+
     def _lookahead_probes_for_text(
         self, text: str, punct_index: int, punct: str, has_trailing_whitespace: bool
     ) -> tuple[str, ...]:
-        if has_trailing_whitespace:
-            probes = ["a", "A", "1"]
-        else:
-            probes = list(_LOOKAHEAD_PROBES)
+        separator = "" if has_trailing_whitespace else " "
+        probes = [f"{separator}{stem}" for stem in self._lookahead_probe_stems()]
+
         if (
-            not has_trailing_whitespace
-            and punct in _PERIOD_END_PUNCTUATION
+            punct in _PERIOD_END_PUNCTUATION
             and punct_index > 0
             and text[punct_index - 1].isdigit()
+            and not has_trailing_whitespace
         ):
-            probes.append("1")
-        return tuple(probes)
+            probes.append(_DIGIT_LOOKAHEAD_STEM)
+
+        return tuple(dict.fromkeys(probes))
 
     def _comparison_segments_from_analysis_text(self, analysis_text: str) -> list[str]:
         processed_sents = self.processor(analysis_text).process()
         if self.clean:
             return processed_sents
         return [s for s, _, _ in self._match_spans(processed_sents, analysis_text)]
+
+    def _expected_last_segment_for_probe(self, last_segment: str, suffix: str) -> str:
+        if self.clean:
+            return last_segment
+        leading_whitespace = suffix[: len(suffix) - len(suffix.lstrip())]
+        return last_segment + leading_whitespace
+
+    def _wait_with_tail_probe(self, base_tail: str, last_segment: str, probe_suffixes: tuple[str, ...]) -> bool:
+        for suffix in probe_suffixes:
+            probe_segments = self._comparison_segments_from_analysis_text(base_tail + suffix)
+            if not probe_segments:
+                return True
+
+            expected_last_segment = self._expected_last_segment_for_probe(last_segment, suffix)
+            if probe_segments[0] != expected_last_segment:
+                return True
+        return False
+
+    def _wait_with_full_probe(
+        self,
+        analysis_text: str,
+        comparison_segments: list[str],
+        last_segment: str,
+        probe_suffixes: tuple[str, ...],
+    ) -> bool:
+        expected_prefix = comparison_segments[:-1]
+        for suffix in probe_suffixes:
+            probe_segments = self._comparison_segments_from_analysis_text(analysis_text + suffix)
+            expected_last_segment = self._expected_last_segment_for_probe(last_segment, suffix)
+            probe_prefix = probe_segments[: len(comparison_segments)]
+            if probe_prefix != [*expected_prefix, expected_last_segment]:
+                return True
+        return False
 
     def _segment_result(self, text: str | None) -> tuple[str, list[str] | list[TextSpan], list[str]]:
         if not text:
@@ -135,20 +189,18 @@ class Segmenter:
         if punct not in _PERIOD_END_PUNCTUATION:
             return False
 
-        expected_prefix = comparison_segments[:-1]
-        for suffix in self._lookahead_probes_for_text(
+        probe_suffixes = self._lookahead_probes_for_text(
             terminal_text,
             punct_index,
             punct,
             has_trailing_whitespace=has_trailing_whitespace,
-        ):
-            probe_segments = self._comparison_segments_from_analysis_text(analysis_text + suffix)
-            leading_whitespace = suffix[: len(suffix) - len(suffix.lstrip())]
-            expected_last_segment = last_segment + leading_whitespace
-            probe_prefix = probe_segments[: len(comparison_segments)]
-            if probe_prefix != [*expected_prefix, expected_last_segment]:
-                return True
-        return False
+        )
+
+        start_index = analysis_text.rfind(last_segment)
+        if start_index != -1:
+            return self._wait_with_tail_probe(analysis_text[start_index:], last_segment, probe_suffixes)
+
+        return self._wait_with_full_probe(analysis_text, comparison_segments, last_segment, probe_suffixes)
 
     def _find_sentence_start(self, sent: str, original_text: str, prior_end: int):
         """Return start/end indices for ``sent`` from ``prior_end`` if found."""
@@ -219,7 +271,11 @@ class Segmenter:
         return segments
 
     def should_wait_for_more(self, text: str | None) -> bool:
-        """Return whether the last emitted segment should wait for more input."""
+        """Return whether the last emitted segment should wait for more input.
+
+        This is continuation-sensitive by design: we probe with tiny suffixes to
+        detect whether the last boundary remains stable if more text arrives.
+        """
         analysis_text, _, comparison_segments = self._segment_result(text)
         return self._wait_for_last_segment(analysis_text, comparison_segments)
 
