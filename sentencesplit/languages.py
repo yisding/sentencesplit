@@ -8,6 +8,7 @@ from sentencesplit.lang.chinese import Chinese
 from sentencesplit.lang.danish import Danish
 from sentencesplit.lang.deutsch import Deutsch
 from sentencesplit.lang.dutch import Dutch
+from sentencesplit.lang.en_es_zh import EnglishSpanishChinese
 from sentencesplit.lang.english import English
 from sentencesplit.lang.french import French
 from sentencesplit.lang.greek import Greek
@@ -25,6 +26,7 @@ from sentencesplit.lang.urdu import Urdu
 
 LANGUAGE_CODES = {
     "en": English,
+    "en_es_zh": EnglishSpanishChinese,
     "hi": Hindi,
     "mr": Marathi,
     "zh": Chinese,

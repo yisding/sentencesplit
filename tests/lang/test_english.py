@@ -151,3 +151,10 @@ def test_en_sbd(default_en_no_clean_no_span_fixture, text, expected_sents):
     segments = default_en_no_clean_no_span_fixture.segment(text)
     segments = [s.strip() for s in segments]
     assert segments == expected_sents
+
+
+def test_en_url_with_country_code_domain(default_en_no_clean_no_span_fixture):
+    """Shared abbreviation regex should not overprotect country-code domains."""
+    text = "Visit us at https://example.co.uk. Thanks."
+    segments = [s.strip() for s in default_en_no_clean_no_span_fixture.segment(text)]
+    assert segments == ["Visit us at https://example.co.uk.", "Thanks."]
