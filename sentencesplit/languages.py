@@ -21,6 +21,7 @@ from sentencesplit.lang.polish import Polish
 from sentencesplit.lang.russian import Russian
 from sentencesplit.lang.slovak import Slovak
 from sentencesplit.lang.spanish import Spanish
+from sentencesplit.lang.tagalog import Tagalog
 from sentencesplit.lang.urdu import Urdu
 
 LANGUAGE_CODES = {
@@ -47,6 +48,7 @@ LANGUAGE_CODES = {
     "de": Deutsch,
     "kk": Kazakh,
     "sk": Slovak,
+    "tl": Tagalog,
 }
 
 

@@ -187,3 +187,9 @@ def zh_no_clean_with_span_fixture():
 def ja_no_clean_with_span_fixture():
     ja_segmenter = sentencesplit.Segmenter(language="ja", clean=False, char_span=True)
     return ja_segmenter
+
+
+@pytest.fixture()
+def tl_default_fixture():
+    tl_segmenter = sentencesplit.Segmenter(language="tl", clean=False, char_span=False)
+    return tl_segmenter
