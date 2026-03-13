@@ -271,7 +271,7 @@ def test_split_mode_must_be_valid():
         (
             "We stayed near Mt. It was cold.",
             ["We stayed near Mt. It was cold."],
-            ["We stayed near Mt. ", "It was cold."],
+            ["We stayed near Mt. It was cold."],
         ),
         (
             "He met Dr. Adams. They talked.",
