@@ -193,6 +193,15 @@ you may copy it, give it away or re-use it under the terms of the this license
 ]
 
 
+def test_spanish_sta_sto_prepositive():
+    """Sta./Sto. abbreviations should not split before the place/saint name."""
+    seg = sentencesplit.Segmenter(language="es", clean=False)
+    segments = [s.strip() for s in seg.segment("Vive en Sta. Cruz. Después se mudó.")]
+    assert segments == ["Vive en Sta. Cruz.", "Después se mudó."]
+    segments = [s.strip() for s in seg.segment("Fue a Sto. Domingo y Sta. Rosa.")]
+    assert segments == ["Fue a Sto. Domingo y Sta. Rosa."]
+
+
 @pytest.mark.parametrize("issue_no,text,expected_sents", TEST_ISSUE_DATA)
 def test_issue(issue_no, text, expected_sents):
     """pySBD issues tests from https://github.com/nipunsadvilkar/pySBD/issues/"""

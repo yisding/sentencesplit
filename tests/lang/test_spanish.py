@@ -329,6 +329,19 @@ ES_CHALLENGING_TEST_CASES = [
         "El informe del Lic. Gómez llegó a las 6 p. m. EST. Todo salió bien.",
         ["El informe del Lic. Gómez llegó a las 6 p. m. EST.", "Todo salió bien."],
     ),
+    # Sta./Sto. are prepositive — always followed by a place/saint name
+    (
+        "Vive en Sta. Cruz. Después se mudó.",
+        ["Vive en Sta. Cruz.", "Después se mudó."],
+    ),
+    (
+        "Fue a Sto. Domingo y Sta. Rosa.",
+        ["Fue a Sto. Domingo y Sta. Rosa."],
+    ),
+    (
+        "La iglesia de Sta. María está en Sto. Tomás. Es muy antigua.",
+        ["La iglesia de Sta. María está en Sto. Tomás.", "Es muy antigua."],
+    ),
 ]
 
 
