@@ -30,10 +30,11 @@ def _sub_symbols_fast(text, lang):
 
 
 class Processor:
-    def __init__(self, text: str | None, lang, char_span: bool = False) -> None:
+    def __init__(self, text: str | None, lang, char_span: bool = False, split_mode: str = "conservative") -> None:
         self.text = text
         self.lang = lang
         self.char_span = char_span
+        self.split_mode = split_mode
         # Cache hasattr lookups
         self._has_abbr_replacer = hasattr(lang, "AbbreviationReplacer")
         self._has_between_punct = hasattr(lang, "BetweenPunctuation")
@@ -198,9 +199,11 @@ class Processor:
 
     def abbreviations_replacer(self):
         if self._has_abbr_replacer:
-            return self.lang.AbbreviationReplacer(self.text, self.lang)
+            replacer = self.lang.AbbreviationReplacer(self.text, self.lang)
         else:
-            return AbbreviationReplacer(self.text, self.lang)
+            replacer = AbbreviationReplacer(self.text, self.lang)
+        replacer.split_mode = self.split_mode
+        return replacer
 
     def replace_abbreviations(self) -> None:
         self.text = self.abbreviations_replacer().replace()

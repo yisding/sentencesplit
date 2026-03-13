@@ -255,6 +255,49 @@ def test_nondestructive_when_processed_sentence_cannot_be_matched_exactly():
     assert "".join(span.sent for span in spans) == text
 
 
+def test_split_mode_must_be_valid():
+    with pytest.raises(ValueError, match="split_mode must be either"):
+        sentencesplit.Segmenter(language="en", split_mode="fast")
+
+
+@pytest.mark.parametrize(
+    "text,expected_conservative,expected_aggressive",
+    [
+        (
+            "I live on 1st st. It is nice.",
+            ["I live on 1st st. It is nice."],
+            ["I live on 1st st. ", "It is nice."],
+        ),
+        (
+            "He met Dr. Adams. They talked.",
+            ["He met Dr. Adams. ", "They talked."],
+            ["He met Dr. Adams. ", "They talked."],
+        ),
+        (
+            "Mr. Brown arrived. We waited.",
+            ["Mr. Brown arrived. ", "We waited."],
+            ["Mr. Brown arrived. ", "We waited."],
+        ),
+    ],
+)
+def test_split_mode_controls_high_ambiguity_abbreviations(text, expected_conservative, expected_aggressive):
+    conservative_seg = sentencesplit.Segmenter(language="en", split_mode="conservative")
+    aggressive_seg = sentencesplit.Segmenter(language="en", split_mode="aggressive")
+
+    assert conservative_seg.segment(text) == expected_conservative
+    assert aggressive_seg.segment(text) == expected_aggressive
+
+
+def test_split_mode_propagates_to_helper_segmenters():
+    seg = sentencesplit.Segmenter(language="en", split_mode="aggressive")
+
+    assert seg.segment_clean("I live on 1st st. It is nice.") == ["I live on 1st st.", "It is nice."]
+    assert [span.sent for span in seg.segment_spans("I live on 1st st. It is nice.")] == [
+        "I live on 1st st. ",
+        "It is nice.",
+    ]
+
+
 def test_exception_with_both_clean_and_span_true():
     """Test to not allow clean=True and char_span=True"""
     with pytest.raises(ValueError) as e:

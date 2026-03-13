@@ -78,7 +78,11 @@ class EnglishSpanishChinese(CJKBoundaryProfile, Common, Standard):
                 am_escaped = re.escape(am.strip())
                 txt = " " + txt
                 if am_lower in self._data.prepositive_set:
-                    txt = re.sub(rf"(?<=\s{am_escaped})\.(?=(?:\s|:\d+|[\u3400-\u9FFF]))", "∯", txt)
+                    should_protect_prepositive = not (
+                        self.split_mode == "aggressive" and am_lower in self.AGGRESSIVE_PREPOSITIVE_BOUNDARY_BLOCKLIST
+                    )
+                    if should_protect_prepositive:
+                        txt = re.sub(rf"(?<=\s{am_escaped})\.(?=(?:\s|:\d+|[\u3400-\u9FFF]))", "∯", txt)
                 elif am_lower in self._data.number_abbr_set:
                     txt = re.sub(rf"(?<=\s{am_escaped})\.(?=(?:\s\d|\s+\(|[\u3400-\u9FFF]))", "∯", txt)
                 else:
