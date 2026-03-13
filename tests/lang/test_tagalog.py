@@ -43,8 +43,23 @@ TAGALOG_RULES_TEST_CASES = [
         "Si Juan dela Cruz Jr. ay dumating. Nagsimula ang pulong.",
         ["Si Juan dela Cruz Jr. ay dumating.", "Nagsimula ang pulong."],
     ),
-    ("Dumating si Bin. Reyes sa tanggapan.", ["Dumating si Bin. Reyes sa tanggapan."]),
     ("Tingnan ang Hal. 5 sa aklat.", ["Tingnan ang Hal. 5 sa aklat."]),
+    # Sta. is prepositive — period protected before place names
+    (
+        "Pumunta siya sa Sta. Cruz. Pagkatapos ay umuwi siya.",
+        ["Pumunta siya sa Sta. Cruz.", "Pagkatapos ay umuwi siya."],
+    ),
+    ("Pumunta siya sa Sta. Mesa. Doon siya nakatira.", ["Pumunta siya sa Sta. Mesa.", "Doon siya nakatira."]),
+    ("Galing siya sa Sta. Rosa at Sta. Cruz.", ["Galing siya sa Sta. Rosa at Sta. Cruz."]),
+    # Abbreviation before question/exclamation mark
+    ("Nakilala mo ba si Dr. Ramos?", ["Nakilala mo ba si Dr. Ramos?"]),
+    ("Dumating na si Gng. Santos!", ["Dumating na si Gng. Santos!"]),
+    # Multiple number abbreviations in one sentence
+    ("Tingnan ang No. 12 at Blg. 5.", ["Tingnan ang No. 12 at Blg. 5."]),
+    # Abbreviation at end of text (no trailing sentence)
+    ("Nakilala ko si G. Dela Cruz.", ["Nakilala ko si G. Dela Cruz."]),
+    # Regular word "bin" should not prevent sentence split
+    ("Ilagay mo sa bin. Pagkatapos ay umalis ka.", ["Ilagay mo sa bin.", "Pagkatapos ay umalis ka."]),
 ]
 
 

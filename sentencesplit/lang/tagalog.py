@@ -13,7 +13,6 @@ class Tagalog(Common, Standard):
         ABBREVIATIONS = [
             "bb",  # Binibini
             "bbg",  # Binibining
-            "bin",  # Binibini
             "blg",  # Bilang
             "bp",  # Batas Pambansa
             "dis",  # Disyembre
@@ -42,7 +41,6 @@ class Tagalog(Common, Standard):
         ]
         PREPOSITIVE_ABBREVIATIONS = [
             "bb",
-            "bin",
             "dr",
             "engr",
             "g",
