@@ -221,7 +221,7 @@ class AbbreviationReplacer:
             if am_lower in self._data.prepositive_set:
                 txt = _replace_with_escape(txt, am_escaped, r"\.(?=(\s|:\d+))", "∯")
             elif am_lower in self._data.number_abbr_set:
-                txt = _replace_with_escape(txt, am_escaped, r"\.(?=(\s\d|\s+\(|\s\?\?))", "∯")
+                txt = _replace_with_escape(txt, am_escaped, r"\.(?=(\s\d|\s+\())", "∯")
             else:
                 txt = self.replace_period_of_abbr(txt, am, am_escaped)
         return txt
