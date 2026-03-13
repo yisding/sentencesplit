@@ -1,7 +1,16 @@
 import pytest
 
 import sentencesplit
-from sentencesplit.utils import TextSpan
+from sentencesplit.languages import LANGUAGE_CODES
+from sentencesplit.utils import SegmentLookahead, TextSpan
+
+_LOOKAHEAD_TEST_TOKENS = {
+    "ar": "ا",
+    "hy": "Ա",
+    "ja": "あ",
+    "zh": "甲",
+}
+_LOOKAHEAD_TEST_PUNCTUATION = ("។", "。", "؟", "։", "՜", "?", "!", "？", "！", ".")
 
 
 def test_no_input(default_en_no_clean_no_span_fixture, text=""):
@@ -38,6 +47,119 @@ def test_segment_clean_helper_matches_clean_segmenter(text="This is the U.S. Sen
     seg = sentencesplit.Segmenter(language="en", clean=False, char_span=False)
     clean_seg = sentencesplit.Segmenter(language="en", clean=True, char_span=False)
     assert seg.segment_clean(text) == clean_seg.segment(text)
+
+
+@pytest.mark.parametrize(
+    "text,expected",
+    [
+        ("The model is GPT 3.", True),
+        ("The model is GPT 3. ", False),
+        ("This is the finale.", False),
+        ("This is the finale. ", False),
+        ("Dr.", True),
+        ("Dr. ", True),
+        ("p.", True),
+        ("p. ", True),
+        ("What?", False),
+        # Periods inside closing quotes are ambiguous under probing — the
+        # between-punctuation logic absorbs the continuation, so the boundary
+        # is unstable and we conservatively wait.
+        ('He said "hello."', True),
+        ('He said "Dr."', True),
+        ("She said 'goodbye.'", True),
+        ("End of section (see p.)", True),
+    ],
+)
+def test_should_wait_for_more(text, expected):
+    seg = sentencesplit.Segmenter(language="en", clean=False, char_span=False)
+    assert seg.should_wait_for_more(text) is expected
+
+
+def test_segment_with_lookahead_returns_segments_and_wait_state():
+    seg = sentencesplit.Segmenter(language="en", clean=False, char_span=False)
+
+    result = seg.segment_with_lookahead("The model is GPT 3.")
+
+    assert result == SegmentLookahead(["The model is GPT 3."], should_wait_for_more=True)
+    assert result.should_wait_for_more is True
+
+
+@pytest.mark.parametrize(
+    "text,expected_segments,expected_wait",
+    [
+        ("Hello. The model is GPT 3.", ["Hello. ", "The model is GPT 3."], True),
+        ("Hello. The model is GPT 3. ", ["Hello. ", "The model is GPT 3. "], False),
+        ("Hello. This is the finale.", ["Hello. ", "This is the finale."], False),
+        ("Hello. Dr.", ["Hello. ", "Dr."], True),
+        ("Hello. Dr. ", ["Hello. ", "Dr. "], True),
+    ],
+)
+def test_segment_with_lookahead_tracks_only_last_segment(text, expected_segments, expected_wait):
+    seg = sentencesplit.Segmenter(language="en", clean=False, char_span=False)
+
+    result = seg.segment_with_lookahead(text)
+
+    assert result.segments == expected_segments
+    assert result.should_wait_for_more is expected_wait
+    assert seg.should_wait_for_more(text) is expected_wait
+
+
+def test_segment_with_lookahead_char_span_returns_textspans():
+    seg = sentencesplit.Segmenter(language="en", clean=False, char_span=True)
+
+    result = seg.segment_with_lookahead("Hello. The model is GPT 3.")
+
+    assert all(isinstance(span, TextSpan) for span in result.segments)
+    assert [span.sent for span in result.segments] == ["Hello. ", "The model is GPT 3."]
+    assert result.should_wait_for_more is True
+
+
+def test_segment_with_lookahead_handles_empty_and_none_inputs():
+    seg = sentencesplit.Segmenter(language="en", clean=False, char_span=False)
+
+    assert seg.segment_with_lookahead("") == SegmentLookahead([], should_wait_for_more=False)
+    assert seg.segment_with_lookahead(None) == SegmentLookahead([], should_wait_for_more=False)
+
+
+def test_should_wait_for_more_clean_mode_period_sentence():
+    seg = sentencesplit.Segmenter(language="en", clean=True, char_span=False)
+
+    assert seg.should_wait_for_more("This is the finale.") is False
+
+
+def test_should_wait_for_more_pdf_mode_period_sentence():
+    seg = sentencesplit.Segmenter(language="en", clean=True, doc_type="pdf", char_span=False)
+
+    assert seg.should_wait_for_more("This is the finale.\n") is False
+
+
+def _lookahead_sample_for_language(code, language_module):
+    token = _LOOKAHEAD_TEST_TOKENS.get(code, "A")
+    punct = next(
+        (p for p in _LOOKAHEAD_TEST_PUNCTUATION if p in language_module.Punctuations), language_module.Punctuations[0]
+    )
+    return token, punct
+
+
+@pytest.mark.parametrize("language_code", sorted(LANGUAGE_CODES))
+def test_segment_with_lookahead_across_all_languages(language_code):
+    token, punct = _lookahead_sample_for_language(language_code, LANGUAGE_CODES[language_code])
+    seg = sentencesplit.Segmenter(language=language_code, clean=False, char_span=False)
+
+    closed_text = token + punct
+    closed_result = seg.segment_with_lookahead(closed_text)
+    assert closed_result.segments == seg.segment(closed_text)
+    assert closed_result.should_wait_for_more is False
+
+    incomplete_text = token
+    incomplete_result = seg.segment_with_lookahead(incomplete_text)
+    assert incomplete_result.segments == seg.segment(incomplete_text)
+    assert incomplete_result.should_wait_for_more is True
+
+    mixed_text = f"{token}{punct} {token}"
+    mixed_result = seg.segment_with_lookahead(mixed_text)
+    assert mixed_result.segments == seg.segment(mixed_text)
+    assert mixed_result.should_wait_for_more is True
 
 
 @pytest.mark.parametrize(
