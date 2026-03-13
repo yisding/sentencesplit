@@ -70,9 +70,7 @@ class AhoCorasickAutomaton:
         return found
 
 
-def _replace_with_escape(
-    txt: str, escaped: str, suffix_pattern: str, replacement: str, boundary_class: str = r"\s"
-) -> str:
+def _replace_with_escape(txt: str, escaped: str, suffix_pattern: str, replacement: str, boundary_class: str = r"\s") -> str:
     """Replace period after abbreviation match using pre-escaped abbreviation."""
     txt = " " + txt
     txt = re.sub(rf"(?<=[{boundary_class}]{escaped}){suffix_pattern}", replacement, txt)
