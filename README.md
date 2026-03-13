@@ -14,7 +14,7 @@ This project is a direct port of ruby gem - [Pragmatic Segmenter](https://github
 
 ## Usage
 
--   Currently sentencesplit supports 23 languages.
+-   Currently sentencesplit supports 24 languages.
 
 ```python
 import sentencesplit

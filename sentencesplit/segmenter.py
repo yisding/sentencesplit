@@ -104,6 +104,8 @@ class Segmenter:
         separator = "" if has_trailing_whitespace else " "
         probes = [f"{separator}{stem}" for stem in self._lookahead_probe_stems()]
 
+        # When a digit precedes the period (e.g. "GPT 3."), also probe without
+        # a leading space ("1") to catch decimal continuations like "3.1".
         if (
             punct in _PERIOD_END_PUNCTUATION
             and punct_index > 0
@@ -127,6 +129,9 @@ class Segmenter:
         return last_segment + leading_whitespace
 
     def _wait_with_tail_probe(self, base_tail: str, last_segment: str, probe_suffixes: tuple[str, ...]) -> bool:
+        # base_tail starts exactly at the last segment, so probe_segments[0]
+        # corresponds to that segment. If appending a suffix changes it, the
+        # boundary is unstable and we should wait for more input.
         for suffix in probe_suffixes:
             probe_segments = self._comparison_segments_from_analysis_text(base_tail + suffix)
             if not probe_segments:
@@ -196,6 +201,9 @@ class Segmenter:
             has_trailing_whitespace=has_trailing_whitespace,
         )
 
+        # rfind is safe here: comparison_segments are slices of analysis_text
+        # (via _match_spans), so the last segment is always at the tail end and
+        # rfind returns the correct (rightmost) occurrence.
         start_index = analysis_text.rfind(last_segment)
         if start_index != -1:
             return self._wait_with_tail_probe(analysis_text[start_index:], last_segment, probe_suffixes)

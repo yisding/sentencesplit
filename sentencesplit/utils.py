@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+from dataclasses import dataclass
 from typing import Pattern
 
 
@@ -51,19 +52,7 @@ class TextSpan:
         return False
 
 
+@dataclass
 class SegmentLookahead:
-    def __init__(self, segments: list[str] | list[TextSpan], should_wait_for_more: bool) -> None:
-        self.segments = segments
-        self.should_wait_for_more = should_wait_for_more
-
-    def __repr__(self) -> str:  # pragma: no cover
-        return "{0}(segments={1}, should_wait_for_more={2})".format(
-            self.__class__.__name__,
-            repr(self.segments),
-            self.should_wait_for_more,
-        )
-
-    def __eq__(self, other: object) -> bool:
-        if isinstance(other, self.__class__):
-            return self.segments == other.segments and self.should_wait_for_more == other.should_wait_for_more
-        return False
+    segments: list[str] | list[TextSpan]
+    should_wait_for_more: bool
