@@ -162,14 +162,12 @@ CHALLENGING_EN_TEST_CASES = [
         ],
     ),
     # 71) Abbreviation before and after sentence boundary
-    # xfail: H.B.S. not recognized as multi-period abbreviation at sentence end
-    pytest.param(
+    (
         "She received her M.B.A. from H.B.S. She then joined McKinsey & Co.",
         [
             "She received her M.B.A. from H.B.S.",
             "She then joined McKinsey & Co.",
         ],
-        marks=pytest.mark.xfail,
     ),
     # ===== Decimal / number edge cases =====
     # 72) Percentage at sentence boundary
@@ -402,11 +400,9 @@ CHALLENGING_EN_TEST_CASES = [
     ),
     # ===== Additional edge cases inspired by failure analysis =====
     # 105) Unknown abbreviation "approx." mid-sentence
-    # xfail: approx. not in abbreviation list
-    pytest.param(
+    (
         "The distance is approx. 500 miles. We should fly.",
         ["The distance is approx. 500 miles.", "We should fly."],
-        marks=pytest.mark.xfail,
     ),
     # 106) "dept." as abbreviation
     (

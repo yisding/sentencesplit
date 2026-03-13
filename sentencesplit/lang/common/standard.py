@@ -250,9 +250,8 @@ class Standard:
             "supt",
             "v",
             "vs",
-            "fig",
         ]
-        NUMBER_ABBREVIATIONS = ["art", "ext", "no", "nos", "p", "pp"]
+        NUMBER_ABBREVIATIONS = ["art", "ext", "fig", "no", "nos", "p", "pp"]
 
         # Rubular: http://rubular.com/r/EUbZCNfgei
         # \w in python matches unicode abbreviations also so limit to english alphanumerics

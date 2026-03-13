@@ -243,7 +243,7 @@ class Slovak(Common, Standard):
             "resp",
             "tzv",
         ]
-        PREPOSITIVE_ABBREVIATIONS = ["st", "p", "dr", "mudr", "judr", "ing", "mgr", "bc", "drsc", "doc", "prof"]
+        PREPOSITIVE_ABBREVIATIONS = ["st", "dr", "mudr", "judr", "ing", "mgr", "bc", "drsc", "doc", "prof"]
         NUMBER_ABBREVIATIONS = ["č", "no", "nr"]
 
     class BetweenPunctuation(BetweenPunctuation):
