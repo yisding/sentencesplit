@@ -28,7 +28,9 @@ class Tagalog(Common, Standard):
             "kgg",  # Kagalang-galang
             "kon",  # Konde/Konsehal (context-dependent)
             "ma",  # Maria (name abbreviation)
+            "bp",  # Blg. ng batas/panukala
             "nob",  # Nobyembre
+            "no",  # Numero
             "okt",  # Oktubre
             "pang",
             "pn",  # Panginoon

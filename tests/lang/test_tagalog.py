@@ -36,6 +36,8 @@ TAGALOG_RULES_TEST_CASES = [
         ["Dumating si Sr. dela Torre.", "Pagkatapos ay nagsimula ang programa."],
     ),
     ("Ayon sa Kgg. na hukom, tuloy ang pagdinig.", ["Ayon sa Kgg. na hukom, tuloy ang pagdinig."]),
+    ("Tingnan ang No. 12 sa talaan.", ["Tingnan ang No. 12 sa talaan."]),
+    ("Sinusunod nito ang Bp. 220 sa proyekto.", ["Sinusunod nito ang Bp. 220 sa proyekto."]),
 ]
 
 
