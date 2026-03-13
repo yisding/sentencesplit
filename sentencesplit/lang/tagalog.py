@@ -37,11 +37,12 @@ class Tagalog(Common, Standard):
             "prop",
             "set",  # Setyembre
             "sr",
-            "sta",
             "st",
+            "sta",
         ]
         PREPOSITIVE_ABBREVIATIONS = [
             "bb",
+            "bin",
             "dr",
             "engr",
             "g",
@@ -52,5 +53,6 @@ class Tagalog(Common, Standard):
             "ma",
             "pn",
             "sr",
+            "sta",
         ]
         NUMBER_ABBREVIATIONS = ["blg", "bp", "hal", "no"]

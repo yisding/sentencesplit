@@ -38,6 +38,13 @@ TAGALOG_RULES_TEST_CASES = [
     ("Ayon sa Kgg. na hukom, tuloy ang pagdinig.", ["Ayon sa Kgg. na hukom, tuloy ang pagdinig."]),
     ("Tingnan ang No. 12 sa talaan.", ["Tingnan ang No. 12 sa talaan."]),
     ("Sinusunod nito ang Bp. 220 sa proyekto.", ["Sinusunod nito ang Bp. 220 sa proyekto."]),
+    ("Nakatira sila sa Sta. Ana, Manila.", ["Nakatira sila sa Sta. Ana, Manila."]),
+    (
+        "Si Juan dela Cruz Jr. ay dumating. Nagsimula ang pulong.",
+        ["Si Juan dela Cruz Jr. ay dumating.", "Nagsimula ang pulong."],
+    ),
+    ("Dumating si Bin. Reyes sa tanggapan.", ["Dumating si Bin. Reyes sa tanggapan."]),
+    ("Tingnan ang Hal. 5 sa aklat.", ["Tingnan ang Hal. 5 sa aklat."]),
 ]
 
 
