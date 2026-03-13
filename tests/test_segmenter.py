@@ -61,6 +61,13 @@ def test_segment_clean_helper_matches_clean_segmenter(text="This is the U.S. Sen
         ("p.", True),
         ("p. ", True),
         ("What?", False),
+        # Periods inside closing quotes are ambiguous under probing — the
+        # between-punctuation logic absorbs the continuation, so the boundary
+        # is unstable and we conservatively wait.
+        ('He said "hello."', True),
+        ('He said "Dr."', True),
+        ("She said 'goodbye.'", True),
+        ("End of section (see p.)", True),
     ],
 )
 def test_should_wait_for_more(text, expected):
