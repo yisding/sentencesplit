@@ -15,10 +15,11 @@ class Tagalog(Common, Standard):
             "bbg",  # Binibining
             "bin",  # Binibini
             "blg",  # Bilang
+            "bp",  # Batas Pambansa
             "dis",  # Disyembre
             "dr",
             "engr",
-            "g",  # Ginoo
+            "g",  # Ginoo (single-letter; kept prepositive since it's always a title)
             "gat",
             "gng",  # Ginang
             "hal",  # Halimbawa
@@ -28,9 +29,8 @@ class Tagalog(Common, Standard):
             "kgg",  # Kagalang-galang
             "kon",  # Konde/Konsehal (context-dependent)
             "ma",  # Maria (name abbreviation)
-            "bp",  # Blg. ng batas/panukala
-            "nob",  # Nobyembre
             "no",  # Numero
+            "nob",  # Nobyembre
             "okt",  # Oktubre
             "pang",
             "pn",  # Panginoon
@@ -53,4 +53,4 @@ class Tagalog(Common, Standard):
             "pn",
             "sr",
         ]
-        NUMBER_ABBREVIATIONS = ["blg", "bp", "no"]
+        NUMBER_ABBREVIATIONS = ["blg", "bp", "hal", "no"]
