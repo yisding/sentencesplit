@@ -9,6 +9,7 @@ from sentencesplit.languages import Language
 from sentencesplit.processor import Processor
 from sentencesplit.utils import SegmentLookahead, TextSpan
 
+# Simple, common characters per script that won't trigger abbreviation rules.
 _DEFAULT_LOOKAHEAD_STEMS = ("a", "A")
 _LANGUAGE_LOOKAHEAD_STEMS = {
     "am": ("ሀ",),
@@ -107,10 +108,10 @@ class Segmenter:
         # When a digit precedes the period (e.g. "GPT 3."), also probe without
         # a leading space ("1") to catch decimal continuations like "3.1".
         if (
-            punct in _PERIOD_END_PUNCTUATION
+            not has_trailing_whitespace
+            and punct in _PERIOD_END_PUNCTUATION
             and punct_index > 0
             and text[punct_index - 1].isdigit()
-            and not has_trailing_whitespace
         ):
             probes.append(_DIGIT_LOOKAHEAD_STEM)
 
