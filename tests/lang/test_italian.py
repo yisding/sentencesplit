@@ -96,6 +96,8 @@ IT_MORE_TEST_CASES = [
         "Voce tel. Domani proseguiamo.",
         ["Voce tel.", "Domani proseguiamo."],
     ),
+    ("Contatta il rif. 12345 per info.", ["Contatta il rif. 12345 per info."]),
+    ("Il nostro tel. 0612345678 è attivo.", ["Il nostro tel. 0612345678 è attivo."]),
     ("La macchina viaggiava a 100 km/h.", ["La macchina viaggiava a 100 km/h."]),
 ]
 
