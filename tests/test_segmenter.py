@@ -120,6 +120,7 @@ def test_lookahead_probes_are_normalized_for_supported_languages(language_code):
         assert f" {stem}" in probes_with_space
 
 
+
 def test_segment_with_lookahead_char_span_returns_textspans():
     seg = sentencesplit.Segmenter(language="en", clean=False, char_span=True)
 
