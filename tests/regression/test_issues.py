@@ -202,6 +202,15 @@ def test_spanish_sta_sto_prepositive():
     assert segments == ["Fue a Sto. Domingo y Sta. Rosa."]
 
 
+def test_double_punctuation_after_sentence_boundary():
+    """Double punctuation (??, !!, ?!, !?) should not be lost after a sentence boundary."""
+    seg = sentencesplit.Segmenter(language="en", clean=False)
+    assert [s.strip() for s in seg.segment("Hello. ??")] == ["Hello.", "??"]
+    assert [s.strip() for s in seg.segment("Hello. !!")] == ["Hello.", "!!"]
+    assert [s.strip() for s in seg.segment("Hello. ?!")] == ["Hello.", "?!"]
+    assert [s.strip() for s in seg.segment("Hello. !?")] == ["Hello.", "!?"]
+
+
 @pytest.mark.parametrize("issue_no,text,expected_sents", TEST_ISSUE_DATA)
 def test_issue(issue_no, text, expected_sents):
     """pySBD issues tests from https://github.com/nipunsadvilkar/pySBD/issues/"""

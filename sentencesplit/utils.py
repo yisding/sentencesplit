@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+from dataclasses import dataclass
 from typing import Pattern
 
 
@@ -49,3 +50,9 @@ class TextSpan:
         if isinstance(other, self.__class__):
             return self.sent == other.sent and self.start == other.start and self.end == other.end
         return False
+
+
+@dataclass
+class SegmentLookahead:
+    segments: list[str] | list[TextSpan]
+    should_wait_for_more: bool
