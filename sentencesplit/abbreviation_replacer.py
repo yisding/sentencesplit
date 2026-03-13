@@ -119,6 +119,9 @@ class AbbreviationReplacer:
             # "st." is highly ambiguous (street vs Saint) and is often
             # sentence-final in address-like text.
             "st",
+            # "mt." can be Mount (prepositive) or a sentence-final
+            # abbreviation in terse notes.
+            "mt",
         }
     )
 

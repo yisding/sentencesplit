@@ -269,6 +269,11 @@ def test_split_mode_must_be_valid():
             ["I live on 1st st. ", "It is nice."],
         ),
         (
+            "We stayed near Mt. It was cold.",
+            ["We stayed near Mt. It was cold."],
+            ["We stayed near Mt. ", "It was cold."],
+        ),
+        (
             "He met Dr. Adams. They talked.",
             ["He met Dr. Adams. ", "They talked."],
             ["He met Dr. Adams. ", "They talked."],
