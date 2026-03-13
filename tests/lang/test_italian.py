@@ -84,6 +84,18 @@ IT_MORE_TEST_CASES = [
     ("Oggi è il 27/10/2014.", ["Oggi è il 27/10/2014."]),
     ("Ecco l'elenco: 1.gelato, 2.carne, 3.riso.", ["Ecco l'elenco: 1.gelato, 2.carne, 3.riso."]),
     ("Devi comprare : 1)pesce 2)sale.", ["Devi comprare : 1)pesce 2)sale."]),
+    (
+        "Porta pane, latte, ecc. Domani compriamo altro.",
+        ["Porta pane, latte, ecc.", "Domani compriamo altro."],
+    ),
+    (
+        "Consulta il rif. Domani decidiamo.",
+        ["Consulta il rif.", "Domani decidiamo."],
+    ),
+    (
+        "Voce tel. Domani proseguiamo.",
+        ["Voce tel.", "Domani proseguiamo."],
+    ),
     ("La macchina viaggiava a 100 km/h.", ["La macchina viaggiava a 100 km/h."]),
 ]
 
