@@ -10,6 +10,7 @@ class French(Common, Standard):
         SENTENCE_STARTERS = []
 
     class Abbreviation(Standard.Abbreviation):
+        ELISION_CHARACTERS = "'\u2019"
         ABBREVIATIONS = [
             "a.c.n",
             "a.m",

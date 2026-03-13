@@ -10,6 +10,7 @@ class Italian(Common, Standard):
         SENTENCE_STARTERS = []
 
     class Abbreviation(Standard.Abbreviation):
+        ELISION_CHARACTERS = "'\u2019"
         ABBREVIATIONS = [
             "1°",
             "a.c",
@@ -1262,9 +1263,7 @@ class Italian(Common, Standard):
             "kw",
             "kwh",
             "l",
-            "l'ing",
             "l.n",
-            "l'avv",
             "la",
             "lag",
             "lan",
@@ -2240,8 +2239,11 @@ class Italian(Common, Standard):
             "µg",
         ]
         PREPOSITIVE_ABBREVIATIONS = [
+            "adm",
             "arch",
             "avv",
+            "capt",
+            "col",
             "dir",
             "dott",
             "dr",
@@ -2250,11 +2252,19 @@ class Italian(Common, Standard):
             "fatt",
             "gen",
             "geom",
+            "gov",
+            "hon",
             "ing",
-            "l'avv",
-            "l'ing",
             "lett",
+            "lt",
+            "maj",
+            "mlle",
+            "mme",
             "mons",
+            "mr",
+            "mrs",
+            "ms",
+            "msgr",
             "n.b",
             "on",
             "p.s",
@@ -2263,8 +2273,10 @@ class Italian(Common, Standard):
             "rag",
             "rev",
             "sen",
+            "sgt",
             "sig",
             "sigg",
             "spett",
+            "sr",
         ]
         NUMBER_ABBREVIATIONS = ["art", "no", "nos", "nr", "pp"]

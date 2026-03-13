@@ -29,6 +29,7 @@ class Standard:
     class Abbreviation:
         """Defines the abbreviations for each language (if available)"""
 
+        ELISION_CHARACTERS = ""
         ABBREVIATIONS = [
             "adj",
             "adm",
