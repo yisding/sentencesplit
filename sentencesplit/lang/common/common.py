@@ -15,7 +15,7 @@ class Common:
         r"\“(?:[^\”])*[^,]\”(?=\s[A-Z])",
         r"[。．.！!?？ ]{2,}",
         r"\S[^\n。．.！!?？ȸȹ☉☈☇☄☊☋☌☍]*" + _SENTENCE_END_PUNCT,
-        r"[。．.！!?？]",
+        _SENTENCE_END_PUNCT,
     ]
     SENTENCE_BOUNDARY_REGEX = "|".join(_SENTENCE_BOUNDARY_PARTS)
 

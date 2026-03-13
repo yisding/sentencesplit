@@ -61,13 +61,12 @@ TEST_ISSUE_DATA = [
             "Recently, Ghosh and Mahdian [86] at Yahoo! Research extended our charities work, and based on this a web-based system for charitable donations was built at Yahoo!",
         ],
     ),
-    pytest.param(
+    (
         "#39",
         "T stands for the vector transposition. As shown in Fig. ??",
         ["T stands for the vector transposition.", "As shown in Fig. ??"],
-        marks=pytest.mark.xfail(reason="?? after sentence boundary lost by double-punctuation rules"),
     ),
-    pytest.param("#39", "Fig. ??", ["Fig. ??"], marks=pytest.mark.xfail(reason="?? lost by double-punctuation rules")),
+    ("#39", "Fig. ??", ["Fig. ??"]),
     (
         "#58",
         "Rok bud.2027777983834843834843042003200220012000199919981997199619951994199319921991199019891988198042003200220012000199919981997199619951994199319921991199019891988198",
@@ -203,6 +202,24 @@ def test_fig_number_abbreviation():
     # Fig. before a number should not split
     segments = [s.strip() for s in seg.segment("See Fig. 5 for details.")]
     assert segments == ["See Fig. 5 for details."]
+
+
+def test_spanish_sta_sto_prepositive():
+    """Sta./Sto. abbreviations should not split before the place/saint name."""
+    seg = sentencesplit.Segmenter(language="es", clean=False)
+    segments = [s.strip() for s in seg.segment("Vive en Sta. Cruz. Después se mudó.")]
+    assert segments == ["Vive en Sta. Cruz.", "Después se mudó."]
+    segments = [s.strip() for s in seg.segment("Fue a Sto. Domingo y Sta. Rosa.")]
+    assert segments == ["Fue a Sto. Domingo y Sta. Rosa."]
+
+
+def test_double_punctuation_after_sentence_boundary():
+    """Double punctuation (??, !!, ?!, !?) should not be lost after a sentence boundary."""
+    seg = sentencesplit.Segmenter(language="en", clean=False)
+    assert [s.strip() for s in seg.segment("Hello. ??")] == ["Hello.", "??"]
+    assert [s.strip() for s in seg.segment("Hello. !!")] == ["Hello.", "!!"]
+    assert [s.strip() for s in seg.segment("Hello. ?!")] == ["Hello.", "?!"]
+    assert [s.strip() for s in seg.segment("Hello. !?")] == ["Hello.", "!?"]
 
 
 @pytest.mark.parametrize("issue_no,text,expected_sents", TEST_ISSUE_DATA)
