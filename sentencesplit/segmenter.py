@@ -9,7 +9,25 @@ from sentencesplit.languages import Language
 from sentencesplit.processor import Processor
 from sentencesplit.utils import SegmentLookahead, TextSpan
 
-_LOOKAHEAD_PROBES = (" a", " A", " 1")
+# Simple, common characters per script that won't trigger abbreviation rules.
+_DEFAULT_LOOKAHEAD_STEMS = ("a", "A")
+_LANGUAGE_LOOKAHEAD_STEMS = {
+    "am": ("ሀ",),
+    "ar": ("ا",),
+    "bg": ("А",),
+    "el": ("Α",),
+    "fa": ("ا",),
+    "hi": ("अ",),
+    "hy": ("Ա",),
+    "ja": ("あ",),
+    "kk": ("А",),
+    "mr": ("अ",),
+    "my": ("က",),
+    "ru": ("А",),
+    "ur": ("ا",),
+    "zh": ("甲",),
+}
+_DIGIT_LOOKAHEAD_STEM = "1"
 _PERIOD_END_PUNCTUATION = frozenset({".", "．"})
 _TRAILING_SENTENCE_CLOSERS = frozenset("\"')]}»”’）】》」』")
 
@@ -77,13 +95,16 @@ class Segmenter:
             return None
         return idx, punct
 
+    def _lookahead_probe_stems(self) -> tuple[str, ...]:
+        stems = _LANGUAGE_LOOKAHEAD_STEMS.get(self.language, _DEFAULT_LOOKAHEAD_STEMS)
+        return (*stems, _DIGIT_LOOKAHEAD_STEM)
+
     def _lookahead_probes_for_text(
         self, text: str, punct_index: int, punct: str, has_trailing_whitespace: bool
     ) -> tuple[str, ...]:
-        if has_trailing_whitespace:
-            probes = ["a", "A", "1"]
-        else:
-            probes = list(_LOOKAHEAD_PROBES)
+        separator = "" if has_trailing_whitespace else " "
+        probes = [f"{separator}{stem}" for stem in self._lookahead_probe_stems()]
+
         # When a digit precedes the period (e.g. "GPT 3."), also probe without
         # a leading space ("1") to catch decimal continuations like "3.1".
         if (
@@ -92,8 +113,9 @@ class Segmenter:
             and punct_index > 0
             and text[punct_index - 1].isdigit()
         ):
-            probes.append("1")
-        return tuple(probes)
+            probes.append(_DIGIT_LOOKAHEAD_STEM)
+
+        return tuple(dict.fromkeys(probes))
 
     def _comparison_segments_from_analysis_text(self, analysis_text: str) -> list[str]:
         processed_sents = self.processor(analysis_text).process()
