@@ -4,13 +4,27 @@ import re
 from sentencesplit.abbreviation_replacer import AbbreviationReplacer
 from sentencesplit.between_punctuation import BetweenPunctuation
 from sentencesplit.lang.common import Common, Standard
-from sentencesplit.lang.common.cjk import CJKBoundaryProfile
+from sentencesplit.lang.common.cjk import CJKBoundaryProfile, CJKProcessor
 from sentencesplit.punctuation_replacer import replace_punctuation
 from sentencesplit.utils import Rule
+
+_CJK_SLANTED_QUOTE_END_RE = re.compile(r"(&ᓰ&|&ᓱ&|&ᓳ&|&ᓴ&|&ᓷ&|&ᓸ&)(?=[”’][^\s])")
+_CJK_REPORTING_CLAUSE_BOUNDARY = r"(?=$|[，,：:。．.!！?？…])"
+_RESTORE_CJK_TERMINAL_PUNCT = {
+    "&ᓰ&": "。",
+    "&ᓱ&": "．",
+    "&ᓳ&": "！",
+    "&ᓴ&": "!",
+    "&ᓷ&": "?",
+    "&ᓸ&": "？",
+}
 
 
 class Chinese(CJKBoundaryProfile, Common, Standard):
     iso_code = "zh"
+    CJK_REPORTING_CLAUSE_REGEX = re.compile(
+        rf"^(?:他|她|他们|她们|我|我们|记者|警方|老师|母亲|父亲|主持人|发言人).{{0,6}}(?:说|问|答|表示|回应|补充|解释){_CJK_REPORTING_CLAUSE_BOUNDARY}"
+    )
 
     class AbbreviationReplacer(AbbreviationReplacer):
         SENTENCE_STARTERS = []
@@ -32,6 +46,9 @@ class Chinese(CJKBoundaryProfile, Common, Standard):
 
         All = [IntraAbbreviationPeriodRule, EndAbbreviationBeforeCjkRule]
 
+    class Processor(CJKProcessor):
+        pass
+
     class BetweenPunctuation(BetweenPunctuation):
         def __init__(self, text):
             super().__init__(text)
@@ -52,12 +69,18 @@ class Chinese(CJKBoundaryProfile, Common, Standard):
             regex = r"『(?=(?P<tmp>[^』\\]+|\\{2}|\\.)*)(?P=tmp)』"
             self.text = re.sub(regex, replace_punctuation, self.text)
 
+        def sub_punctuation_between_slanted_quotes(self):
+            regex = r"“(?=(?P<tmp>[^”\\]+|\\{2}|\\.)*)(?P=tmp)”"
+            self.text = re.sub(regex, replace_punctuation, self.text)
+            self.text = _CJK_SLANTED_QUOTE_END_RE.sub(lambda match: _RESTORE_CJK_TERMINAL_PUNCT[match.group(1)], self.text)
+
         def sub_punctuation_between_cn_parens(self):
             regex = r"（(?=(?P<tmp>[^）\\]+|\\{2}|\\.)*)(?P=tmp)）"
             self.text = re.sub(regex, replace_punctuation, self.text)
 
         def sub_punctuation_between_quotes_and_parens(self):
             self.sub_punctuation_between_double_angled_quotation_marks()
+            self.sub_punctuation_between_slanted_quotes()
             self.sub_punctuation_between_l_bracket()
             self.sub_punctuation_between_cn_corner_quotes()
             self.sub_punctuation_between_cn_parens()
