@@ -183,5 +183,5 @@ class Spanish(Common, Standard):
             "vs",
             "vto",
         ]
-        PREPOSITIVE_ABBREVIATIONS = ["dr", "dra", "ee", "lic", "mt", "prof", "sr", "sra", "srta"]
+        PREPOSITIVE_ABBREVIATIONS = ["dr", "dra", "ee", "lic", "mt", "prof", "sr", "sra", "srta", "sta", "sto"]
         NUMBER_ABBREVIATIONS = ["cra", "ext", "no", "nos", "p", "pp", "tel"]
