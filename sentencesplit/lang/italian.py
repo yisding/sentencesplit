@@ -2239,10 +2239,9 @@ class Italian(Common, Standard):
             "µg",
         ]
         PREPOSITIVE_ABBREVIATIONS = [
-            "adm",
+            # Titles and honorifics used in Italian
             "arch",
             "avv",
-            "capt",
             "col",
             "dir",
             "dott",
@@ -2253,7 +2252,6 @@ class Italian(Common, Standard):
             "gen",
             "geom",
             "gov",
-            "hon",
             "ing",
             "lett",
             "lt",
@@ -2265,9 +2263,7 @@ class Italian(Common, Standard):
             "mrs",
             "ms",
             "msgr",
-            "n.b",
             "on",
-            "p.s",
             "prof",
             "psicol",
             "rag",
@@ -2278,5 +2274,11 @@ class Italian(Common, Standard):
             "sigg",
             "spett",
             "sr",
+            # Corporate forms (precede company names)
+            "s.a",
+            "s.n.c",
+            "s.p.a",
+            "s.r.l",
+            "soc",
         ]
         NUMBER_ABBREVIATIONS = ["art", "no", "nos", "nr", "pp"]
