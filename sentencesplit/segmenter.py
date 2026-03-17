@@ -34,7 +34,12 @@ _TRAILING_SENTENCE_CLOSERS = frozenset("\"')]}»”’）】》」』")
 
 class Segmenter:
     def __init__(
-        self, language: str = "en", clean: bool = False, doc_type: str | None = None, char_span: bool = False
+        self,
+        language: str = "en",
+        clean: bool = False,
+        doc_type: str | None = None,
+        char_span: bool = False,
+        split_mode: str = "conservative",
     ) -> None:
         """Segments a text into a list of sentences
         with or without character offsets from original text
@@ -52,12 +57,20 @@ class Segmenter:
         char_span : bool, optional
             Get start & end character offsets of each sentences
             within original text, by default False
+        split_mode : str, optional
+            Controls abbreviation ambiguity behavior. Use
+            "conservative" (default) to preserve current behavior
+            for ambiguous abbreviations (e.g. "St."), or
+            "aggressive" to allow more sentence splits.
         """
         self.language = language
         self.language_module = Language.get_language_code(language)
         self.clean = clean
         self.doc_type = doc_type
         self.char_span = char_span
+        if split_mode not in {"conservative", "aggressive"}:
+            raise ValueError("split_mode must be either 'conservative' or 'aggressive'.")
+        self.split_mode = split_mode
         if self.clean and self.char_span:
             raise ValueError("char_span must be False if clean is True. Since `clean=True` will modify original text.")
         # when doctype is pdf then force user to clean the text
@@ -75,9 +88,11 @@ class Segmenter:
 
     def processor(self, text: str):
         if hasattr(self.language_module, "Processor"):
-            return self.language_module.Processor(text, self.language_module, char_span=self.char_span)
+            processor = self.language_module.Processor(text, self.language_module, char_span=self.char_span)
         else:
-            return Processor(text, self.language_module, char_span=self.char_span)
+            processor = Processor(text, self.language_module, char_span=self.char_span)
+        processor.split_mode = self.split_mode
+        return processor
 
     def _analysis_text(self, text: str) -> str:
         if self.clean or self.doc_type == "pdf":
@@ -300,10 +315,22 @@ class Segmenter:
         """Return sentence spans regardless of the instance's char_span flag."""
         if self.clean:
             raise ValueError("segment_spans() requires clean=False.")
-        seg = Segmenter(language=self.language, clean=False, doc_type=self.doc_type, char_span=True)
+        seg = Segmenter(
+            language=self.language,
+            clean=False,
+            doc_type=self.doc_type,
+            char_span=True,
+            split_mode=self.split_mode,
+        )
         return seg.segment(text)
 
     def segment_clean(self, text: str | None) -> List[str]:
         """Return cleaned sentences regardless of the instance's clean flag."""
-        seg = Segmenter(language=self.language, clean=True, doc_type=self.doc_type, char_span=False)
+        seg = Segmenter(
+            language=self.language,
+            clean=True,
+            doc_type=self.doc_type,
+            char_span=False,
+            split_mode=self.split_mode,
+        )
         return seg.segment(text)

@@ -124,10 +124,19 @@ class AbbreviationReplacer:
     SENTENCE_STARTERS = []
     SENTENCE_BOUNDARY_ABBREVIATIONS = ["U∯S", "U.S", "U∯K", "E∯U", "E.U", "U∯S∯A", "U.S.A", "I", "i.v", "I.V"]
 
-    def __init__(self, text: str, lang) -> None:
+    AGGRESSIVE_PREPOSITIVE_BOUNDARY_BLOCKLIST = frozenset(
+        {
+            # "st." is highly ambiguous (street vs Saint) and is often
+            # sentence-final in address-like text.
+            "st",
+        }
+    )
+
+    def __init__(self, text: str, lang, split_mode: str = "conservative") -> None:
         self.text = text
         self.lang = lang
         abbr_class_id = id(lang.Abbreviation)
+        self.split_mode = split_mode
         if abbr_class_id not in AbbreviationReplacer._data_cache:
             AbbreviationReplacer._data_cache[abbr_class_id] = _AbbreviationData(lang.Abbreviation)
         self._data = AbbreviationReplacer._data_cache[abbr_class_id]
@@ -238,7 +247,11 @@ class AbbreviationReplacer:
         if not upper or am_lower in self._data.prepositive_set:
             am_escaped = re.escape(am_stripped)
             if am_lower in self._data.prepositive_set:
-                txt = _replace_with_escape(txt, am_escaped, r"\.(?=(\s|:\d+))", "∯", boundary)
+                should_protect_prepositive = not (
+                    self.split_mode == "aggressive" and am_lower in self.AGGRESSIVE_PREPOSITIVE_BOUNDARY_BLOCKLIST
+                )
+                if should_protect_prepositive:
+                    txt = _replace_with_escape(txt, am_escaped, r"\.(?=(\s|:\d+))", "∯", boundary)
             elif am_lower in self._data.number_abbr_set:
                 txt = _replace_with_escape(txt, am_escaped, r"\.(?=(\s\d|\s+\())", "∯", boundary)
             else:
