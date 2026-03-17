@@ -70,20 +70,27 @@ class AhoCorasickAutomaton:
         return found
 
 
-def _replace_with_escape(txt: str, escaped: str, suffix_pattern: str, replacement: str) -> str:
+def _replace_with_escape(txt: str, escaped: str, suffix_pattern: str, replacement: str, boundary_class: str = r"\s") -> str:
     """Replace period after abbreviation match using pre-escaped abbreviation."""
     txt = " " + txt
-    txt = re.sub(rf"(?<=\s{escaped}){suffix_pattern}", replacement, txt)
+    txt = re.sub(rf"(?<=[{boundary_class}]{escaped}){suffix_pattern}", replacement, txt)
     return txt[1:]
 
 
 class _AbbreviationData:
     """Pre-computed abbreviation data for a language, cached per Abbreviation class."""
 
-    __slots__ = ("abbreviations", "prepositive_set", "number_abbr_set", "automaton")
+    __slots__ = ("abbreviations", "prepositive_set", "number_abbr_set", "automaton", "elision_chars", "boundary_class")
 
     def __init__(self, lang_abbreviation_class):
         raw = lang_abbreviation_class.ABBREVIATIONS
+        elision = getattr(lang_abbreviation_class, "ELISION_CHARACTERS", "")
+        self.elision_chars = elision
+        if elision:
+            escaped_elision = re.escape(elision)
+            self.boundary_class = rf"\s{escaped_elision}"
+        else:
+            self.boundary_class = r"\s"
         sorted_abbrs = sorted(raw, key=len, reverse=True)
         self.abbreviations = []
         self.automaton = AhoCorasickAutomaton()
@@ -92,7 +99,10 @@ class _AbbreviationData:
             stripped_lower = stripped.lower()
             escaped = re.escape(stripped)
             # Pre-compile the two findall patterns for this abbreviation
-            match_re = re.compile(r"(?:^|\s|\r|\n){}".format(escaped), re.IGNORECASE)
+            if elision:
+                match_re = re.compile(r"(?:^|\s|\r|\n|[{ec}]){esc}".format(ec=escaped_elision, esc=escaped), re.IGNORECASE)
+            else:
+                match_re = re.compile(r"(?:^|\s|\r|\n){}".format(escaped), re.IGNORECASE)
             next_word_re = re.compile(r"(?<={escaped}\. ).{{1}}".format(escaped=escaped), re.IGNORECASE)
             self.abbreviations.append(
                 (
@@ -192,8 +202,11 @@ class AbbreviationReplacer:
         txt = " " + txt
         if escaped is None:
             escaped = re.escape(abbr.strip())
+        boundary = self._data.boundary_class
         txt = re.sub(
-            r"(?<=\s{abbr})\.(?=((\.|\:|-|\?|,)|(\s([a-z]|I\s|I'm|I'll|\d|\())))".format(abbr=escaped),
+            r"(?<=[{boundary}]{abbr})\.(?=((\.|\:|-|\?|,)|(\s([a-z]|I\s|I'm|I'll|\d|\())))".format(
+                boundary=boundary, abbr=escaped
+            ),
             "∯",
             txt,
         )
@@ -223,18 +236,24 @@ class AbbreviationReplacer:
             char = ""
         use_case_heuristic = bool(self.SENTENCE_STARTERS)
         upper = char.isupper() if (char and use_case_heuristic) else False
-        am_lower = am.strip().lower()
+        am_stripped = am.strip()
+        # Strip leading elision characters (e.g. apostrophe in "l'Avv") so the
+        # bare abbreviation is used for set lookups and replacement patterns.
+        elision = self._data.elision_chars
+        if elision and am_stripped and am_stripped[0] in elision:
+            am_stripped = am_stripped[1:]
+        am_lower = am_stripped.lower()
+        boundary = self._data.boundary_class
         if not upper or am_lower in self._data.prepositive_set:
-            # Use match-derived escape to preserve original case
-            am_escaped = re.escape(am.strip())
+            am_escaped = re.escape(am_stripped)
             if am_lower in self._data.prepositive_set:
                 should_protect_prepositive = not (
                     self.split_mode == "aggressive" and am_lower in self.AGGRESSIVE_PREPOSITIVE_BOUNDARY_BLOCKLIST
                 )
                 if should_protect_prepositive:
-                    txt = _replace_with_escape(txt, am_escaped, r"\.(?=(\s|:\d+))", "∯")
+                    txt = _replace_with_escape(txt, am_escaped, r"\.(?=(\s|:\d+))", "∯", boundary)
             elif am_lower in self._data.number_abbr_set:
-                txt = _replace_with_escape(txt, am_escaped, r"\.(?=(\s\d|\s+\())", "∯")
+                txt = _replace_with_escape(txt, am_escaped, r"\.(?=(\s\d|\s+\())", "∯", boundary)
             else:
-                txt = self.replace_period_of_abbr(txt, am, am_escaped)
+                txt = self.replace_period_of_abbr(txt, am_stripped, am_escaped)
         return txt
