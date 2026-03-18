@@ -104,3 +104,9 @@ def test_ja_corner_quote_spans(ja_no_clean_with_span_fixture):
     text = "彼は「本当に来るの？」と聞いた。私は『行きます！』と答えた。"
     spans = ja_no_clean_with_span_fixture.segment(text)
     assert text == "".join(s.sent for s in spans)
+
+
+def test_ja_ascii_parentheses_are_protected(ja_default_fixture):
+    text = "彼は(本当に来るの？)と聞いた。次。"
+    segments = [s.strip() for s in ja_default_fixture.segment(text)]
+    assert segments == ["彼は(本当に来るの？)と聞いた。", "次。"]

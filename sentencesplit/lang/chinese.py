@@ -54,6 +54,7 @@ class Chinese(CJKBoundaryProfile, Common, Standard):
             super().__init__(text)
 
         def replace(self):
+            self.text = super().sub_punctuation_between_quotes_and_parens(self.text)
             self.sub_punctuation_between_quotes_and_parens()
             return self.text
 

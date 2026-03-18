@@ -169,3 +169,9 @@ def test_zh_corner_quote_spans(zh_no_clean_with_span_fixture):
     text = "他说：「今天先这样。」然后离开。"
     spans = zh_no_clean_with_span_fixture.segment(text)
     assert text == "".join(s.sent for s in spans)
+
+
+def test_zh_ascii_parentheses_are_protected(zh_default_fixture):
+    text = "她说(版本2.0。)然后离开。"
+    segments = [s.strip() for s in zh_default_fixture.segment(text)]
+    assert segments == ["她说(版本2.0。)然后离开。"]
