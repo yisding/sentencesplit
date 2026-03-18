@@ -214,6 +214,25 @@ def test_spanish_sta_sto_prepositive():
     assert segments == ["Fue a Sto. Domingo y Sta. Rosa."]
 
 
+def test_versus_abbreviation_not_treated_as_list_item():
+    """v. in case names like 'Marbury v. Madison' should not be split as a list item."""
+    seg = sentencesplit.Segmenter(language="en", clean=False)
+    # v. next to U.S. triggered false alphabetical list detection (u, v adjacent in alphabet)
+    text = "In Marbury v. Madison, 5 U.S. 137 (1803), the Court established judicial review. This was a landmark case."
+    segments = [s.strip() for s in seg.segment(text)]
+    assert segments == [
+        "In Marbury v. Madison, 5 U.S. 137 (1803), the Court established judicial review.",
+        "This was a landmark case.",
+    ]
+    # Should also work without nearby single-letter abbreviations
+    text2 = "The ruling in Roe v. Wade was significant. It changed the legal landscape."
+    segments2 = [s.strip() for s in seg.segment(text2)]
+    assert segments2 == [
+        "The ruling in Roe v. Wade was significant.",
+        "It changed the legal landscape.",
+    ]
+
+
 def test_double_punctuation_after_sentence_boundary():
     """Double punctuation (??, !!, ?!, !?) should not be lost after a sentence boundary."""
     seg = sentencesplit.Segmenter(language="en", clean=False)
