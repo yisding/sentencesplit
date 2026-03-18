@@ -37,6 +37,7 @@ class Standard:
             "al",
             "ala",
             "alta",
+            "approx",
             "apr",
             "arc",
             "ariz",
@@ -46,6 +47,7 @@ class Standard:
             "asst",
             "attys",
             "aug",
+            "avg",
             "ave",
             "bart",
             "bld",
@@ -84,6 +86,7 @@ class Standard:
             "ens",
             "esp",
             "esq",
+            "est",
             "etc",
             "exp",
             "expy",
@@ -97,6 +100,7 @@ class Standard:
             "ga",
             "gen",
             "gov",
+            "govt",
             "hon",
             "hosp",
             "hr",
@@ -125,6 +129,7 @@ class Standard:
             "ltd",
             "maj",
             "mar",
+            "max",
             "mass",
             "may",
             "md",
@@ -134,6 +139,7 @@ class Standard:
             "mex",
             "mfg",
             "mich",
+            "misc",
             "min",
             "minn",
             "miss",
@@ -149,6 +155,7 @@ class Standard:
             "mssrs",
             "mt",
             "mtn",
+            "natl",
             "neb",
             "nebr",
             "nev",
@@ -163,6 +170,7 @@ class Standard:
             "op",
             "ord",
             "ore",
+            "orig",
             "p",
             "pa",
             "pd",
@@ -199,6 +207,7 @@ class Standard:
             "supt",
             "surg",
             "tce",
+            "tel",
             "tenn",
             "tex",
             "univ",
@@ -209,6 +218,7 @@ class Standard:
             "v",
             "ver",
             "viz",
+            "vol",
             "vs",
             "vt",
             "wash",
@@ -252,7 +262,7 @@ class Standard:
             "v",
             "vs",
         ]
-        NUMBER_ABBREVIATIONS = ["art", "ext", "fig", "no", "nos", "p", "pp"]
+        NUMBER_ABBREVIATIONS = ["approx", "art", "est", "ext", "fig", "no", "nos", "p", "pp", "tel", "vol"]
 
         # Rubular: http://rubular.com/r/EUbZCNfgei
         # \w in python matches unicode abbreviations also so limit to english alphanumerics
