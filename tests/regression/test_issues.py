@@ -233,6 +233,58 @@ def test_versus_abbreviation_not_treated_as_list_item():
     ]
 
 
+def test_common_abbreviations_no_false_split():
+    """Common abbreviations like govt., approx., misc. should not cause false splits."""
+    seg = sentencesplit.Segmenter(language="en", clean=False)
+    # Before lowercase words
+    assert [s.strip() for s in seg.segment("The govt. issued new regulations. They take effect Monday.")] == [
+        "The govt. issued new regulations.",
+        "They take effect Monday.",
+    ]
+    assert [s.strip() for s in seg.segment("The natl. average rose sharply. Experts were surprised.")] == [
+        "The natl. average rose sharply.",
+        "Experts were surprised.",
+    ]
+    assert [s.strip() for s in seg.segment("See the misc. expenses below. They total five thousand.")] == [
+        "See the misc. expenses below.",
+        "They total five thousand.",
+    ]
+    assert [s.strip() for s in seg.segment("The avg. score was 85 points. Students improved overall.")] == [
+        "The avg. score was 85 points.",
+        "Students improved overall.",
+    ]
+    assert [s.strip() for s in seg.segment("The max. capacity is 500 people. Do not exceed it.")] == [
+        "The max. capacity is 500 people.",
+        "Do not exceed it.",
+    ]
+    assert [s.strip() for s in seg.segment("The orig. version was better. Fans agreed unanimously.")] == [
+        "The orig. version was better.",
+        "Fans agreed unanimously.",
+    ]
+    # Before numbers (NUMBER_ABBREVIATIONS)
+    assert [s.strip() for s in seg.segment("It costs approx. 50 dollars. That is affordable.")] == [
+        "It costs approx. 50 dollars.",
+        "That is affordable.",
+    ]
+    assert [s.strip() for s in seg.segment("See vol. 3 for the full analysis. It was published last year.")] == [
+        "See vol. 3 for the full analysis.",
+        "It was published last year.",
+    ]
+    assert [s.strip() for s in seg.segment("Contact us at tel. 555-1234 for information. We are open daily.")] == [
+        "Contact us at tel. 555-1234 for information.",
+        "We are open daily.",
+    ]
+    assert [s.strip() for s in seg.segment("The town was est. 1842 by settlers. It grew quickly.")] == [
+        "The town was est. 1842 by settlers.",
+        "It grew quickly.",
+    ]
+    # Should still split at real sentence boundaries
+    assert [s.strip() for s in seg.segment("The govt. The rules are strict.")] == [
+        "The govt.",
+        "The rules are strict.",
+    ]
+
+
 def test_double_punctuation_after_sentence_boundary():
     """Double punctuation (??, !!, ?!, !?) should not be lost after a sentence boundary."""
     seg = sentencesplit.Segmenter(language="en", clean=False)
