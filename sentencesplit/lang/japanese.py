@@ -69,8 +69,9 @@ class Japanese(CJKBoundaryProfile, Common, Standard):
             super().__init__(text)
 
         def replace(self):
-            self.text = super().sub_punctuation_between_quotes_and_parens(self.text)
-            self.sub_punctuation_between_quotes_and_parens()
+            self.text = super().sub_punctuation_between_parens(self.text)
+            self.text = super().sub_punctuation_between_square_brackets(self.text)
+            self.sub_punctuation_between_cjk_quotes_and_parens()
             return self.text
 
         def sub_punctuation_between_parens_ja(self):
@@ -85,7 +86,7 @@ class Japanese(CJKBoundaryProfile, Common, Standard):
             regex = r"『(?=(?P<tmp>[^『』]+|\\{2}|\\.)*)(?P=tmp)』"
             self.text = re.sub(regex, replace_punctuation, self.text)
 
-        def sub_punctuation_between_quotes_and_parens(self):
+        def sub_punctuation_between_cjk_quotes_and_parens(self):
             self.sub_punctuation_between_parens_ja()
             self.sub_punctuation_between_quotes_ja()
             self.sub_punctuation_between_corner_quotes_ja()
