@@ -13,8 +13,8 @@ class Kazakh(Common, Standard):
     MULTI_PERIOD_ABBREVIATION_REGEX = r"\b[\u0400-\u0500]+(?:\.\s?[\u0400-\u0500])+[.]|b[a-z](?:\.[a-z])+[.]"
 
     class Processor(Processor):
-        def __init__(self, text, lang, char_span=False):
-            super().__init__(text, lang, char_span)
+        def __init__(self, text, lang, char_span=False, **kwargs):
+            super().__init__(text, lang, char_span, **kwargs)
 
         def between_punctuation(self, txt):
             txt = self.between_punctuation_processor(txt).replace()
@@ -352,8 +352,8 @@ class Kazakh(Common, Standard):
     class AbbreviationReplacer(AbbreviationReplacer):
         SENTENCE_STARTERS = []
 
-        def __init__(self, text, lang):
-            super().__init__(text, lang)
+        def __init__(self, text, lang, **kwargs):
+            super().__init__(text, lang, **kwargs)
 
         def replace(self):
             SingleUpperCaseCyrillicLetterAtStartOfLineRule = Rule(r"(?<=^[А-ЯЁ])\.(?=\s)", "∯")

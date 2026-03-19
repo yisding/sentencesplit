@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import re
 from collections import deque
-from typing import List
 
 from sentencesplit.utils import apply_rules
 
@@ -120,7 +119,8 @@ class _AbbreviationData:
 
 
 class AbbreviationReplacer:
-    _data_cache: dict[int, _AbbreviationData] = {}
+    _data_cache: dict[type, _AbbreviationData] = {}
+    _boundary_regex_cache: dict[type, re.Pattern[str] | None] = {}
     SENTENCE_STARTERS = []
     SENTENCE_BOUNDARY_ABBREVIATIONS = ["U∯S", "U.S", "U∯K", "E∯U", "E.U", "U∯S∯A", "U.S.A", "I", "i.v", "I.V"]
 
@@ -135,11 +135,11 @@ class AbbreviationReplacer:
     def __init__(self, text: str, lang, split_mode: str = "conservative") -> None:
         self.text = text
         self.lang = lang
-        abbr_class_id = id(lang.Abbreviation)
+        abbr_class = lang.Abbreviation
         self.split_mode = split_mode
-        if abbr_class_id not in AbbreviationReplacer._data_cache:
-            AbbreviationReplacer._data_cache[abbr_class_id] = _AbbreviationData(lang.Abbreviation)
-        self._data = AbbreviationReplacer._data_cache[abbr_class_id]
+        if abbr_class not in AbbreviationReplacer._data_cache:
+            AbbreviationReplacer._data_cache[abbr_class] = _AbbreviationData(lang.Abbreviation)
+        self._data = AbbreviationReplacer._data_cache[abbr_class]
 
     def replace(self) -> str:
         self.text = apply_rules(
@@ -148,7 +148,7 @@ class AbbreviationReplacer:
             self.lang.KommanditgesellschaftRule,
             *self.lang.SingleLetterAbbreviationRules.All,
         )
-        lines: List[str] = []
+        lines: list[str] = []
         for line in self.text.splitlines(True):
             lines.append(self.search_for_abbreviations_in_string(line))
         self.text = "".join(lines)
@@ -167,16 +167,26 @@ class AbbreviationReplacer:
         self.text = self.replace_abbreviation_as_sentence_boundary()
         return self.text
 
+    @classmethod
+    def _get_boundary_regex(cls) -> re.Pattern[str] | None:
+        if cls not in cls._boundary_regex_cache:
+            boundary_abbr = "|".join(re.escape(abbr).replace(r"\.", r"[.∯]") for abbr in cls.SENTENCE_BOUNDARY_ABBREVIATIONS)
+            if not boundary_abbr:
+                cls._boundary_regex_cache[cls] = None
+            elif cls.SENTENCE_STARTERS:
+                sent_starters = "|".join(r"(?=\s{}\s)".format(word) for word in cls.SENTENCE_STARTERS)
+                cls._boundary_regex_cache[cls] = re.compile(
+                    r"(?<![A-Za-z0-9_∯])({})∯({})".format(boundary_abbr, sent_starters)
+                )
+            else:
+                cls._boundary_regex_cache[cls] = re.compile(r"(?<![A-Za-z0-9_∯])({})∯".format(boundary_abbr))
+        return cls._boundary_regex_cache[cls]
+
     def replace_abbreviation_as_sentence_boundary(self) -> str:
-        boundary_abbr = "|".join(re.escape(abbr).replace(r"\.", r"[.∯]") for abbr in self.SENTENCE_BOUNDARY_ABBREVIATIONS)
-        if not boundary_abbr:
+        regex = type(self)._get_boundary_regex()
+        if regex is None:
             return self.text
-        if self.SENTENCE_STARTERS:
-            sent_starters = "|".join((r"(?=\s{}\s)".format(word) for word in self.SENTENCE_STARTERS))
-            regex = r"(?<![A-Za-z0-9_∯])({})∯({})".format(boundary_abbr, sent_starters)
-        else:
-            regex = r"(?<![A-Za-z0-9_∯])({})∯".format(boundary_abbr)
-        self.text = re.sub(regex, "\\1.", self.text)
+        self.text = regex.sub("\\1.", self.text)
         return self.text
 
     def replace_multi_period_abbreviations(self) -> None:

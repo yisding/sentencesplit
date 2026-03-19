@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 from __future__ import annotations
 
+import re
+
 
 class SentenceSplitFactory:
     """sentencesplit as a spacy component through entrypoints"""
@@ -26,8 +28,8 @@ try:
 except ImportError:
     pass
 else:
-    _spacy_version = tuple(int(x) for x in spacy.__version__.split(".")[:2])
-    if _spacy_version < (3, 8):
+    _match = re.match(r"(\d+)\.(\d+)", spacy.__version__)
+    if _match is None or (int(_match[1]), int(_match[2])) < (3, 8):
         raise ImportError(f"sentencesplit requires spaCy >= 3.8, found {spacy.__version__}")
 
     from spacy.language import Language
