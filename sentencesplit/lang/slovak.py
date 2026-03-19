@@ -267,8 +267,8 @@ class Slovak(Common, Standard):
             return txt
 
     class Processor(Processor):
-        def __init__(self, text, lang, char_span=False):
-            super().__init__(text, lang, char_span)
+        def __init__(self, text, lang, char_span=False, **kwargs):
+            super().__init__(text, lang, char_span, **kwargs)
 
         def process(self):
             if not self.text:

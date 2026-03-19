@@ -37,8 +37,8 @@ class Danish(Common, Standard):
             " Hvilke Hvor Hvordan Hvorfor Hvorledes Hvornår I Jeg Mange Vi Være"
         ).split(" ")
 
-        def __init__(self, text, lang):
-            super().__init__(text, lang)
+        def __init__(self, text, lang, **kwargs):
+            super().__init__(text, lang, **kwargs)
 
         def replace_abbreviation_as_sentence_boundary(self):
             sent_starters = "|".join((r"(?=\s{}\s)".format(word) for word in self.SENTENCE_STARTERS))

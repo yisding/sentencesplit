@@ -317,7 +317,7 @@ def test_exception_with_doc_type_pdf_and_clean_false():
     with pytest.raises(ValueError) as e:
         sentencesplit.Segmenter(language="en", clean=False, doc_type="pdf")
     assert str(e.value) == (
-        "`doc_type='pdf'` should have `clean=True` & `char_span` should be False since originaltext will be modified."
+        "`doc_type='pdf'` should have `clean=True` & `char_span` should be False since original text will be modified."
     )
 
 

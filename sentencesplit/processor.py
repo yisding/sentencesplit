@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import re
-from typing import List
 
 from sentencesplit.abbreviation_replacer import AbbreviationReplacer
 from sentencesplit.between_punctuation import BetweenPunctuation
@@ -43,7 +42,7 @@ class Processor:
         self._has_cjk_abbr_rules = hasattr(lang, "CjkAbbreviationRules")
         self._latin_uppercase_resplit = getattr(lang, "LATIN_UPPERCASE_RESPLIT", True)
 
-    def process(self) -> List[str]:
+    def process(self) -> list[str]:
         if not self.text:
             return []
         self.text = self.text.replace("\n", "\r")
@@ -65,7 +64,7 @@ class Processor:
         postprocessed_sents = self.split_into_segments()
         return postprocessed_sents
 
-    def rm_none_flatten(self, sents: List[str | List[str] | None]) -> List[str]:
+    def rm_none_flatten(self, sents: list[str | list[str] | None]) -> list[str]:
         new_sents = []
         for s in sents:
             if not s:
@@ -76,7 +75,7 @@ class Processor:
                 new_sents.append(s)
         return new_sents
 
-    def split_into_segments(self) -> List[str]:
+    def split_into_segments(self) -> list[str]:
         self.check_for_parens_between_quotes()
         sents = self.text.split("\r")
         # remove empty and none values
@@ -138,7 +137,7 @@ class Processor:
                 merged.append(sent)
         return merged
 
-    def post_process_segments(self, txt: str) -> List[str]:
+    def post_process_segments(self, txt: str) -> list[str]:
         if len(txt) > 2 and _ALPHA_ONLY_RE.search(txt):
             return [txt]
 
@@ -173,7 +172,7 @@ class Processor:
         # https://github.com/diasks2/pragmatic_segmenter/commit/d9ec1a352aff92b91e2e572c30bb9561eb42c703
         self.text = re.sub(self.lang.NUMBERED_REFERENCE_REGEX, r"∯\2\r\7", self.text)
 
-    def check_for_punctuation(self, txt: str) -> List[str]:
+    def check_for_punctuation(self, txt: str) -> list[str]:
         if any(p in txt for p in self.lang.Punctuations):
             sents = self.process_text(txt)
             return sents
@@ -181,7 +180,7 @@ class Processor:
             # NOTE: next steps of check_for_punctuation will unpack this list
             return [txt]
 
-    def process_text(self, txt: str) -> List[str]:
+    def process_text(self, txt: str) -> list[str]:
         if txt[-1] not in self.lang.Punctuations:
             txt += "ȸ"
         txt = ExclamationWords.apply_rules(txt)
@@ -199,11 +198,8 @@ class Processor:
 
     def abbreviations_replacer(self):
         if self._has_abbr_replacer:
-            replacer = self.lang.AbbreviationReplacer(self.text, self.lang)
-        else:
-            replacer = AbbreviationReplacer(self.text, self.lang)
-        replacer.split_mode = self.split_mode
-        return replacer
+            return self.lang.AbbreviationReplacer(self.text, self.lang, split_mode=self.split_mode)
+        return AbbreviationReplacer(self.text, self.lang, split_mode=self.split_mode)
 
     def replace_abbreviations(self) -> None:
         self.text = self.abbreviations_replacer().replace()
@@ -218,7 +214,7 @@ class Processor:
         txt = self.between_punctuation_processor(txt).replace()
         return txt
 
-    def sentence_boundary_punctuation(self, txt: str) -> List[str]:
+    def sentence_boundary_punctuation(self, txt: str) -> list[str]:
         if self._has_colon_rule:
             txt = apply_rules(txt, self.lang.ReplaceColonBetweenNumbersRule)
         if self._has_comma_rule:
