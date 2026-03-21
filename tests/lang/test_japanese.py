@@ -106,7 +106,25 @@ def test_ja_corner_quote_spans(ja_no_clean_with_span_fixture):
     assert text == "".join(s.sent for s in spans)
 
 
-def test_ja_ascii_parentheses_are_protected(ja_default_fixture):
-    text = "彼は(本当に来るの？)と聞いた。次。"
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        ("彼は(本当に来るの？)と聞いた。次。", ["彼は(本当に来るの？)と聞いた。", "次。"]),
+        ("彼は[本当に来るの？]と聞いた。次。", ["彼は[本当に来るの？]と聞いた。", "次。"]),
+    ],
+)
+def test_ja_ascii_brackets_are_protected(ja_default_fixture, text, expected):
     segments = [s.strip() for s in ja_default_fixture.segment(text)]
-    assert segments == ["彼は(本当に来るの？)と聞いた。", "次。"]
+    assert segments == expected
+
+
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        ("これは補足(詳細。)次の文。", ["これは補足(詳細。)", "次の文。"]),
+        ("これは補足[詳細。]次の文。", ["これは補足[詳細。]", "次の文。"]),
+    ],
+)
+def test_ja_ascii_brackets_can_close_cjk_sentences(ja_default_fixture, text, expected):
+    segments = [s.strip() for s in ja_default_fixture.segment(text)]
+    assert segments == expected

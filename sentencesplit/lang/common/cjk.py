@@ -14,7 +14,7 @@ class CJKBoundaryProfile:
     # Include temporary placeholders from DoublePunctuationRules so CJK
     # boundary matching still works before SubSymbols restoration.
     _CJK_SENTENCE_END = r"[。．.！!?？☉☈☇☄☊☋☌☍]"
-    _CJK_CLOSERS = r"[\"'”’」』》〉】）〕〗〙〛]"
+    _CJK_CLOSERS = r"[\]\"')”’」』》〉】）〕〗〙〛]"
 
     SENTENCE_BOUNDARY_REGEX = rf".*?{_CJK_SENTENCE_END}{_CJK_CLOSERS}*|.*?$"
     QUOTATION_AT_END_OF_SENTENCE_REGEX = rf"{_CJK_SENTENCE_END}{_CJK_CLOSERS}\s+[^\s]"

@@ -102,6 +102,14 @@ ZH_CHALLENGING_TEST_CASES = [
         ["这是第2.0版（内测）。", "明天公开。"],
     ),
     (
+        "这是补充(详情。)下一句。",
+        ["这是补充(详情。)", "下一句。"],
+    ),
+    (
+        "这是补充[详情。]下一句。",
+        ["这是补充[详情。]", "下一句。"],
+    ),
+    (
         "项目代号是A.I.-7。下一阶段开始。",
         ["项目代号是A.I.-7。", "下一阶段开始。"],
     ),
@@ -171,7 +179,13 @@ def test_zh_corner_quote_spans(zh_no_clean_with_span_fixture):
     assert text == "".join(s.sent for s in spans)
 
 
-def test_zh_ascii_parentheses_are_protected(zh_default_fixture):
-    text = "她说(版本2.0。)然后离开。"
+@pytest.mark.parametrize(
+    ("text", "expected"),
+    [
+        ("她说(版本2.0。)然后离开。", ["她说(版本2.0。)", "然后离开。"]),
+        ("她说[版本2.0。]然后离开。", ["她说[版本2.0。]", "然后离开。"]),
+    ],
+)
+def test_zh_ascii_brackets_split_after_closer(zh_default_fixture, text, expected):
     segments = [s.strip() for s in zh_default_fixture.segment(text)]
-    assert segments == ["她说(版本2.0。)然后离开。"]
+    assert segments == expected
