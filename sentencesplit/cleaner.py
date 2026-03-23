@@ -101,12 +101,7 @@ class Cleaner:
         )
 
     def clean_table_of_contents(self):
-        self.text = apply_rules(
-            self.text,
-            cr.TableOfContentsRule,
-            cr.ConsecutivePeriodsRule,
-            cr.ConsecutiveForwardSlashRule,
-        )
+        self.text = apply_rules(self.text, cr.TableOfContentsRule)
 
     def search_for_connected_sentences(self, word: str, regex, rule) -> str:
         if not re.search(regex, word):

@@ -54,7 +54,9 @@ class Chinese(CJKBoundaryProfile, Common, Standard):
             super().__init__(text)
 
         def replace(self):
-            self.sub_punctuation_between_quotes_and_parens()
+            self.text = super().sub_punctuation_between_parens(self.text)
+            self.text = super().sub_punctuation_between_square_brackets(self.text)
+            self.sub_punctuation_between_cjk_quotes_and_parens()
             return self.text
 
         def sub_punctuation_between_double_angled_quotation_marks(self):
@@ -78,7 +80,7 @@ class Chinese(CJKBoundaryProfile, Common, Standard):
             regex = r"（(?=(?P<tmp>[^）\\]+|\\{2}|\\.)*)(?P=tmp)）"
             self.text = re.sub(regex, replace_punctuation, self.text)
 
-        def sub_punctuation_between_quotes_and_parens(self):
+        def sub_punctuation_between_cjk_quotes_and_parens(self):
             self.sub_punctuation_between_double_angled_quotation_marks()
             self.sub_punctuation_between_slanted_quotes()
             self.sub_punctuation_between_l_bracket()

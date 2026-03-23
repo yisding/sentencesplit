@@ -8,32 +8,28 @@ from sentencesplit.punctuation_replacer import replace_punctuation
 
 
 class BetweenPunctuation:
-    """Replace punctuation inside quotes/brackets so it won't split sentences.
-
-    Note: *_REGEX_2 patterns are kept as atomic-grouping workarounds for Python
-    (Ruby's atomic groups are not available in the stdlib regex engine).
-    """
+    """Replace punctuation inside quotes/brackets so it won't split sentences."""
 
     # Rubular: http://rubular.com/r/2YFrKWQUYi
     BETWEEN_SINGLE_QUOTES_REGEX = re.compile(r"(?<=\s)'(?:[^']|'[a-zA-Z])*'")
 
     BETWEEN_SINGLE_QUOTE_SLANTED_REGEX = re.compile(r"(?<=\s)\u2018(?:[^\u2019]|\u2019[a-zA-Z])*\u2019")
 
-    BETWEEN_DOUBLE_QUOTES_REGEX_2 = re.compile(r'"(?=(?P<tmp>[^\"\\]+|\\{2}|\\.)*)(?P=tmp)"')
+    BETWEEN_DOUBLE_QUOTES_REGEX_2 = re.compile(r'"[^"\\]*(?:\\.[^"\\]*)*"')
 
-    BETWEEN_QUOTE_ARROW_REGEX_2 = re.compile(r"\u00ab(?=(?P<tmp>[^\u00bb\\]+|\\{2}|\\.)*)(?P=tmp)\u00bb")
+    BETWEEN_QUOTE_ARROW_REGEX_2 = re.compile(r"\u00ab[^\u00bb\\]*(?:\\.[^\u00bb\\]*)*\u00bb")
 
-    BETWEEN_QUOTE_SLANTED_REGEX_2 = re.compile(r"\u201c(?=(?P<tmp>[^\u201d\\]+|\\{2}|\\.)*)(?P=tmp)\u201d")
+    BETWEEN_QUOTE_SLANTED_REGEX_2 = re.compile(r"\u201c[^\u201d\\]*(?:\\.[^\u201d\\]*)*\u201d")
 
     # Rubular: http://rubular.com/r/WX4AvnZvlX
-    BETWEEN_SQUARE_BRACKETS_REGEX_2 = re.compile(r"\[(?=(?P<tmp>[^\]\\]+|\\{2}|\\.)*)(?P=tmp)\]")
+    BETWEEN_SQUARE_BRACKETS_REGEX_2 = re.compile(r"\[[^\]\\]*(?:\\.[^\]\\]*)*\]")
 
-    BETWEEN_PARENS_REGEX_2 = re.compile(r"\((?=(?P<tmp>[^\(\)\\]+|\\{2}|\\.)*)(?P=tmp)\)")
+    BETWEEN_PARENS_REGEX_2 = re.compile(r"\([^()\\]*(?:\\.[^()\\]*)*\)")
 
     # Rubular: http://rubular.com/r/mXf8cW025o
     WORD_WITH_LEADING_APOSTROPHE = re.compile(r"(?<=\s)'(?:[^']|'[a-zA-Z])*'\S")
 
-    BETWEEN_EM_DASHES_REGEX_2 = re.compile(r"--(?=(?P<tmp>[^--]*))(?P=tmp)--")
+    BETWEEN_EM_DASHES_REGEX_2 = re.compile(r"--[^-]*--")
 
     _QUOTE_SPACE_RE = re.compile(r"'\s")
 

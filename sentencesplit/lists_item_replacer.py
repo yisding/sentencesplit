@@ -62,8 +62,8 @@ class ListItemReplacer:
         return self.text
 
     def replace_parens(self):
-        text = re.sub(self.ROMAN_NUMERALS_IN_PARENTHESES, r"&✂&\1&⌬&", self.text)
-        return text
+        self.text = re.sub(self.ROMAN_NUMERALS_IN_PARENTHESES, r"&✂&\1&⌬&", self.text)
+        return self.text
 
     def format_numbered_list_with_parens(self):
         self.replace_parens_in_numbered_list()
@@ -79,22 +79,18 @@ class ListItemReplacer:
         self.text = apply_rules(self.text, self.SubstituteListPeriodRule)
 
     def format_alphabetical_lists(self):
-        self.text = self.add_line_breaks_for_alphabetical_list_with_periods(roman_numeral=False)
-        self.text = self.add_line_breaks_for_alphabetical_list_with_parens(roman_numeral=False)
-        return self.text
+        self.add_line_breaks_for_alphabetical_list_with_periods(roman_numeral=False)
+        self.add_line_breaks_for_alphabetical_list_with_parens(roman_numeral=False)
 
     def format_roman_numeral_lists(self):
-        self.text = self.add_line_breaks_for_alphabetical_list_with_periods(roman_numeral=True)
-        self.text = self.add_line_breaks_for_alphabetical_list_with_parens(roman_numeral=True)
-        return self.text
+        self.add_line_breaks_for_alphabetical_list_with_periods(roman_numeral=True)
+        self.add_line_breaks_for_alphabetical_list_with_parens(roman_numeral=True)
 
     def add_line_breaks_for_alphabetical_list_with_periods(self, roman_numeral=False):
-        txt = self.iterate_alphabet_array(self.ALPHABETICAL_LIST_WITH_PERIODS, roman_numeral=roman_numeral)
-        return txt
+        self.iterate_alphabet_array(self.ALPHABETICAL_LIST_WITH_PERIODS, roman_numeral=roman_numeral)
 
     def add_line_breaks_for_alphabetical_list_with_parens(self, roman_numeral=False):
-        txt = self.iterate_alphabet_array(self.ALPHABETICAL_LIST_WITH_PARENS, parens=True, roman_numeral=roman_numeral)
-        return txt
+        self.iterate_alphabet_array(self.ALPHABETICAL_LIST_WITH_PARENS, parens=True, roman_numeral=roman_numeral)
 
     def scan_lists(self, regex1, regex2, replacement, strip=False):
         matches = list(re.finditer(regex1, self.text))
@@ -163,13 +159,12 @@ class ListItemReplacer:
             else:
                 return match
 
-        txt = re.sub(
+        self.text = re.sub(
             self.ALPHABETICAL_LIST_LETTERS_AND_PERIODS_REGEX,
             partial(replace_letter_period, val=a),
             self.text,
             flags=re.IGNORECASE,
         )
-        return txt
 
     def replace_alphabet_list_parens(self, a):
         """
@@ -192,40 +187,38 @@ class ListItemReplacer:
                     return match
 
         # Make it cases-insensitive
-        txt = re.sub(
+        self.text = re.sub(
             self.EXTRACT_ALPHABETICAL_LIST_LETTERS_REGEX,
             partial(replace_alphabet_paren, val=a),
             self.text,
             flags=re.IGNORECASE,
         )
-        return txt
 
     def replace_correct_alphabet_list(self, a, parens):
         if parens:
-            a = self.replace_alphabet_list_parens(a)
+            self.replace_alphabet_list_parens(a)
         else:
-            a = self.replace_alphabet_list(a)
-        return a
+            self.replace_alphabet_list(a)
 
     def last_array_item_replacement(self, a, i, alphabet, alphabet_index, list_array, parens):
         if i == 0:
             return self.text
         if (len(alphabet) == 0) and (len(list_array) == 0) or (list_array[i - 1] not in alphabet) or (a not in alphabet):
-            return self.text
-        if alphabet_index[a] - alphabet_index[list_array[i - 1]] != 1:
-            return self.text
-        result = self.replace_correct_alphabet_list(a, parens)
-        return result
+            return
+        if abs(alphabet_index[list_array[i - 1]] - alphabet_index[a]) != 1:
+            return
+        self.replace_correct_alphabet_list(a, parens)
 
     def other_items_replacement(self, a, i, alphabet, alphabet_index, list_array, parens):
         if (len(alphabet) == 0) and (len(list_array) == 0) or (a not in alphabet) or (list_array[i + 1] not in alphabet):
-            return self.text
+            return
         forward_match = alphabet_index[list_array[i + 1]] - alphabet_index[a] == 1
-        backward_match = i > 0 and list_array[i - 1] in alphabet and alphabet_index[a] - alphabet_index[list_array[i - 1]] == 1
+        backward_match = (
+            i > 0 and list_array[i - 1] in alphabet and abs(alphabet_index[list_array[i - 1]] - alphabet_index[a]) == 1
+        )
         if not forward_match and not backward_match:
-            return self.text
-        result = self.replace_correct_alphabet_list(a, parens)
-        return result
+            return
+        self.replace_correct_alphabet_list(a, parens)
 
     def iterate_alphabet_array(self, regex, parens=False, roman_numeral=False):
         list_array = re.findall(regex, self.text, re.IGNORECASE)
@@ -235,7 +228,6 @@ class ListItemReplacer:
         list_array = [i for i in list_array if i in alphabet]
         for ind, each in enumerate(list_array):
             if ind == len(list_array) - 1:
-                self.text = self.last_array_item_replacement(each, ind, alphabet, alphabet_index, list_array, parens)
+                self.last_array_item_replacement(each, ind, alphabet, alphabet_index, list_array, parens)
             else:
-                self.text = self.other_items_replacement(each, ind, alphabet, alphabet_index, list_array, parens)
-        return self.text
+                self.other_items_replacement(each, ind, alphabet, alphabet_index, list_array, parens)
