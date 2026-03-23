@@ -1,4 +1,6 @@
-from importlib.metadata import PackageNotFoundError, version
+from email.utils import getaddresses
+from importlib.metadata import PackageNotFoundError
+from importlib.metadata import metadata as _get_metadata
 
 # inspired from:
 # https://python-packaging-user-guide.readthedocs.org/en/latest/single_source_version/
@@ -25,10 +27,16 @@ def _load_source_project_metadata() -> dict[str, object]:
 
 
 try:
-    __version__ = version("sentencesplit")
-    __uri__ = "https://github.com/yisding/sentencesplit"
-    __author__ = "Nipun Sadvilkar, Yi Ding"
-    __email__ = "nipunsadvilkar@gmail.com, yi.s.ding@gmail.com"
+    _meta = _get_metadata("sentencesplit")
+    __version__ = _meta["Version"]
+    _project_urls = {}
+    for _entry in _meta.get_all("Project-URL") or []:
+        _label, _, _url = _entry.partition(",")
+        _project_urls[_label.strip()] = _url.strip()
+    __uri__ = _project_urls.get("Repository", "https://github.com/yisding/sentencesplit")
+    _addresses = getaddresses([_meta.get("Author-email", "")])
+    __author__ = ", ".join(name for name, _ in _addresses if name)
+    __email__ = ", ".join(addr for _, addr in _addresses if addr)
 except PackageNotFoundError:
     _project = _load_source_project_metadata()
     _authors = _project.get("authors", [])

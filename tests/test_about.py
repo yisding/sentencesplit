@@ -31,9 +31,10 @@ def test_about_falls_back_to_pyproject_version_when_distribution_metadata_is_mis
     def raise_package_not_found(_distribution_name):
         raise importlib_metadata.PackageNotFoundError
 
-    with monkeypatch.context() as context:
-        context.setattr(importlib_metadata, "version", raise_package_not_found)
+    try:
+        with monkeypatch.context() as context:
+            context.setattr(importlib_metadata, "metadata", raise_package_not_found)
+            importlib.reload(about)
+            assert about.__version__ == project["version"]
+    finally:
         importlib.reload(about)
-        assert about.__version__ == project["version"]
-
-    importlib.reload(about)
