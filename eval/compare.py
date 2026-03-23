@@ -6,13 +6,15 @@ import sys
 from pathlib import Path
 
 import nltk
+
 nltk.download("punkt_tab", quiet=True)
-from nltk.tokenize import sent_tokenize
+from nltk.tokenize import sent_tokenize  # noqa: E402
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from sentencesplit.segmenter import Segmenter
+from sentencesplit.segmenter import Segmenter  # noqa: E402
 
 # --- Helpers ---
+
 
 def segment_en(text: str) -> list[str]:
     s = Segmenter(language="en", clean=False)
@@ -171,15 +173,18 @@ def evaluate_gold(name: str, func, examples: list[dict]) -> dict:
         if result == ex["expected"]:
             correct += 1
         else:
-            errors.append({
-                "name": ex["name"],
-                "expected": ex["expected"],
-                "got": result,
-            })
+            errors.append(
+                {
+                    "name": ex["name"],
+                    "expected": ex["expected"],
+                    "got": result,
+                }
+            )
     return {"name": name, "correct": correct, "total": len(examples), "errors": errors}
 
 
 # --- Document-level analysis ---
+
 
 def find_bad_splits(sentences: list[str], abbreviations: list[str]) -> list[dict]:
     """Find sentences that likely split incorrectly on an abbreviation."""
@@ -193,24 +198,55 @@ def find_bad_splits(sentences: list[str], abbreviations: list[str]) -> list[dict
                 next_sent = sentences[i + 1].strip() if i + 1 < len(sentences) else ""
                 # Only flag if next sentence starts with a non-sentence-starter pattern
                 if next_sent and not re.match(r'^["\'\(]', next_sent):
-                    issues.append({
-                        "index": i,
-                        "abbr": abbr,
-                        "fragment": stripped[-60:],
-                        "next_start": next_sent[:60],
-                    })
+                    issues.append(
+                        {
+                            "index": i,
+                            "abbr": abbr,
+                            "fragment": stripped[-60:],
+                            "next_start": next_sent[:60],
+                        }
+                    )
                 break
     return issues
 
 
 LEGAL_ABBREVIATIONS = [
-    "v", "vs", "Cir", "Dist", "Bankr", "App", "Sup", "Ct",
-    "J", "JJ", "Ch", "Atty", "Mag", "Admin",
-    "Amend", "Sec", "Art", "Cl", "Sched",
-    "F.Supp", "F.2d", "F.3d", "S.Ct", "L.Ed",
-    "U.S.C", "C.F.R", "Fed",
-    "Def", "Pl", "Compl", "Mot", "Pet", "Resp",
-    "et al", "ibid", "supra",
+    "v",
+    "vs",
+    "Cir",
+    "Dist",
+    "Bankr",
+    "App",
+    "Sup",
+    "Ct",
+    "J",
+    "JJ",
+    "Ch",
+    "Atty",
+    "Mag",
+    "Admin",
+    "Amend",
+    "Sec",
+    "Art",
+    "Cl",
+    "Sched",
+    "F.Supp",
+    "F.2d",
+    "F.3d",
+    "S.Ct",
+    "L.Ed",
+    "U.S.C",
+    "C.F.R",
+    "Fed",
+    "Def",
+    "Pl",
+    "Compl",
+    "Mot",
+    "Pet",
+    "Resp",
+    "et al",
+    "ibid",
+    "supra",
 ]
 
 
@@ -218,9 +254,9 @@ def analyze_document(filepath: str) -> None:
     text = Path(filepath).read_text()
     name = Path(filepath).stem
 
-    print(f"\n{'='*80}")
+    print(f"\n{'=' * 80}")
     print(f"DOCUMENT: {name}")
-    print(f"{'='*80}")
+    print(f"{'=' * 80}")
     print(f"Length: {len(text):,} chars, {len(text.split()):,} words")
 
     results = {}
@@ -230,7 +266,7 @@ def analyze_document(filepath: str) -> None:
         results[label] = {"count": len(sents), "issues": issues}
 
     print(f"\n{'Method':<12} {'Sentences':>10} {'Suspect Splits':>16}")
-    print(f"{'-'*12} {'-'*10} {'-'*16}")
+    print(f"{'-' * 12} {'-' * 10} {'-' * 16}")
     for label, r in results.items():
         print(f"{label:<12} {r['count']:>10} {len(r['issues']):>16}")
 
@@ -259,7 +295,7 @@ def main():
                 print(f"    expected: {err['expected']}")
                 print(f"    got:      {err['got']}")
 
-    print(f"\n\n{'='*80}")
+    print(f"\n\n{'=' * 80}")
     print("PART 2: REAL DOCUMENT ANALYSIS")
     print("=" * 80)
 
