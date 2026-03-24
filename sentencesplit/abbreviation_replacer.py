@@ -4,7 +4,7 @@ from __future__ import annotations
 import re
 from collections import deque
 
-from sentencesplit.utils import apply_rules
+from sentencesplit.utils import apply_rules, ensure_compiled
 
 
 class AhoCorasickAutomaton:
@@ -212,7 +212,7 @@ class AbbreviationReplacer:
             tail = "∯" if protect_final_period else "."
             return body + tail
 
-        self.text = self.lang.MULTI_PERIOD_ABBREVIATION_REGEX.sub(mpa_replace, self.text)
+        self.text = ensure_compiled(self.lang.MULTI_PERIOD_ABBREVIATION_REGEX, re.IGNORECASE).sub(mpa_replace, self.text)
 
     def replace_period_of_abbr(self, txt: str, abbr: str, escaped: str | None = None) -> str:
         txt = " " + txt

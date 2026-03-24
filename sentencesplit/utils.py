@@ -17,6 +17,13 @@ class Rule:
         return '<{} pattern="{}" and replacement="{}">'.format(self.__class__.__name__, self.pattern, self.replacement)
 
 
+def ensure_compiled(pattern: str | re.Pattern[str], flags: int = 0) -> re.Pattern[str]:
+    """Return a compiled regex, compiling if *pattern* is a string."""
+    if isinstance(pattern, re.Pattern):
+        return pattern
+    return re.compile(pattern, flags)
+
+
 def apply_rules(text: str, *rules: Rule) -> str:
     """Apply a series of compiled regex rules to text."""
     for rule in rules:

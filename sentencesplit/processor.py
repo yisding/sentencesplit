@@ -7,7 +7,7 @@ from sentencesplit.abbreviation_replacer import AbbreviationReplacer
 from sentencesplit.between_punctuation import BetweenPunctuation
 from sentencesplit.exclamation_words import ExclamationWords
 from sentencesplit.lists_item_replacer import ListItemReplacer
-from sentencesplit.utils import apply_rules
+from sentencesplit.utils import apply_rules, ensure_compiled
 
 # Pre-compiled patterns used on the hot path
 _ALPHA_ONLY_RE = re.compile(r"\A[a-zA-Z]*\Z")
@@ -42,6 +42,14 @@ class Processor:
         self._has_comma_rule = hasattr(lang, "ReplaceNonSentenceBoundaryCommaRule")
         self._has_cjk_abbr_rules = hasattr(lang, "CjkAbbreviationRules")
         self._latin_uppercase_resplit = getattr(lang, "LATIN_UPPERCASE_RESPLIT", True)
+        # Ensure regex attributes are compiled — downstream languages may define them as strings.
+        self._sentence_boundary_re = ensure_compiled(lang.SENTENCE_BOUNDARY_REGEX)
+        self._quotation_end_re = ensure_compiled(lang.QUOTATION_AT_END_OF_SENTENCE_REGEX)
+        self._split_quotation_re = ensure_compiled(lang.SPLIT_SPACE_QUOTATION_AT_END_OF_SENTENCE_REGEX)
+        self._parens_dq_re = ensure_compiled(lang.PARENS_BETWEEN_DOUBLE_QUOTES_REGEX)
+        self._continuous_punct_re = ensure_compiled(lang.CONTINUOUS_PUNCTUATION_REGEX)
+        self._numbered_ref_re = ensure_compiled(lang.NUMBERED_REFERENCE_REGEX)
+        self._double_punct_re = ensure_compiled(lang.DoublePunctuationRules.DoublePunctuation)
 
     def process(self) -> list[str]:
         if not self.text:
@@ -143,8 +151,8 @@ class Processor:
             return [txt]
 
         txt = apply_rules(txt, *self.lang.ReinsertEllipsisRules.All)
-        if self.lang.QUOTATION_AT_END_OF_SENTENCE_REGEX.search(txt):
-            txt = self.lang.SPLIT_SPACE_QUOTATION_AT_END_OF_SENTENCE_REGEX.split(txt)
+        if self._quotation_end_re.search(txt):
+            txt = self._split_quotation_re.split(txt)
             return [t for t in txt if t]
         else:
             txt = txt.replace("\n", "")
@@ -158,7 +166,7 @@ class Processor:
             sub2 = _PAREN_SPACE_AFTER_RE.sub("\r", sub1)
             return sub2
 
-        self.text = self.lang.PARENS_BETWEEN_DOUBLE_QUOTES_REGEX.sub(paren_replace, self.text)
+        self.text = self._parens_dq_re.sub(paren_replace, self.text)
 
     def replace_continuous_punctuation(self) -> None:
         def continuous_puncs_replace(match):
@@ -167,11 +175,11 @@ class Processor:
             match = match.replace("?", "&ᓷ&")
             return match
 
-        self.text = self.lang.CONTINUOUS_PUNCTUATION_REGEX.sub(continuous_puncs_replace, self.text)
+        self.text = self._continuous_punct_re.sub(continuous_puncs_replace, self.text)
 
     def replace_periods_before_numeric_references(self) -> None:
         # https://github.com/diasks2/pragmatic_segmenter/commit/d9ec1a352aff92b91e2e572c30bb9561eb42c703
-        self.text = self.lang.NUMBERED_REFERENCE_REGEX.sub(r"∯\2\r\7", self.text)
+        self.text = self._numbered_ref_re.sub(r"∯\2\r\7", self.text)
 
     def check_for_punctuation(self, txt: str) -> list[str]:
         if any(p in txt for p in self.lang.Punctuations):
@@ -187,7 +195,7 @@ class Processor:
         txt = ExclamationWords.apply_rules(txt)
         txt = self.between_punctuation(txt)
         # handle text having only doublepunctuations
-        if not self.lang.DoublePunctuationRules.DoublePunctuation.match(txt):
+        if not self._double_punct_re.match(txt):
             txt = apply_rules(txt, *self.lang.DoublePunctuationRules.All)
         txt = apply_rules(txt, self.lang.QuestionMarkInQuotationRule, *self.lang.ExclamationPointRules.All)
         txt = ListItemReplacer(txt).replace_parens()
@@ -222,5 +230,5 @@ class Processor:
             txt = apply_rules(txt, self.lang.ReplaceNonSentenceBoundaryCommaRule)
         # retain exclamation mark if it is an ending character of a given text
         txt = _TRAILING_EXCL_RE.sub("!", txt)
-        txt = [m.group() for m in self.lang.SENTENCE_BOUNDARY_REGEX.finditer(txt)]
+        txt = [m.group() for m in self._sentence_boundary_re.finditer(txt)]
         return txt

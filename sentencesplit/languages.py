@@ -50,9 +50,23 @@ class _LazyLanguageCodes:
     """Dict-like object that lazily loads language modules on access."""
 
     def __getitem__(self, code: str) -> type:
+        if code in _loaded_cache:
+            return _loaded_cache[code]
         if code not in _LANGUAGE_MODULES:
             raise KeyError(code)
         return _load_language(code)
+
+    def __setitem__(self, code: str, lang_class: type) -> None:
+        _loaded_cache[code] = lang_class
+        if code not in _LANGUAGE_MODULES:
+            # Register a placeholder so __contains__/keys()/etc. see it
+            _LANGUAGE_MODULES[code] = ("", "")
+
+    def __delitem__(self, code: str) -> None:
+        _loaded_cache.pop(code, None)
+        if code not in _LANGUAGE_MODULES:
+            raise KeyError(code)
+        del _LANGUAGE_MODULES[code]
 
     def __contains__(self, code: object) -> bool:
         return code in _LANGUAGE_MODULES
@@ -67,10 +81,10 @@ class _LazyLanguageCodes:
         return _LANGUAGE_MODULES.keys()
 
     def values(self):
-        return [_load_language(code) for code in _LANGUAGE_MODULES]
+        return [self[code] for code in _LANGUAGE_MODULES]
 
     def items(self):
-        return [(code, _load_language(code)) for code in _LANGUAGE_MODULES]
+        return [(code, self[code]) for code in _LANGUAGE_MODULES]
 
 
 LANGUAGE_CODES = _LazyLanguageCodes()
