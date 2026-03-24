@@ -10,7 +10,7 @@ class Persian(Common, Standard):
     iso_code = "fa"
 
     Punctuations = ["?", "!", ":", ".", "؟"]
-    SENTENCE_BOUNDARY_REGEX = r".*?[:\.!\?؟]|.*?\Z|.*?$"
+    SENTENCE_BOUNDARY_REGEX = re.compile(r".*?[:\.!\?؟]|.*?\Z|.*?$")
 
     # Rubular: http://rubular.com/r/RX5HpdDIyv
     ReplaceColonBetweenNumbersRule = Rule(r"(?<=\d):(?=\d)", "♭")

@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+import re
+
 from sentencesplit.abbreviation_replacer import AbbreviationReplacer
 from sentencesplit.utils import Rule
 
@@ -281,7 +283,7 @@ class Standard:
         FullWidthSecondRule = Rule(r"！？", "☌")
         FullWidthThirdRule = Rule(r"？？", "☊")
         FullWidthForthRule = Rule(r"！！", "☍")
-        DoublePunctuation = r"\?!|!\?|\?\?|!!|？！|！？|？？|！！"
+        DoublePunctuation = re.compile(r"\?!|!\?|\?\?|!!|？！|！？|？？|！！")
         All = [
             FirstRule,
             SecondRule,

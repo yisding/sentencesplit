@@ -78,19 +78,14 @@ class Segmenter:
             raise ValueError(
                 "`doc_type='pdf'` should have `clean=True` & `char_span` should be False since original text will be modified."
             )
+        self._cleaner_cls = getattr(self.language_module, "Cleaner", Cleaner)
+        self._processor_cls = getattr(self.language_module, "Processor", Processor)
 
     def cleaner(self, text: str):
-        if hasattr(self.language_module, "Cleaner"):
-            return self.language_module.Cleaner(text, self.language_module, doc_type=self.doc_type)
-        else:
-            return Cleaner(text, self.language_module, doc_type=self.doc_type)
+        return self._cleaner_cls(text, self.language_module, doc_type=self.doc_type)
 
     def processor(self, text: str):
-        if hasattr(self.language_module, "Processor"):
-            return self.language_module.Processor(
-                text, self.language_module, char_span=self.char_span, split_mode=self.split_mode
-            )
-        return Processor(text, self.language_module, char_span=self.char_span, split_mode=self.split_mode)
+        return self._processor_cls(text, self.language_module, char_span=self.char_span, split_mode=self.split_mode)
 
     def _analysis_text(self, text: str) -> str:
         if self.clean or self.doc_type == "pdf":

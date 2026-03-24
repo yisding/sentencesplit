@@ -212,7 +212,7 @@ class AbbreviationReplacer:
             tail = "∯" if protect_final_period else "."
             return body + tail
 
-        self.text = re.sub(self.lang.MULTI_PERIOD_ABBREVIATION_REGEX, mpa_replace, self.text, flags=re.IGNORECASE)
+        self.text = self.lang.MULTI_PERIOD_ABBREVIATION_REGEX.sub(mpa_replace, self.text)
 
     def replace_period_of_abbr(self, txt: str, abbr: str, escaped: str | None = None) -> str:
         txt = " " + txt

@@ -16,9 +16,9 @@ class CJKBoundaryProfile:
     _CJK_SENTENCE_END = r"[。．.！!?？☉☈☇☄☊☋☌☍]"
     _CJK_CLOSERS = r"[\]\"')”’」』》〉】）〕〗〙〛]"
 
-    SENTENCE_BOUNDARY_REGEX = rf".*?{_CJK_SENTENCE_END}{_CJK_CLOSERS}*|.*?$"
-    QUOTATION_AT_END_OF_SENTENCE_REGEX = rf"{_CJK_SENTENCE_END}{_CJK_CLOSERS}\s+[^\s]"
-    SPLIT_SPACE_QUOTATION_AT_END_OF_SENTENCE_REGEX = rf"(?<={_CJK_SENTENCE_END}{_CJK_CLOSERS})\s+(?=[^\s])"
+    SENTENCE_BOUNDARY_REGEX = re.compile(rf".*?{_CJK_SENTENCE_END}{_CJK_CLOSERS}*|.*?$")
+    QUOTATION_AT_END_OF_SENTENCE_REGEX = re.compile(rf"{_CJK_SENTENCE_END}{_CJK_CLOSERS}\s+[^\s]")
+    SPLIT_SPACE_QUOTATION_AT_END_OF_SENTENCE_REGEX = re.compile(rf"(?<={_CJK_SENTENCE_END}{_CJK_CLOSERS})\s+(?=[^\s])")
 
     # Heuristic in processor.py depends on " Capital" starts and should not run for CJK.
     LATIN_UPPERCASE_RESPLIT = False

@@ -1,59 +1,79 @@
 # -*- coding: utf-8 -*-
-from sentencesplit.lang.amharic import Amharic
-from sentencesplit.lang.arabic import Arabic
-from sentencesplit.lang.armenian import Armenian
-from sentencesplit.lang.bulgarian import Bulgarian
-from sentencesplit.lang.burmese import Burmese
-from sentencesplit.lang.chinese import Chinese
-from sentencesplit.lang.danish import Danish
-from sentencesplit.lang.deutsch import Deutsch
-from sentencesplit.lang.dutch import Dutch
-from sentencesplit.lang.en_es_zh import EnglishSpanishChinese
-from sentencesplit.lang.en_legal import EnglishLegal
-from sentencesplit.lang.english import English
-from sentencesplit.lang.french import French
-from sentencesplit.lang.greek import Greek
-from sentencesplit.lang.hindi import Hindi
-from sentencesplit.lang.italian import Italian
-from sentencesplit.lang.japanese import Japanese
-from sentencesplit.lang.kazakh import Kazakh
-from sentencesplit.lang.marathi import Marathi
-from sentencesplit.lang.persian import Persian
-from sentencesplit.lang.polish import Polish
-from sentencesplit.lang.russian import Russian
-from sentencesplit.lang.slovak import Slovak
-from sentencesplit.lang.spanish import Spanish
-from sentencesplit.lang.tagalog import Tagalog
-from sentencesplit.lang.urdu import Urdu
+from __future__ import annotations
 
-LANGUAGE_CODES = {
-    "en": English,
-    "en_es_zh": EnglishSpanishChinese,
-    "en_legal": EnglishLegal,
-    "hi": Hindi,
-    "mr": Marathi,
-    "zh": Chinese,
-    "es": Spanish,
-    "am": Amharic,
-    "ar": Arabic,
-    "hy": Armenian,
-    "bg": Bulgarian,
-    "ur": Urdu,
-    "ru": Russian,
-    "pl": Polish,
-    "fa": Persian,
-    "nl": Dutch,
-    "da": Danish,
-    "fr": French,
-    "my": Burmese,
-    "el": Greek,
-    "it": Italian,
-    "ja": Japanese,
-    "de": Deutsch,
-    "kk": Kazakh,
-    "sk": Slovak,
-    "tl": Tagalog,
+import importlib
+
+_LANGUAGE_MODULES: dict[str, tuple[str, str]] = {
+    "en": ("sentencesplit.lang.english", "English"),
+    "en_es_zh": ("sentencesplit.lang.en_es_zh", "EnglishSpanishChinese"),
+    "en_legal": ("sentencesplit.lang.en_legal", "EnglishLegal"),
+    "hi": ("sentencesplit.lang.hindi", "Hindi"),
+    "mr": ("sentencesplit.lang.marathi", "Marathi"),
+    "zh": ("sentencesplit.lang.chinese", "Chinese"),
+    "es": ("sentencesplit.lang.spanish", "Spanish"),
+    "am": ("sentencesplit.lang.amharic", "Amharic"),
+    "ar": ("sentencesplit.lang.arabic", "Arabic"),
+    "hy": ("sentencesplit.lang.armenian", "Armenian"),
+    "bg": ("sentencesplit.lang.bulgarian", "Bulgarian"),
+    "ur": ("sentencesplit.lang.urdu", "Urdu"),
+    "ru": ("sentencesplit.lang.russian", "Russian"),
+    "pl": ("sentencesplit.lang.polish", "Polish"),
+    "fa": ("sentencesplit.lang.persian", "Persian"),
+    "nl": ("sentencesplit.lang.dutch", "Dutch"),
+    "da": ("sentencesplit.lang.danish", "Danish"),
+    "fr": ("sentencesplit.lang.french", "French"),
+    "my": ("sentencesplit.lang.burmese", "Burmese"),
+    "el": ("sentencesplit.lang.greek", "Greek"),
+    "it": ("sentencesplit.lang.italian", "Italian"),
+    "ja": ("sentencesplit.lang.japanese", "Japanese"),
+    "de": ("sentencesplit.lang.deutsch", "Deutsch"),
+    "kk": ("sentencesplit.lang.kazakh", "Kazakh"),
+    "sk": ("sentencesplit.lang.slovak", "Slovak"),
+    "tl": ("sentencesplit.lang.tagalog", "Tagalog"),
 }
+
+_loaded_cache: dict[str, type] = {}
+
+
+def _load_language(code: str) -> type:
+    if code in _loaded_cache:
+        return _loaded_cache[code]
+    mod_path, cls_name = _LANGUAGE_MODULES[code]
+    mod = importlib.import_module(mod_path)
+    klass = getattr(mod, cls_name)
+    _loaded_cache[code] = klass
+    return klass
+
+
+# Keep LANGUAGE_CODES as a lazy-loading dict for backwards compatibility
+class _LazyLanguageCodes:
+    """Dict-like object that lazily loads language modules on access."""
+
+    def __getitem__(self, code: str) -> type:
+        if code not in _LANGUAGE_MODULES:
+            raise KeyError(code)
+        return _load_language(code)
+
+    def __contains__(self, code: object) -> bool:
+        return code in _LANGUAGE_MODULES
+
+    def __iter__(self):
+        return iter(_LANGUAGE_MODULES)
+
+    def __len__(self) -> int:
+        return len(_LANGUAGE_MODULES)
+
+    def keys(self):
+        return _LANGUAGE_MODULES.keys()
+
+    def values(self):
+        return [_load_language(code) for code in _LANGUAGE_MODULES]
+
+    def items(self):
+        return [(code, _load_language(code)) for code in _LANGUAGE_MODULES]
+
+
+LANGUAGE_CODES = _LazyLanguageCodes()
 
 
 class Language:
