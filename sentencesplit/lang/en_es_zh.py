@@ -84,10 +84,17 @@ class EnglishSpanishChinese(CJKBoundaryProfile, Common, Standard):
                     if should_protect_prepositive:
                         txt = re.sub(rf"(?<=\s{am_escaped})\.(?=(?:\s|:\d+|[\u3400-\u9FFF]))", "∯", txt)
                 elif am_lower in self._data.number_abbr_set:
-                    txt = re.sub(rf"(?<=\s{am_escaped})\.(?=(?:\s\d|\s+\(|[\u3400-\u9FFF]))", "∯", txt)
+                    txt = re.sub(rf"(?<=\s{am_escaped})\.(?=(?:\s\d|\s+\(|\s[IVXLCDM]+\b|[\u3400-\u9FFF]))", "∯", txt)
                 else:
                     txt = self.replace_period_of_abbr(txt[1:], am, am_escaped)
                     return txt
+                txt = txt[1:]
+            elif am_lower in self._data.number_abbr_set:
+                # Next word starts ASCII uppercase — protect only before Roman numerals.
+                # Exclude lone "I" to avoid false joins with the pronoun "I".
+                am_escaped = re.escape(am.strip())
+                txt = " " + txt
+                txt = re.sub(rf"(?<=\s{am_escaped})\.(?=\s(?:[IVXLCDM]{{2,}}|[VXLCDM])\b)", "∯", txt)
                 txt = txt[1:]
             return txt
 

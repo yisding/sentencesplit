@@ -229,6 +229,10 @@ class Standard:
             "yuk",
             "fig",
         ]
+        # Prepositive abbreviations always attach to the word that follows them,
+        # so a period after them is never a sentence boundary.  These are
+        # primarily titles, honorifics, and rank designators (Mr., Dr., Gen.)
+        # as well as a handful of connectives (v., vs.) that bind two names.
         PREPOSITIVE_ABBREVIATIONS = [
             "adm",
             "attys",

@@ -127,6 +127,8 @@ class EnglishLegal(Common, Standard):
             "mag",  # Magistrate [name]
             # Court/tribunal types often followed by "Court", "Judge", etc.
             "admin",  # Admin. Law Judge
+            "app",  # App. Div., App. Ct.
+            "arb",  # Arb. Panel
             "bankr",  # Bankr. Court
             "cir",  # 9th Cir. Court
             "crim",  # Crim. Court
@@ -159,14 +161,41 @@ class EnglishLegal(Common, Standard):
         NUMBER_ABBREVIATIONS = sorted(set(Standard.Abbreviation.NUMBER_ABBREVIATIONS + LEGAL_NUMBER_ABBREVIATIONS))
 
     class AbbreviationReplacer(AbbreviationReplacer):
-        SENTENCE_STARTERS = English.AbbreviationReplacer.SENTENCE_STARTERS
+        SENTENCE_STARTERS = English.AbbreviationReplacer.SENTENCE_STARTERS + [
+            "After",
+            "Although",
+            "And",
+            "As",
+            "Because",
+            "Before",
+            "But",
+            "Each",
+            "Even",
+            "Here",
+            "His",
+            "Her",
+            "If",
+            "Its",
+            "No",
+            "On",
+            "Our",
+            "So",
+            "Such",
+            "Their",
+            "This",
+            "Thus",
+            "Under",
+            "Yet",
+        ]
         # Court/tribunal abbreviations that are prepositive (e.g. "Bankr. Court")
         # but can also legitimately end a sentence (e.g. "The 9th Cir. The panel
         # reversed.").  Listing them here allows sentence splits before known
         # sentence starters while still protecting them before non-starters.
-        STARTER_AWARE_PREPOSITIVE = frozenset(
+        STARTER_AWARE_PREPOSITIVE = AbbreviationReplacer.STARTER_AWARE_PREPOSITIVE | frozenset(
             {
                 "admin",
+                "app",
+                "arb",
                 "bankr",
                 "cir",
                 "crim",

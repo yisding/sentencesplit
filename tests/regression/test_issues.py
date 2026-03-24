@@ -283,6 +283,29 @@ def test_common_abbreviations_no_false_split():
         "The govt.",
         "The rules are strict.",
     ]
+    # Before Roman numerals (NUMBER_ABBREVIATIONS)
+    assert [s.strip() for s in seg.segment("See vol. IV for details. It covers the topic.")] == [
+        "See vol. IV for details.",
+        "It covers the topic.",
+    ]
+    assert [s.strip() for s in seg.segment("See vol. III of the series. It was published last.")] == [
+        "See vol. III of the series.",
+        "It was published last.",
+    ]
+    assert [s.strip() for s in seg.segment("Refer to art. XII of the constitution. It addresses due process.")] == [
+        "Refer to art. XII of the constitution.",
+        "It addresses due process.",
+    ]
+    assert [s.strip() for s in seg.segment("See vol. V for appendices. They contain raw data.")] == [
+        "See vol. V for appendices.",
+        "They contain raw data.",
+    ]
+    # Roman numeral should not match regular words starting with I, V, etc.
+    assert [s.strip() for s in seg.segment("See vol. Instead, we should proceed. That was the plan.")] == [
+        "See vol.",
+        "Instead, we should proceed.",
+        "That was the plan.",
+    ]
 
 
 def test_double_punctuation_after_sentence_boundary():
