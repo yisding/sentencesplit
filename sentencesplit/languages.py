@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import importlib
-from collections.abc import MutableMapping
 
 _LANGUAGE_MODULES: dict[str, tuple[str, str]] = {
     "en": ("sentencesplit.lang.english", "English"),
@@ -33,6 +32,11 @@ _LANGUAGE_MODULES: dict[str, tuple[str, str]] = {
     "tl": ("sentencesplit.lang.tagalog", "Tagalog"),
 }
 
+# Reverse map: class name -> (module_path, class_name) for __getattr__ support
+_CLASS_NAME_TO_MODULE: dict[str, tuple[str, str]] = {
+    cls_name: (mod_path, cls_name) for mod_path, cls_name in _LANGUAGE_MODULES.values()
+}
+
 _loaded_cache: dict[str, type] = {}
 
 
@@ -46,46 +50,51 @@ def _load_language(code: str) -> type:
     return klass
 
 
+def __getattr__(name: str):
+    """Allow ``from sentencesplit.languages import English`` etc. via lazy loading."""
+    if name in _CLASS_NAME_TO_MODULE:
+        mod_path, cls_name = _CLASS_NAME_TO_MODULE[name]
+        mod = importlib.import_module(mod_path)
+        klass = getattr(mod, cls_name)
+        globals()[name] = klass
+        return klass
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
 # Keep LANGUAGE_CODES as a lazy-loading dict for backwards compatibility
-class _LazyLanguageCodes(MutableMapping):
-    """Dict-like object that lazily loads language modules on access."""
+class _LazyLanguageCodes(dict):
+    """dict subclass that lazily loads language modules on access."""
 
-    def __getitem__(self, code: str) -> type:
-        if code in _loaded_cache:
-            return _loaded_cache[code]
+    def __missing__(self, code: str) -> type:
         if code not in _LANGUAGE_MODULES:
             raise KeyError(code)
-        return _load_language(code)
-
-    def __setitem__(self, code: str, lang_class: type) -> None:
-        _loaded_cache[code] = lang_class
-        if code not in _LANGUAGE_MODULES:
-            # Register a placeholder so __contains__/keys()/etc. see it
-            _LANGUAGE_MODULES[code] = ("", "")
-
-    def __delitem__(self, code: str) -> None:
-        _loaded_cache.pop(code, None)
-        if code not in _LANGUAGE_MODULES:
-            raise KeyError(code)
-        del _LANGUAGE_MODULES[code]
+        klass = _load_language(code)
+        self[code] = klass
+        return klass
 
     def __contains__(self, code: object) -> bool:
-        return code in _LANGUAGE_MODULES
+        return code in _LANGUAGE_MODULES or dict.__contains__(self, code)
 
     def __iter__(self):
-        return iter(_LANGUAGE_MODULES)
+        seen = set()
+        for code in _LANGUAGE_MODULES:
+            seen.add(code)
+            yield code
+        for code in dict.keys(self):
+            if code not in seen:
+                yield code
 
     def __len__(self) -> int:
-        return len(_LANGUAGE_MODULES)
+        return len(set(_LANGUAGE_MODULES) | set(dict.keys(self)))
 
     def keys(self):
-        return _LANGUAGE_MODULES.keys()
+        return dict(dict.fromkeys(list(_LANGUAGE_MODULES) + list(dict.keys(self)))).keys()
 
     def values(self):
-        return [self[code] for code in _LANGUAGE_MODULES]
+        return [self[code] for code in self]
 
     def items(self):
-        return [(code, self[code]) for code in _LANGUAGE_MODULES]
+        return [(code, self[code]) for code in self]
 
     def copy(self) -> dict:
         return dict(self.items())
