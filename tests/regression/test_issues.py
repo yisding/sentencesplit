@@ -2,6 +2,7 @@
 import pytest
 
 import sentencesplit
+from sentencesplit.lists_item_replacer import ListItemReplacer
 from sentencesplit.utils import TextSpan
 
 TEST_ISSUE_DATA = [
@@ -231,6 +232,12 @@ def test_versus_abbreviation_not_treated_as_list_item():
         "The ruling in Roe v. Wade was significant.",
         "It changed the legal landscape.",
     ]
+
+
+def test_descending_alphabetical_sequences_not_treated_as_list_items():
+    """Reverse-order letters should not be rewritten as alphabetical list markers."""
+    text = "Discussion of v. Wade case and then u. other matter."
+    assert ListItemReplacer(text).add_line_break() == text
 
 
 def test_common_abbreviations_no_false_split():
