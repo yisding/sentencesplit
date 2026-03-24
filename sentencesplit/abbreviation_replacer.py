@@ -132,6 +132,12 @@ class AbbreviationReplacer:
         }
     )
 
+    # Prepositive abbreviations listed here will allow sentence splits
+    # before known sentence starters.  E.g. "Cir. The panel reversed."
+    # splits, while "Bankr. Court approved the plan." stays joined.
+    # Only effective when SENTENCE_STARTERS is non-empty.
+    STARTER_AWARE_PREPOSITIVE: frozenset[str] = frozenset()
+
     def __init__(self, text: str, lang, split_mode: str = "conservative") -> None:
         self.text = text
         self.lang = lang
@@ -237,6 +243,14 @@ class AbbreviationReplacer:
                 text = self.scan_for_replacements(text, match, ind, char_array, stripped, escaped)
         return text
 
+    def _replace_number_abbr(self, txt: str, am_escaped: str, boundary: str, upper: bool) -> str:
+        """Protect period after number abbreviations before digits and Roman numerals."""
+        if upper:
+            # Next word starts uppercase — protect only before Roman numerals.
+            # Exclude lone "I" to avoid false joins with the pronoun "I".
+            return _replace_with_escape(txt, am_escaped, r"\.(?=\s(?:[IVXLCDM]{2,}|[VXLCDM])\b)", "∯", boundary)
+        return _replace_with_escape(txt, am_escaped, r"\.(?=(\s\d|\s+\(|\s[IVXLCDM]+\b))", "∯", boundary)
+
     def scan_for_replacements(
         self, txt: str, am: str, ind: int, char_array, stripped: str = "", escaped: str | None = None
     ) -> str:
@@ -254,16 +268,37 @@ class AbbreviationReplacer:
             am_stripped = am_stripped[1:]
         am_lower = am_stripped.lower()
         boundary = self._data.boundary_class
-        if not upper or am_lower in self._data.prepositive_set:
+        if not upper or am_lower in self._data.prepositive_set or am_lower in self._data.number_abbr_set:
             am_escaped = re.escape(am_stripped)
             if am_lower in self._data.prepositive_set:
                 should_protect_prepositive = not (
                     self.split_mode == "aggressive" and am_lower in self.AGGRESSIVE_PREPOSITIVE_BOUNDARY_BLOCKLIST
                 )
                 if should_protect_prepositive:
-                    txt = _replace_with_escape(txt, am_escaped, r"\.(?=(\s|:\d+))", "∯", boundary)
+                    # For abbreviations in STARTER_AWARE_PREPOSITIVE, allow
+                    # splits before known sentence starters.  This prevents
+                    # e.g. "Cir. The panel reversed." from collapsing into one
+                    # segment while still protecting "Bankr. Court".
+                    if self.SENTENCE_STARTERS and am_lower in self.STARTER_AWARE_PREPOSITIVE:
+                        # Exclude single-char starters like "A" and "I" — they
+                        # often appear as identifiers after prepositive
+                        # abbreviations (e.g. "Sched. A", "Amend. I").
+                        starters = "|".join(re.escape(s) for s in self.SENTENCE_STARTERS if len(s) > 1)
+                        if upper:
+                            suffix = rf"\.(?=(\s(?!(?:{starters})\s)|:\d+))"
+                        elif char and not char.isalpha():
+                            # First char is non-alpha (e.g. opening quote/bracket).
+                            # Allow splits before quoted sentence starters like:
+                            # Cir. "The panel reversed," he wrote.
+                            open_q = r"""[\"'\u201c\u00ab(\[]*"""
+                            suffix = rf"\.(?=(\s(?!{open_q}(?:{starters})\s)|:\d+))"
+                        else:
+                            suffix = r"\.(?=(\s|:\d+))"
+                    else:
+                        suffix = r"\.(?=(\s|:\d+))"
+                    txt = _replace_with_escape(txt, am_escaped, suffix, "∯", boundary)
             elif am_lower in self._data.number_abbr_set:
-                txt = _replace_with_escape(txt, am_escaped, r"\.(?=(\s\d|\s+\())", "∯", boundary)
+                txt = self._replace_number_abbr(txt, am_escaped, boundary, upper)
             else:
                 txt = self.replace_period_of_abbr(txt, am_stripped, am_escaped)
         return txt
