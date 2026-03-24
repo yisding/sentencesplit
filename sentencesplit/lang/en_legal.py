@@ -160,3 +160,20 @@ class EnglishLegal(Common, Standard):
 
     class AbbreviationReplacer(AbbreviationReplacer):
         SENTENCE_STARTERS = English.AbbreviationReplacer.SENTENCE_STARTERS
+        # Court/tribunal abbreviations that are prepositive (e.g. "Bankr. Court")
+        # but can also legitimately end a sentence (e.g. "The 9th Cir. The panel
+        # reversed.").  Listing them here allows sentence splits before known
+        # sentence starters while still protecting them before non-starters.
+        STARTER_AWARE_PREPOSITIVE = frozenset(
+            {
+                "admin",
+                "bankr",
+                "cir",
+                "crim",
+                "dist",
+                "fam",
+                "prob",
+                "sup",
+                "surr",
+            }
+        )

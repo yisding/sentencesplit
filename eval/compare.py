@@ -196,8 +196,10 @@ def find_bad_splits(sentences: list[str], abbreviations: list[str]) -> list[dict
             pattern = rf"\b{re.escape(abbr)}\.$"
             if re.search(pattern, stripped, re.IGNORECASE):
                 next_sent = sentences[i + 1].strip() if i + 1 < len(sentences) else ""
-                # Only flag if next sentence starts with a non-sentence-starter pattern
-                if next_sent and not re.match(r'^["\'\(]', next_sent):
+                # Only flag if next sentence does NOT start with uppercase or
+                # quote/paren — an uppercase start indicates a legitimate
+                # sentence boundary, not a suspect split on the abbreviation.
+                if next_sent and not re.match(r'^[A-Z"\'\(]', next_sent):
                     issues.append(
                         {
                             "index": i,

@@ -132,6 +132,11 @@ class AbbreviationReplacer:
         }
     )
 
+    # Prepositive abbreviations listed here will allow sentence splits
+    # before known sentence starters.  E.g. "Cir. The panel reversed."
+    # splits, while "Bankr. Court approved the plan." stays joined.
+    STARTER_AWARE_PREPOSITIVE: frozenset[str] = frozenset()
+
     def __init__(self, text: str, lang, split_mode: str = "conservative") -> None:
         self.text = text
         self.lang = lang
@@ -261,7 +266,19 @@ class AbbreviationReplacer:
                     self.split_mode == "aggressive" and am_lower in self.AGGRESSIVE_PREPOSITIVE_BOUNDARY_BLOCKLIST
                 )
                 if should_protect_prepositive:
-                    txt = _replace_with_escape(txt, am_escaped, r"\.(?=(\s|:\d+))", "∯", boundary)
+                    # For abbreviations in STARTER_AWARE_PREPOSITIVE, allow
+                    # splits before known sentence starters.  This prevents
+                    # e.g. "Cir. The panel reversed." from collapsing into one
+                    # segment while still protecting "Bankr. Court".
+                    if upper and self.SENTENCE_STARTERS and am_lower in self.STARTER_AWARE_PREPOSITIVE:
+                        # Exclude single-char starters like "A" and "I" — they
+                        # often appear as identifiers after prepositive
+                        # abbreviations (e.g. "Sched. A", "Amend. I").
+                        starters = "|".join(re.escape(s) for s in self.SENTENCE_STARTERS if len(s) > 1)
+                        suffix = rf"\.(?=(\s(?!(?:{starters})\s)|:\d+))"
+                    else:
+                        suffix = r"\.(?=(\s|:\d+))"
+                    txt = _replace_with_escape(txt, am_escaped, suffix, "∯", boundary)
             elif am_lower in self._data.number_abbr_set:
                 txt = _replace_with_escape(txt, am_escaped, r"\.(?=(\s\d|\s+\())", "∯", boundary)
             else:
