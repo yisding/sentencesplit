@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import importlib
+from collections.abc import MutableMapping
 
 _LANGUAGE_MODULES: dict[str, tuple[str, str]] = {
     "en": ("sentencesplit.lang.english", "English"),
@@ -46,7 +47,7 @@ def _load_language(code: str) -> type:
 
 
 # Keep LANGUAGE_CODES as a lazy-loading dict for backwards compatibility
-class _LazyLanguageCodes:
+class _LazyLanguageCodes(MutableMapping):
     """Dict-like object that lazily loads language modules on access."""
 
     def __getitem__(self, code: str) -> type:
@@ -85,6 +86,9 @@ class _LazyLanguageCodes:
 
     def items(self):
         return [(code, self[code]) for code in _LANGUAGE_MODULES]
+
+    def copy(self) -> dict:
+        return dict(self.items())
 
 
 LANGUAGE_CODES = _LazyLanguageCodes()
