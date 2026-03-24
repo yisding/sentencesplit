@@ -67,30 +67,53 @@ def __getattr__(name: str):
 class _LazyLanguageCodes(dict):
     """dict subclass that lazily loads language modules on access."""
 
+    def __init__(self):
+        super().__init__()
+        self._removed: set[str] = set()
+
+    def _materialize(self, code: str) -> None:
+        """Ensure a built-in key is in the backing dict."""
+        if code in _LANGUAGE_MODULES and code not in self._removed and not dict.__contains__(self, code):
+            dict.__setitem__(self, code, _load_language(code))
+
     def __missing__(self, code: str) -> type:
-        if code not in _LANGUAGE_MODULES:
-            raise KeyError(code)
-        klass = _load_language(code)
-        self[code] = klass
-        return klass
+        if code in _LANGUAGE_MODULES and code not in self._removed:
+            klass = _load_language(code)
+            self[code] = klass
+            return klass
+        raise KeyError(code)
 
     def __contains__(self, code: object) -> bool:
+        if isinstance(code, str) and code in self._removed:
+            return dict.__contains__(self, code)
         return code in _LANGUAGE_MODULES or dict.__contains__(self, code)
+
+    def __setitem__(self, key, value):
+        self._removed.discard(key)
+        dict.__setitem__(self, key, value)
+
+    def __delitem__(self, key):
+        self._materialize(key)
+        dict.__delitem__(self, key)
+        if key in _LANGUAGE_MODULES:
+            self._removed.add(key)
 
     def __iter__(self):
         seen = set()
         for code in _LANGUAGE_MODULES:
-            seen.add(code)
-            yield code
+            if code not in self._removed:
+                seen.add(code)
+                yield code
         for code in dict.keys(self):
             if code not in seen:
                 yield code
 
     def __len__(self) -> int:
-        return len(set(_LANGUAGE_MODULES) | set(dict.keys(self)))
+        builtin_active = set(_LANGUAGE_MODULES) - self._removed
+        return len(builtin_active | set(dict.keys(self)))
 
     def keys(self):
-        return dict(dict.fromkeys(list(_LANGUAGE_MODULES) + list(dict.keys(self)))).keys()
+        return dict(dict.fromkeys(list(self))).keys()
 
     def values(self):
         return [self[code] for code in self]
@@ -103,6 +126,24 @@ class _LazyLanguageCodes(dict):
             return self[key]
         except KeyError:
             return default
+
+    def setdefault(self, key, default=None):
+        if key in self:
+            return self[key]
+        self[key] = default
+        return default
+
+    def pop(self, key, *args):
+        try:
+            self._materialize(key)
+            value = dict.pop(self, key)
+            if key in _LANGUAGE_MODULES:
+                self._removed.add(key)
+            return value
+        except KeyError:
+            if args:
+                return args[0]
+            raise
 
     def copy(self) -> dict:
         return dict(self.items())
