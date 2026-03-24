@@ -39,6 +39,8 @@ _CLASS_NAME_TO_MODULE: dict[str, tuple[str, str]] = {
 
 _loaded_cache: dict[str, type] = {}
 
+__all__ = ["LANGUAGE_CODES", "Language"] + list(_CLASS_NAME_TO_MODULE.keys())
+
 
 def _load_language(code: str) -> type:
     if code in _loaded_cache:
@@ -96,8 +98,32 @@ class _LazyLanguageCodes(dict):
     def items(self):
         return [(code, self[code]) for code in self]
 
+    def get(self, key, default=None):
+        try:
+            return self[key]
+        except KeyError:
+            return default
+
     def copy(self) -> dict:
         return dict(self.items())
+
+    def __repr__(self) -> str:
+        return repr(dict(self.items()))
+
+    def __eq__(self, other) -> bool:
+        if not isinstance(other, dict):
+            return NotImplemented
+        return dict(self.items()) == other
+
+    def __or__(self, other):
+        result = dict(self.items())
+        result.update(other)
+        return result
+
+    def __ror__(self, other):
+        result = dict(other)
+        result.update(self.items())
+        return result
 
 
 LANGUAGE_CODES = _LazyLanguageCodes()
