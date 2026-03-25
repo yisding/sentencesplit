@@ -7,6 +7,10 @@ from sentencesplit.clean.rules import HTML, PDF
 from sentencesplit.clean.rules import CleanRules as cr
 from sentencesplit.utils import apply_rules
 
+_NON_DOT_RE = re.compile(r"(?:[^\.])*")
+_BRACKET_RE = re.compile(r"\[(?:[^\]])*\]")
+_BACKTICK_RE = re.compile(r"`")
+
 
 class Cleaner:
     def __init__(self, text: str | None, lang, doc_type: str | None = None) -> None:
@@ -37,10 +41,10 @@ class Cleaner:
     def remove_newline_in_middle_of_sentence(self):
         def replace_w_blank(match):
             match = match.group()
-            sub = re.sub(cr.NEWLINE_IN_MIDDLE_OF_SENTENCE_REGEX, "", match)
+            sub = cr.NEWLINE_IN_MIDDLE_OF_SENTENCE_REGEX.sub("", match)
             return sub
 
-        self.text = re.sub(r"(?:[^\.])*", replace_w_blank, self.text)
+        self.text = _NON_DOT_RE.sub(replace_w_blank, self.text)
 
     def remove_newline_in_middle_of_word(self):
         self.text = apply_rules(self.text, cr.NewLineInMiddleOfWordRule)
@@ -83,17 +87,16 @@ class Cleaner:
         def replace_punct(match):
             match = match.group()
             if "?" in match:
-                sub = re.sub(re.escape("?"), "&ᓷ&", match)
-                return sub
+                return match.replace("?", "&ᓷ&")
             return match
 
-        self.text = re.sub(r"\[(?:[^\]])*\]", replace_punct, self.text)
+        self.text = _BRACKET_RE.sub(replace_punct, self.text)
 
     def clean_quotations(self):
         # method added explicitly
         # pragmatic-segmenter applies this method
         # at different location
-        self.text = re.sub("`", "'", self.text)
+        self.text = _BACKTICK_RE.sub("'", self.text)
         self.text = apply_rules(
             self.text,
             cr.QuotationsFirstRule,
@@ -101,15 +104,10 @@ class Cleaner:
         )
 
     def clean_table_of_contents(self):
-        self.text = apply_rules(
-            self.text,
-            cr.TableOfContentsRule,
-            cr.ConsecutivePeriodsRule,
-            cr.ConsecutiveForwardSlashRule,
-        )
+        self.text = apply_rules(self.text, cr.TableOfContentsRule)
 
-    def search_for_connected_sentences(self, word: str, regex, rule) -> str:
-        if not re.search(regex, word):
+    def search_for_connected_sentences(self, word: str, regex: re.Pattern[str], rule) -> str:
+        if not regex.search(word):
             return word
         if any(k in word for k in cr.URL_EMAIL_KEYWORDS):
             return word

@@ -410,21 +410,17 @@ CHALLENGING_EN_TEST_CASES = [
         ["She transferred to the marketing dept.", "Her new role starts Monday."],
     ),
     # 107) Abbreviation "govt." mid-sentence
-    # xfail: govt. not in abbreviation list
-    pytest.param(
+    (
         "The govt. issued new regulations on emissions.",
         ["The govt. issued new regulations on emissions."],
-        marks=pytest.mark.xfail,
     ),
     # 108) "max." and "min." in technical context
-    # xfail: max./min. not in abbreviation list
-    pytest.param(
+    (
         "The max. temperature was 35°C and the min. was 12°C. It was a wide range.",
         [
             "The max. temperature was 35°C and the min. was 12°C.",
             "It was a wide range.",
         ],
-        marks=pytest.mark.xfail,
     ),
     # 109) Sentence ending with a URL that has trailing period
     (

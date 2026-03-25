@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+import re
+
 from sentencesplit.abbreviation_replacer import AbbreviationReplacer
 from sentencesplit.lang.common import Common, Standard
 from sentencesplit.processor import Processor
@@ -10,11 +12,13 @@ class Kazakh(Common, Standard):
 
     # Handling Cyrillic characters in re module
     # https://stackoverflow.com/a/10982308/5462100
-    MULTI_PERIOD_ABBREVIATION_REGEX = r"\b[\u0400-\u0500]+(?:\.\s?[\u0400-\u0500])+[.]|b[a-z](?:\.[a-z])+[.]"
+    MULTI_PERIOD_ABBREVIATION_REGEX = re.compile(
+        r"\b[\u0400-\u0500]+(?:\.\s?[\u0400-\u0500])+[.]|b[a-z](?:\.[a-z])+[.]", re.IGNORECASE
+    )
 
     class Processor(Processor):
-        def __init__(self, text, lang, char_span=False):
-            super().__init__(text, lang, char_span)
+        def __init__(self, text, lang, char_span=False, **kwargs):
+            super().__init__(text, lang, char_span, **kwargs)
 
         def between_punctuation(self, txt):
             txt = self.between_punctuation_processor(txt).replace()
@@ -352,8 +356,8 @@ class Kazakh(Common, Standard):
     class AbbreviationReplacer(AbbreviationReplacer):
         SENTENCE_STARTERS = []
 
-        def __init__(self, text, lang):
-            super().__init__(text, lang)
+        def __init__(self, text, lang, **kwargs):
+            super().__init__(text, lang, **kwargs)
 
         def replace(self):
             SingleUpperCaseCyrillicLetterAtStartOfLineRule = Rule(r"(?<=^[А-ЯЁ])\.(?=\s)", "∯")

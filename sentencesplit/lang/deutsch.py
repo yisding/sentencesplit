@@ -22,8 +22,8 @@ class Deutsch(Common, Standard):
         All = Common.Numbers.All + [NumberPeriodSpaceRule, NegativeNumberPeriodSpaceRule]
 
     class Processor(Processor):
-        def __init__(self, text, lang, char_span=False):
-            super().__init__(text, lang, char_span)
+        def __init__(self, text, lang, char_span=False, **kwargs):
+            super().__init__(text, lang, char_span, **kwargs)
 
         def replace_numbers(self):
             self.text = apply_rules(self.text, *self.lang.Numbers.All)
@@ -208,8 +208,8 @@ class Deutsch(Common, Standard):
             "Ist Jetzt Mein Mit Nach So Und Warum Was Wenn Wer Wie Wir"
         ).split(" ")
 
-        def __init__(self, text, lang):
-            super().__init__(text, lang)
+        def __init__(self, text, lang, **kwargs):
+            super().__init__(text, lang, **kwargs)
 
         def replace(self):
             # Rubular: http://rubular.com/r/B4X33QKIL8

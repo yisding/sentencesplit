@@ -44,27 +44,3 @@ def replace_punctuation(match, match_type: str | None = None) -> str:
             text = text.replace(escaped, orig)
 
     return text
-
-
-# Keep Rule-based classes for backward compatibility
-from sentencesplit.utils import Rule  # noqa: E402
-
-
-class EscapeRegexReservedCharacters:
-    LeftParen = Rule(r"\(", "\\(")
-    RightParen = Rule(r"\)", "\\)")
-    LeftBracket = Rule(r"\[", "\\[")
-    RightBracket = Rule(r"\]", "\\]")
-    Dash = Rule(r"\-", "\\-")
-
-    All = [LeftParen, RightParen, LeftBracket, RightBracket, Dash]
-
-
-class SubEscapedRegexReservedCharacters:
-    SubLeftParen = Rule(r"\\\(", "(")
-    SubRightParen = Rule(r"\\\)", ")")
-    SubLeftBracket = Rule(r"\\\[", "[")
-    SubRightBracket = Rule(r"\\\]", "]")
-    SubDash = Rule(r"\\\-", "-")
-
-    All = [SubLeftParen, SubRightParen, SubLeftBracket, SubRightBracket, SubDash]

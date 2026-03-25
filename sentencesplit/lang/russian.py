@@ -86,8 +86,8 @@ class Russian(Common, Standard):
     class AbbreviationReplacer(AbbreviationReplacer):
         SENTENCE_STARTERS = []
 
-        def __init__(self, text, lang):
-            super().__init__(text, lang)
+        def __init__(self, text, lang, **kwargs):
+            super().__init__(text, lang, **kwargs)
 
         def replace_period_of_abbr(self, txt, abbr, escaped=None):
             txt = re.sub(r"(?<=\s{abbr})\.".format(abbr=abbr.strip()), "∯", txt)

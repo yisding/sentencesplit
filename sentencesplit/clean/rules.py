@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+import re
+
 from sentencesplit.utils import Rule
 
 
@@ -41,18 +43,19 @@ class CleanRules:
     ConsecutiveForwardSlashRule = Rule(r"\/{3}", "")
 
     # Rubular: http://rubular.com/r/6dt98uI76u
-    NO_SPACE_BETWEEN_SENTENCES_REGEX = r"(?<=[a-z])\.(?=[A-Z])"
-    # NO_SPACE_BETWEEN_SENTENCES_REGEX = r'[a-z]\.[A-Z]'
-    NoSpaceBetweenSentencesRule = Rule(NO_SPACE_BETWEEN_SENTENCES_REGEX, ". ")
+    _NO_SPACE_BETWEEN_SENTENCES_PATTERN = r"(?<=[a-z])\.(?=[A-Z])"
+    NO_SPACE_BETWEEN_SENTENCES_REGEX = re.compile(_NO_SPACE_BETWEEN_SENTENCES_PATTERN)
+    NoSpaceBetweenSentencesRule = Rule(_NO_SPACE_BETWEEN_SENTENCES_PATTERN, ". ")
 
     # Rubular: http://rubular.com/r/l6KN6rH5XE
-    NO_SPACE_BETWEEN_SENTENCES_DIGIT_REGEX = r"(?<=\d)\.(?=[A-Z])"
-    NoSpaceBetweenSentencesDigitRule = Rule(NO_SPACE_BETWEEN_SENTENCES_DIGIT_REGEX, ". ")
+    _NO_SPACE_BETWEEN_SENTENCES_DIGIT_PATTERN = r"(?<=\d)\.(?=[A-Z])"
+    NO_SPACE_BETWEEN_SENTENCES_DIGIT_REGEX = re.compile(_NO_SPACE_BETWEEN_SENTENCES_DIGIT_PATTERN)
+    NoSpaceBetweenSentencesDigitRule = Rule(_NO_SPACE_BETWEEN_SENTENCES_DIGIT_PATTERN, ". ")
 
     URL_EMAIL_KEYWORDS = ["@", "http", ".com", "net", "www", "//"]
 
     # Rubular: http://rubular.com/r/3GiRiP2IbD
-    NEWLINE_IN_MIDDLE_OF_SENTENCE_REGEX = r"(?<=\s)\n(?=([a-z]|\())"
+    NEWLINE_IN_MIDDLE_OF_SENTENCE_REGEX = re.compile(r"(?<=\s)\n(?=([a-z]|\())")
 
     # Rubular: http://rubular.com/r/Gn18aAnLdZ
     NewLineFollowedByBulletRule = Rule(r"\n(?=•')", "\r")

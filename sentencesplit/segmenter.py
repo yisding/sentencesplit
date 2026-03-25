@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import re
-from typing import List
 
 from sentencesplit.cleaner import Cleaner
 from sentencesplit.languages import Language
@@ -77,22 +76,16 @@ class Segmenter:
         # char_span func wont be provided with pdf doctype also
         elif self.doc_type == "pdf" and not self.clean:
             raise ValueError(
-                "`doc_type='pdf'` should have `clean=True` & `char_span` should be False since originaltext will be modified."
+                "`doc_type='pdf'` should have `clean=True` & `char_span` should be False since original text will be modified."
             )
+        self._cleaner_cls = getattr(self.language_module, "Cleaner", Cleaner)
+        self._processor_cls = getattr(self.language_module, "Processor", Processor)
 
     def cleaner(self, text: str):
-        if hasattr(self.language_module, "Cleaner"):
-            return self.language_module.Cleaner(text, self.language_module, doc_type=self.doc_type)
-        else:
-            return Cleaner(text, self.language_module, doc_type=self.doc_type)
+        return self._cleaner_cls(text, self.language_module, doc_type=self.doc_type)
 
     def processor(self, text: str):
-        if hasattr(self.language_module, "Processor"):
-            processor = self.language_module.Processor(text, self.language_module, char_span=self.char_span)
-        else:
-            processor = Processor(text, self.language_module, char_span=self.char_span)
-        processor.split_mode = self.split_mode
-        return processor
+        return self._processor_cls(text, self.language_module, char_span=self.char_span, split_mode=self.split_mode)
 
     def _analysis_text(self, text: str) -> str:
         if self.clean or self.doc_type == "pdf":
@@ -243,7 +236,7 @@ class Segmenter:
         end_idx = prior_end + match.end()
         return start_idx, end_idx
 
-    def _next_sentence_start(self, sentences: List[str], start_at: int, original_text: str, prior_end: int):
+    def _next_sentence_start(self, sentences: list[str], start_at: int, original_text: str, prior_end: int):
         """Find start index for the next matchable sentence after ``start_at``."""
         for next_sent in sentences[start_at:]:
             if not next_sent:
@@ -253,7 +246,7 @@ class Segmenter:
                 return next_match[0]
         return None
 
-    def _unmatched_span(self, sentences: List[str], idx: int, original_text: str, prior_end: int):
+    def _unmatched_span(self, sentences: list[str], idx: int, original_text: str, prior_end: int):
         """Return fallback span when current processed sentence cannot be matched."""
         next_start = self._next_sentence_start(sentences, idx + 1, original_text, prior_end)
         if next_start is None:
@@ -264,7 +257,7 @@ class Segmenter:
             return original_text[prior_end:next_start], prior_end, next_start
         return None
 
-    def _match_spans(self, sentences: List[str], original_text: str):
+    def _match_spans(self, sentences: list[str], original_text: str):
         """Match processed sentences back to spans in the original text.
 
         Yields (text_slice, start, end) tuples for each sentence.
@@ -290,7 +283,7 @@ class Segmenter:
             yield original_text[start_idx:end_idx], start_idx, end_idx
             prior_end = end_idx
 
-    def segment(self, text: str | None) -> List[str] | List[TextSpan]:
+    def segment(self, text: str | None) -> list[str] | list[TextSpan]:
         _, segments, _ = self._segment_result(text)
         return segments
 
@@ -311,26 +304,18 @@ class Segmenter:
             should_wait_for_more=self._wait_for_last_segment(analysis_text, comparison_segments),
         )
 
-    def segment_spans(self, text: str | None) -> List[TextSpan]:
+    def segment_spans(self, text: str | None) -> list[TextSpan]:
         """Return sentence spans regardless of the instance's char_span flag."""
         if self.clean:
             raise ValueError("segment_spans() requires clean=False.")
-        seg = Segmenter(
-            language=self.language,
-            clean=False,
-            doc_type=self.doc_type,
-            char_span=True,
-            split_mode=self.split_mode,
-        )
-        return seg.segment(text)
+        if not text:
+            return []
+        processed_sents = self.processor(text).process()
+        return [TextSpan(s, start, end) for s, start, end in self._match_spans(processed_sents, text)]
 
-    def segment_clean(self, text: str | None) -> List[str]:
+    def segment_clean(self, text: str | None) -> list[str]:
         """Return cleaned sentences regardless of the instance's clean flag."""
-        seg = Segmenter(
-            language=self.language,
-            clean=True,
-            doc_type=self.doc_type,
-            char_span=False,
-            split_mode=self.split_mode,
-        )
-        return seg.segment(text)
+        if not text:
+            return []
+        analysis_text = self.cleaner(text).clean()
+        return self.processor(analysis_text).process()

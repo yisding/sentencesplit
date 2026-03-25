@@ -10,7 +10,7 @@ class Persian(Common, Standard):
     iso_code = "fa"
 
     Punctuations = ["?", "!", ":", ".", "؟"]
-    SENTENCE_BOUNDARY_REGEX = r".*?[:\.!\?؟]|.*?\Z|.*?$"
+    SENTENCE_BOUNDARY_REGEX = re.compile(r".*?[:\.!\?؟]|.*?\Z|.*?$")
 
     # Rubular: http://rubular.com/r/RX5HpdDIyv
     ReplaceColonBetweenNumbersRule = Rule(r"(?<=\d):(?=\d)", "♭")
@@ -21,8 +21,8 @@ class Persian(Common, Standard):
     class AbbreviationReplacer(AbbreviationReplacer):
         SENTENCE_STARTERS = []
 
-        def __init__(self, text, lang):
-            super().__init__(text, lang)
+        def __init__(self, text, lang, **kwargs):
+            super().__init__(text, lang, **kwargs)
 
         def scan_for_replacements(self, txt, am, index, character_array, stripped=None, escaped=None):
             txt = re.sub(r"(?<={0})\.".format(am), "∯", txt)
