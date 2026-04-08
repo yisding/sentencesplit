@@ -408,11 +408,12 @@ def test_pt_abbreviation_before_roman_numeral():
 
 
 def test_boundary_abbreviation_before_non_ascii_uppercase():
-    """Two-part boundary abbreviations (U.S.) should split before non-ASCII uppercase."""
+    """Two-part boundary abbreviations (U.S.) stay joined before non-ASCII uppercase
+    that is not a known sentence starter — avoids over-splitting noun phrases like
+    'U.S. Élodie Foundation'."""
     seg = sentencesplit.Segmenter(language="en", clean=False, char_span=False)
     assert [s.strip() for s in seg.segment("He moved from the U.S. \u00c9lodie arrived.")] == [
-        "He moved from the U.S.",
-        "\u00c9lodie arrived.",
+        "He moved from the U.S. \u00c9lodie arrived.",
     ]
 
 
@@ -421,15 +422,16 @@ def test_boundary_abbreviation_before_non_ascii_uppercase():
     [
         (
             "He earned a Ph.D. \u4e2d\u6587\u5f00\u59cb\u3002",
-            ["He earned a Ph.D.", "\u4e2d\u6587\u5f00\u59cb\u3002"],
+            ["He earned a Ph.D. \u4e2d\u6587\u5f00\u59cb\u3002"],
         ),
         (
             "He left at 6 p.m. \u4e2d\u6587\u5f00\u59cb\u3002",
-            ["He left at 6 p.m.", "\u4e2d\u6587\u5f00\u59cb\u3002"],
+            ["He left at 6 p.m. \u4e2d\u6587\u5f00\u59cb\u3002"],
         ),
     ],
 )
 def test_en_es_zh_latin_abbreviation_before_cjk(text, expected):
-    """Latin abbreviations in en_es_zh should split before CJK sentence starters."""
+    """Latin abbreviations in en_es_zh stay joined before CJK continuations —
+    CJK chars are not reliable sentence-start signals for abbreviation boundary logic."""
     seg = sentencesplit.Segmenter(language="en_es_zh", clean=False, char_span=False)
     assert [s.strip() for s in seg.segment(text)] == expected

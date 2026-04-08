@@ -203,7 +203,6 @@ class AbbreviationReplacer:
         self.text = apply_rules(self.text, *self.lang.AmPmRules.All)
         self.text = self.restore_non_ascii_ampm_boundaries()
         self.text = self.replace_abbreviation_as_sentence_boundary()
-        self.text = self._restore_non_ascii_boundary_periods()
         return self.text
 
     @classmethod
@@ -264,22 +263,6 @@ class AbbreviationReplacer:
 
         self.text = re.sub(r"(?<![a-zA-Z])([AaPp]∯[Mm])∯(?=\s)", compact_replace, self.text)
         self.text = re.sub(r"(?<![a-zA-Z])([AaPp]∯\s+[Mm])∯(?=\s)", spaced_replace, self.text)
-        return self.text
-
-    def _restore_non_ascii_boundary_periods(self) -> str:
-        """Restore sentence boundaries for two-part boundary abbreviations (U.S., etc.) before non-ASCII uppercase."""
-        if not self.SENTENCE_STARTERS or not self.SENTENCE_BOUNDARY_ABBREVIATIONS:
-            return self.text
-        boundary_abbr = "|".join(re.escape(abbr).replace(r"\.", r"[.∯]") for abbr in self.SENTENCE_BOUNDARY_ABBREVIATIONS)
-        source = self.text
-
-        def replace_fn(match):
-            next_text = source[match.end() :]
-            if _next_nonspace_char_is_non_ascii_upper(next_text):
-                return f"{match.group(1)}."
-            return match.group()
-
-        self.text = re.sub(rf"(?<![A-Za-z0-9_∯])({boundary_abbr})∯(?=\s)", replace_fn, self.text)
         return self.text
 
     def replace_period_of_abbr(self, txt: str, abbr: str, escaped: str | None = None) -> str:

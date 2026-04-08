@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import re
 
-from sentencesplit.abbreviation_replacer import AbbreviationReplacer, _next_nonspace_char
+from sentencesplit.abbreviation_replacer import AbbreviationReplacer
 from sentencesplit.between_punctuation import BetweenPunctuation
 from sentencesplit.lang.common import Common, Standard
 from sentencesplit.lang.common.cjk import CJKBoundaryProfile
@@ -54,33 +54,6 @@ class EnglishSpanishChinese(CJKBoundaryProfile, Common, Standard):
 
     class AbbreviationReplacer(AbbreviationReplacer):
         SENTENCE_STARTERS = English.AbbreviationReplacer.SENTENCE_STARTERS
-
-        def _is_likely_sentence_start(self, text: str) -> bool:
-            char = _next_nonspace_char(text)
-            return bool(char) and (char.isupper() or bool(_CJK_SENTENCE_START_RE.match(char)))
-
-        def restore_non_ascii_ampm_boundaries(self) -> str:
-            """Extend AM/PM boundary restoration to also handle CJK sentence starters."""
-
-            def _is_non_ascii_start(text: str) -> bool:
-                char = _next_nonspace_char(text)
-                return bool(char) and ((char.isupper() and not char.isascii()) or bool(_CJK_SENTENCE_START_RE.match(char)))
-
-            def compact_replace(match):
-                next_text = self.text[match.end() :]
-                if _is_non_ascii_start(next_text):
-                    return f"{match.group(1)}."
-                return match.group()
-
-            def spaced_replace(match):
-                next_text = self.text[match.end() :]
-                if _is_non_ascii_start(next_text):
-                    return f"{match.group(1)}."
-                return match.group()
-
-            self.text = re.sub(r"(?<![a-zA-Z])([AaPp]∯[Mm])∯(?=\s)", compact_replace, self.text)
-            self.text = re.sub(r"(?<![a-zA-Z])([AaPp]∯\s+[Mm])∯(?=\s)", spaced_replace, self.text)
-            return self.text
 
         def replace_period_of_abbr(self, txt: str, abbr: str, escaped: str | None = None) -> str:
             txt = " " + txt
