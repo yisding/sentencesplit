@@ -110,6 +110,26 @@ print(seg.segment("Hola Srta. Ledesma. How are you?"))
 
 This works well for languages that share the `Common` and `Standard` base classes and use the same sentence-ending punctuation (`.`, `!`, `?`). The same pattern can be extended to other similar languages like Italian, Dutch, or Danish. Languages with different writing systems or punctuation (e.g. Japanese, Arabic) would need a different approach.
 
+## Releasing
+
+Releases are published manually from GitHub Actions.
+
+One-time setup:
+
+1. In GitHub, create an environment named `pypi`.
+2. In PyPI, add a Trusted Publisher for repo `yisding/sentencesplit`, workflow `.github/workflows/publish.yml`, and environment `pypi`.
+
+Release steps:
+
+1. Merge the code you want to publish into `main`.
+2. Open GitHub Actions and run the `Release` workflow on `main`.
+3. Choose the version bump: `patch`, `minor`, `major`, or `prerelease`.
+4. Set `dry_run=true` to preview the release, then run it again with `dry_run=false` for the real release.
+5. The workflow creates the version commit, tag, changelog update, and GitHub Release.
+6. The new `v*` tag automatically triggers the `Publish to PyPI` workflow, which uploads the built distributions using Trusted Publishing.
+
+`python-semantic-release` still uses Conventional Commits to generate changelog entries cleanly, so commit messages like `fix: ...`, `feat: ...`, and `feat!: ...` are still recommended even though releases are now triggered manually.
+
 ## Contributing
 
 If you want to contribute new feature/language support or found a text that is incorrectly segmented, then please head to [CONTRIBUTING.md](CONTRIBUTING.md) to know more and follow these steps.
