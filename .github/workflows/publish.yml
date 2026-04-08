@@ -1,6 +1,12 @@
 name: Publish to PyPI
 
 on:
+  workflow_call:
+    inputs:
+      ref:
+        description: "Git ref to build and publish from"
+        required: true
+        type: string
   push:
     tags:
       - "v*"
@@ -13,6 +19,12 @@ jobs:
 
     steps:
       - uses: actions/checkout@v6
+        if: ${{ github.event_name == 'workflow_call' }}
+        with:
+          ref: ${{ inputs.ref }}
+
+      - uses: actions/checkout@v6
+        if: ${{ github.event_name != 'workflow_call' }}
 
       - uses: astral-sh/setup-uv@v7
         with:

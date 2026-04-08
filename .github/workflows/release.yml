@@ -24,6 +24,8 @@ permissions:
 jobs:
   release:
     runs-on: ubuntu-latest
+    outputs:
+      release_tag: ${{ steps.next_tag.outputs.tag }}
 
     steps:
       - uses: actions/checkout@v6
@@ -41,6 +43,27 @@ jobs:
         run: |
           git config user.name "github-actions"
           git config user.email "actions@users.noreply.github.com"
+
+      - name: Determine release tag
+        id: next_tag
+        env:
+          RELEASE_BUMP: ${{ inputs.bump }}
+        run: |
+          version_args=(--print-tag)
+
+          case "$RELEASE_BUMP" in
+            patch) version_args+=(--patch) ;;
+            minor) version_args+=(--minor) ;;
+            major) version_args+=(--major) ;;
+            prerelease) version_args+=(--prerelease) ;;
+            *)
+              echo "Unsupported bump type: $RELEASE_BUMP" >&2
+              exit 1
+              ;;
+          esac
+
+          tag="$(uv run semantic-release version "${version_args[@]}" | tail -n 1)"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
 
       - name: Create version, changelog, tag, and GitHub release
         env:
@@ -67,3 +90,13 @@ jobs:
           fi
 
           uv run semantic-release "${global_args[@]}" version "${version_args[@]}"
+
+  publish:
+    if: ${{ !inputs.dry_run }}
+    needs: release
+    permissions:
+      contents: read
+      id-token: write
+    uses: ./.github/workflows/publish.yml
+    with:
+      ref: ${{ needs.release.outputs.release_tag }}
