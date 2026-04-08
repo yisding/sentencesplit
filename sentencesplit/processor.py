@@ -176,9 +176,14 @@ class Processor:
             return [txt]
 
         txt = apply_rules(txt, *self.lang.ReinsertEllipsisRules.All)
-        quoted_parts = _split_on_uppercase_boundary(txt, self._split_quotation_re)
-        if quoted_parts is not None:
-            return quoted_parts
+        if self._latin_uppercase_resplit:
+            quoted_parts = _split_on_uppercase_boundary(txt, self._split_quotation_re)
+            if quoted_parts is not None:
+                return quoted_parts
+        else:
+            if self._quotation_end_re.search(txt):
+                parts = self._split_quotation_re.split(txt)
+                return [t for t in parts if t]
 
         txt = txt.replace("\n", "")
         txt = txt.strip()

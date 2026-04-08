@@ -253,8 +253,8 @@ class AbbreviationReplacer:
                 return f"{match.group(1)}."
             return match.group()
 
-        self.text = re.sub(r"\b([AaPp]∯[Mm])∯(?=\s)", compact_replace, self.text)
-        self.text = re.sub(r"\b([AaPp]∯\s+[Mm])∯(?=\s)", spaced_replace, self.text)
+        self.text = re.sub(r"(?<![a-zA-Z])([AaPp]∯[Mm])∯(?=\s)", compact_replace, self.text)
+        self.text = re.sub(r"(?<![a-zA-Z])([AaPp]∯\s+[Mm])∯(?=\s)", spaced_replace, self.text)
         return self.text
 
     def replace_period_of_abbr(self, txt: str, abbr: str, escaped: str | None = None) -> str:

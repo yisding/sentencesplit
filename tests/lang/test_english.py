@@ -163,7 +163,10 @@ def test_en_url_with_country_code_domain(default_en_no_clean_no_span_fixture):
 @pytest.mark.parametrize(
     "text,expected",
     [
-        ("Substituting into Eq. 5 yields the result. The proof is complete.", ["Substituting into Eq. 5 yields the result.", "The proof is complete."]),
+        (
+            "Substituting into Eq. 5 yields the result. The proof is complete.",
+            ["Substituting into Eq. 5 yields the result.", "The proof is complete."],
+        ),
         ("Pt. presented for evaluation. Results pending.", ["Pt. presented for evaluation.", "Results pending."]),
     ],
 )

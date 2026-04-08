@@ -352,3 +352,47 @@ def test_issues_with_char_spans(issue_no, text, expected_sents_w_spans):
     assert segments == expected_text_spans
     # clubbing sentences and matching with original text
     assert text == "".join([seg.sent for seg in segments])
+
+
+@pytest.mark.parametrize(
+    "language,text,expected",
+    [
+        (
+            "zh",
+            "\u5979\u8bf4\uff1a\u201c\u4f60\u597d\u3002\u201d abc\u5f00\u59cb\u3002",
+            ["\u5979\u8bf4\uff1a\u201c\u4f60\u597d\u3002\u201d", "abc\u5f00\u59cb\u3002"],
+        ),
+        (
+            "ja",
+            "\u5f7c\u306f\u300c\u3053\u3093\u306b\u3061\u306f\u3002\u300d abc\u3068\u8a00\u3063\u305f\u3002",
+            ["\u5f7c\u306f\u300c\u3053\u3093\u306b\u3061\u306f\u3002\u300d", "abc\u3068\u8a00\u3063\u305f\u3002"],
+        ),
+        (
+            "ja",
+            "\u5f7c\u306f\u300c\u3053\u3093\u306b\u3061\u306f\u3002\u300d 123\u3068\u8a00\u3063\u305f\u3002",
+            ["\u5f7c\u306f\u300c\u3053\u3093\u306b\u3061\u306f\u3002\u300d", "123\u3068\u8a00\u3063\u305f\u3002"],
+        ),
+    ],
+)
+def test_cjk_quote_splitting_not_gated_by_uppercase(language, text, expected):
+    """CJK closing-quote boundaries must split without requiring an uppercase start."""
+    seg = sentencesplit.Segmenter(language=language, clean=False, char_span=False)
+    assert [s.strip() for s in seg.segment(text)] == expected
+
+
+def test_compact_ampm_before_non_ascii_uppercase():
+    """Compact 6p.m. form should split before non-ASCII uppercase sentence starters."""
+    seg = sentencesplit.Segmenter(language="en", clean=False, char_span=False)
+    assert [s.strip() for s in seg.segment("He left at 6p.m. \u00c9lodie arrived.")] == [
+        "He left at 6p.m.",
+        "\u00c9lodie arrived.",
+    ]
+
+
+def test_eq_abbreviation_before_roman_numeral():
+    """Eq. before a Roman numeral should stay joined like Fig."""
+    seg = sentencesplit.Segmenter(language="en", clean=False, char_span=False)
+    assert [s.strip() for s in seg.segment("Eq. IV shows the result. Next sentence.")] == [
+        "Eq. IV shows the result.",
+        "Next sentence.",
+    ]
