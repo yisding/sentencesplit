@@ -22,7 +22,6 @@ from sentencesplit.utils import Rule, apply_rules
 
 _LATIN_PAREN_RESPLIT_RE = re.compile(r"(?<=[a-zA-Z]{2}\.\))\s+")
 _CJK_FOLLOWING_CHAR_RE = re.compile(r"[\u3400-\u9FFF]")
-_CJK_SENTENCE_START_RE = re.compile(r"[\u4e00-\u9fff\u3040-\u30ff\u31f0-\u31ff]")
 _ENGLISH_HEURISTIC_ABBREVIATIONS = frozenset(a.lower() for a in Standard.Abbreviation.ABBREVIATIONS)
 _QUOTE_CLOSER_RE = re.compile(r"""["'”’」』》】]+$""")
 _CJK_SLANTED_QUOTE_END_RE = re.compile(r"(&ᓰ&|&ᓱ&|&ᓳ&|&ᓴ&|&ᓷ&|&ᓸ&)(?=[”’][^\s])")
@@ -75,8 +74,7 @@ class EnglishSpanishChinese(CJKBoundaryProfile, Common, Standard):
                 char = ""
             am_lower = am.strip().lower()
             ascii_upper = bool(char) and char.isascii() and char.isupper()
-            cjk_start = bool(char) and bool(_CJK_SENTENCE_START_RE.match(char))
-            use_uppercase_heuristic = (ascii_upper or cjk_start) and am_lower in _ENGLISH_HEURISTIC_ABBREVIATIONS
+            use_uppercase_heuristic = ascii_upper and am_lower in _ENGLISH_HEURISTIC_ABBREVIATIONS
             if not use_uppercase_heuristic or am_lower in self._data.prepositive_set:
                 am_escaped = re.escape(am.strip())
                 txt = " " + txt

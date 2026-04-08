@@ -435,3 +435,32 @@ def test_en_es_zh_latin_abbreviation_before_cjk(text, expected):
     CJK chars are not reliable sentence-start signals for abbreviation boundary logic."""
     seg = sentencesplit.Segmenter(language="en_es_zh", clean=False, char_span=False)
     assert [s.strip() for s in seg.segment(text)] == expected
+
+
+@pytest.mark.parametrize(
+    "text,expected",
+    [
+        (
+            "Bring paper, pens, etc. \u4e2d\u6587\u7ee7\u7eed\u3002",
+            ["Bring paper, pens, etc. \u4e2d\u6587\u7ee7\u7eed\u3002"],
+        ),
+        (
+            "Met at Univ. \u4e2d\u6587\u5b66\u9662\u3002",
+            ["Met at Univ. \u4e2d\u6587\u5b66\u9662\u3002"],
+        ),
+    ],
+)
+def test_en_es_zh_ordinary_abbreviation_before_cjk_stays_joined(text, expected):
+    """Ordinary English abbreviations (etc., Univ.) in en_es_zh must NOT split
+    before CJK continuations — CJK text is not a sentence-start signal."""
+    seg = sentencesplit.Segmenter(language="en_es_zh", clean=False, char_span=False)
+    assert [s.strip() for s in seg.segment(text)] == expected
+
+
+def test_three_part_initialism_before_non_ascii_uppercase_stays_joined():
+    """Pure initialisms like U.S.A. should stay joined before non-ASCII uppercase
+    proper nouns like Élodie — avoids false splits in noun phrases."""
+    seg = sentencesplit.Segmenter(language="en", clean=False, char_span=False)
+    assert [s.strip() for s in seg.segment("He works for the U.S.A. \u00c9lodie Foundation.")] == [
+        "He works for the U.S.A. \u00c9lodie Foundation.",
+    ]

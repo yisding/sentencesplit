@@ -195,7 +195,8 @@ class AbbreviationReplacer:
 
         def restore_uppercase_initialism_boundary(match):
             next_text = restore_source[match.end() :]
-            if self._is_likely_sentence_start(next_text):
+            char = _next_nonspace_char(next_text)
+            if char and char.isupper() and char.isascii():
                 return "."
             return match.group()
 
