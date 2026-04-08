@@ -7,6 +7,12 @@ on:
         description: "Git ref to build and publish from"
         required: true
         type: string
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Existing tag or ref to publish, for example v0.0.1"
+        required: true
+        type: string
   push:
     tags:
       - "v*"
@@ -19,12 +25,12 @@ jobs:
 
     steps:
       - uses: actions/checkout@v6
-        if: ${{ github.event_name == 'workflow_call' }}
+        if: ${{ github.event_name != 'push' }}
         with:
           ref: ${{ inputs.ref }}
 
       - uses: actions/checkout@v6
-        if: ${{ github.event_name != 'workflow_call' }}
+        if: ${{ github.event_name == 'push' }}
 
       - uses: astral-sh/setup-uv@v7
         with:

@@ -127,6 +127,7 @@ Release steps:
 4. Set `dry_run=true` to preview the release, then run it again with `dry_run=false` for the real release.
 5. The workflow creates the version commit, tag, changelog update, and GitHub Release.
 6. After the release step succeeds, the `Release` workflow calls the separate `Publish to PyPI` workflow, which checks out the new tag and uploads the built distributions using Trusted Publishing.
+7. If you need to publish an already-created release tag, run `Publish to PyPI` manually and enter the existing tag, for example `v0.0.1`.
 
 `python-semantic-release` still uses Conventional Commits to generate changelog entries cleanly, so commit messages like `fix: ...`, `feat: ...`, and `feat!: ...` are still recommended even though releases are now triggered manually.
 
