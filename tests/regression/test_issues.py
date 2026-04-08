@@ -464,3 +464,19 @@ def test_three_part_initialism_before_non_ascii_uppercase_stays_joined():
     assert [s.strip() for s in seg.segment("He works for the U.S.A. \u00c9lodie Foundation.")] == [
         "He works for the U.S.A. \u00c9lodie Foundation.",
     ]
+
+
+@pytest.mark.parametrize(
+    "text,expected",
+    [
+        (
+            "Substituting into Eq. 5 yields the result. The proof is complete.",
+            ["Substituting into Eq. 5 yields the result.", "The proof is complete."],
+        ),
+        ("Pt. presented for evaluation. Results pending.", ["Pt. presented for evaluation.", "Results pending."]),
+    ],
+)
+def test_en_es_zh_number_abbreviations_before_lowercase(text, expected):
+    """Number abbreviations (eq, pt) in en_es_zh must stay joined before lowercase text."""
+    seg = sentencesplit.Segmenter(language="en_es_zh", clean=False, char_span=False)
+    assert [s.strip() for s in seg.segment(text)] == expected

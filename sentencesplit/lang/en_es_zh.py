@@ -90,6 +90,10 @@ class EnglishSpanishChinese(CJKBoundaryProfile, Common, Standard):
                     txt = self.replace_period_of_abbr(txt[1:], am, am_escaped)
                     return txt
                 txt = txt[1:]
+                # Multi-char number abbreviations (eq, pt, fig, vol, …) also
+                # need regular abbreviation protection before lowercase text.
+                if am_lower in self._data.number_abbr_set and len(am.strip()) > 1:
+                    txt = self.replace_period_of_abbr(txt, am.strip(), am_escaped)
             elif am_lower in self._data.number_abbr_set:
                 # Next word starts ASCII uppercase — protect only before Roman numerals.
                 # Exclude lone "I" to avoid false joins with the pronoun "I".
