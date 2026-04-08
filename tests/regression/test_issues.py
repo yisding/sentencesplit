@@ -396,3 +396,40 @@ def test_eq_abbreviation_before_roman_numeral():
         "Eq. IV shows the result.",
         "Next sentence.",
     ]
+
+
+def test_pt_abbreviation_before_roman_numeral():
+    """Pt. before a Roman numeral should stay joined (number abbreviation)."""
+    seg = sentencesplit.Segmenter(language="en", clean=False, char_span=False)
+    assert [s.strip() for s in seg.segment("Pt. II discusses methods. Next sentence.")] == [
+        "Pt. II discusses methods.",
+        "Next sentence.",
+    ]
+
+
+def test_boundary_abbreviation_before_non_ascii_uppercase():
+    """Two-part boundary abbreviations (U.S.) should split before non-ASCII uppercase."""
+    seg = sentencesplit.Segmenter(language="en", clean=False, char_span=False)
+    assert [s.strip() for s in seg.segment("He moved from the U.S. \u00c9lodie arrived.")] == [
+        "He moved from the U.S.",
+        "\u00c9lodie arrived.",
+    ]
+
+
+@pytest.mark.parametrize(
+    "text,expected",
+    [
+        (
+            "He earned a Ph.D. \u4e2d\u6587\u5f00\u59cb\u3002",
+            ["He earned a Ph.D.", "\u4e2d\u6587\u5f00\u59cb\u3002"],
+        ),
+        (
+            "He left at 6 p.m. \u4e2d\u6587\u5f00\u59cb\u3002",
+            ["He left at 6 p.m.", "\u4e2d\u6587\u5f00\u59cb\u3002"],
+        ),
+    ],
+)
+def test_en_es_zh_latin_abbreviation_before_cjk(text, expected):
+    """Latin abbreviations in en_es_zh should split before CJK sentence starters."""
+    seg = sentencesplit.Segmenter(language="en_es_zh", clean=False, char_span=False)
+    assert [s.strip() for s in seg.segment(text)] == expected

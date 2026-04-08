@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import re
 
-from sentencesplit.abbreviation_replacer import AbbreviationReplacer
+from sentencesplit.abbreviation_replacer import AbbreviationReplacer, _next_nonspace_char
 from sentencesplit.between_punctuation import BetweenPunctuation
 from sentencesplit.lang.common import Common, Standard
 from sentencesplit.lang.common.cjk import CJKBoundaryProfile
@@ -22,6 +22,7 @@ from sentencesplit.utils import Rule, apply_rules
 
 _LATIN_PAREN_RESPLIT_RE = re.compile(r"(?<=[a-zA-Z]{2}\.\))\s+")
 _CJK_FOLLOWING_CHAR_RE = re.compile(r"[\u3400-\u9FFF]")
+_CJK_SENTENCE_START_RE = re.compile(r"[\u4e00-\u9fff\u3040-\u30ff\u31f0-\u31ff]")
 _ENGLISH_HEURISTIC_ABBREVIATIONS = frozenset(a.lower() for a in Standard.Abbreviation.ABBREVIATIONS)
 _QUOTE_CLOSER_RE = re.compile(r"""["'”’」』》】]+$""")
 _CJK_SLANTED_QUOTE_END_RE = re.compile(r"(&ᓰ&|&ᓱ&|&ᓳ&|&ᓴ&|&ᓷ&|&ᓸ&)(?=[”’][^\s])")
@@ -54,6 +55,33 @@ class EnglishSpanishChinese(CJKBoundaryProfile, Common, Standard):
     class AbbreviationReplacer(AbbreviationReplacer):
         SENTENCE_STARTERS = English.AbbreviationReplacer.SENTENCE_STARTERS
 
+        def _is_likely_sentence_start(self, text: str) -> bool:
+            char = _next_nonspace_char(text)
+            return bool(char) and (char.isupper() or bool(_CJK_SENTENCE_START_RE.match(char)))
+
+        def restore_non_ascii_ampm_boundaries(self) -> str:
+            """Extend AM/PM boundary restoration to also handle CJK sentence starters."""
+
+            def _is_non_ascii_start(text: str) -> bool:
+                char = _next_nonspace_char(text)
+                return bool(char) and ((char.isupper() and not char.isascii()) or bool(_CJK_SENTENCE_START_RE.match(char)))
+
+            def compact_replace(match):
+                next_text = self.text[match.end() :]
+                if _is_non_ascii_start(next_text):
+                    return f"{match.group(1)}."
+                return match.group()
+
+            def spaced_replace(match):
+                next_text = self.text[match.end() :]
+                if _is_non_ascii_start(next_text):
+                    return f"{match.group(1)}."
+                return match.group()
+
+            self.text = re.sub(r"(?<![a-zA-Z])([AaPp]∯[Mm])∯(?=\s)", compact_replace, self.text)
+            self.text = re.sub(r"(?<![a-zA-Z])([AaPp]∯\s+[Mm])∯(?=\s)", spaced_replace, self.text)
+            return self.text
+
         def replace_period_of_abbr(self, txt: str, abbr: str, escaped: str | None = None) -> str:
             txt = " " + txt
             if escaped is None:
@@ -74,7 +102,8 @@ class EnglishSpanishChinese(CJKBoundaryProfile, Common, Standard):
                 char = ""
             am_lower = am.strip().lower()
             ascii_upper = bool(char) and char.isascii() and char.isupper()
-            use_uppercase_heuristic = ascii_upper and am_lower in _ENGLISH_HEURISTIC_ABBREVIATIONS
+            cjk_start = bool(char) and bool(_CJK_SENTENCE_START_RE.match(char))
+            use_uppercase_heuristic = (ascii_upper or cjk_start) and am_lower in _ENGLISH_HEURISTIC_ABBREVIATIONS
             if not use_uppercase_heuristic or am_lower in self._data.prepositive_set:
                 am_escaped = re.escape(am.strip())
                 txt = " " + txt

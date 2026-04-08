@@ -162,6 +162,14 @@ class AbbreviationReplacer:
             AbbreviationReplacer._data_cache[abbr_class] = _AbbreviationData(lang.Abbreviation)
         self._data = AbbreviationReplacer._data_cache[abbr_class]
 
+    def _is_likely_sentence_start(self, text: str) -> bool:
+        """Check if the next non-space character in *text* looks like a sentence start.
+
+        Subclasses (e.g. en_es_zh) can override to recognise additional scripts
+        such as CJK ideographs.
+        """
+        return _next_nonspace_char_is_upper(text)
+
     def replace(self) -> str:
         self.text = apply_rules(
             self.text,
@@ -187,7 +195,7 @@ class AbbreviationReplacer:
 
         def restore_uppercase_initialism_boundary(match):
             next_text = restore_source[match.end() :]
-            if _next_nonspace_char_is_upper(next_text):
+            if self._is_likely_sentence_start(next_text):
                 return "."
             return match.group()
 
@@ -195,6 +203,7 @@ class AbbreviationReplacer:
         self.text = apply_rules(self.text, *self.lang.AmPmRules.All)
         self.text = self.restore_non_ascii_ampm_boundaries()
         self.text = self.replace_abbreviation_as_sentence_boundary()
+        self.text = self._restore_non_ascii_boundary_periods()
         return self.text
 
     @classmethod
@@ -229,7 +238,7 @@ class AbbreviationReplacer:
             # Keep sentence-final boundaries for mixed abbreviations like Ph.D.
             # when a likely new sentence starts next, but continue protecting
             # pure initialisms like A.I. before uppercase nouns.
-            if _next_nonspace_char_is_upper(next_text) and any(len(part) > 1 for part in parts):
+            if self._is_likely_sentence_start(next_text) and any(len(part) > 1 for part in parts):
                 protect_final_period = False
 
             body = matched[:-1].replace(".", "∯")
@@ -255,6 +264,22 @@ class AbbreviationReplacer:
 
         self.text = re.sub(r"(?<![a-zA-Z])([AaPp]∯[Mm])∯(?=\s)", compact_replace, self.text)
         self.text = re.sub(r"(?<![a-zA-Z])([AaPp]∯\s+[Mm])∯(?=\s)", spaced_replace, self.text)
+        return self.text
+
+    def _restore_non_ascii_boundary_periods(self) -> str:
+        """Restore sentence boundaries for two-part boundary abbreviations (U.S., etc.) before non-ASCII uppercase."""
+        if not self.SENTENCE_STARTERS or not self.SENTENCE_BOUNDARY_ABBREVIATIONS:
+            return self.text
+        boundary_abbr = "|".join(re.escape(abbr).replace(r"\.", r"[.∯]") for abbr in self.SENTENCE_BOUNDARY_ABBREVIATIONS)
+        source = self.text
+
+        def replace_fn(match):
+            next_text = source[match.end() :]
+            if _next_nonspace_char_is_non_ascii_upper(next_text):
+                return f"{match.group(1)}."
+            return match.group()
+
+        self.text = re.sub(rf"(?<![A-Za-z0-9_∯])({boundary_abbr})∯(?=\s)", replace_fn, self.text)
         return self.text
 
     def replace_period_of_abbr(self, txt: str, abbr: str, escaped: str | None = None) -> str:
@@ -294,6 +319,23 @@ class AbbreviationReplacer:
             return _replace_with_escape(txt, am_escaped, r"\.(?=\s(?:[IVXLCDM]{2,}|[VXLCDM])\b)", "∯", boundary)
         return _replace_with_escape(txt, am_escaped, r"\.(?=(\s\d|\s+\(|\s[IVXLCDM]+\b))", "∯", boundary)
 
+    def _prepositive_suffix(self, am_lower: str, upper: bool, char: str) -> str:
+        """Return the regex suffix pattern for protecting a prepositive abbreviation."""
+        if self.SENTENCE_STARTERS and am_lower in self.STARTER_AWARE_PREPOSITIVE:
+            # Exclude single-char starters like "A" and "I" — they
+            # often appear as identifiers after prepositive
+            # abbreviations (e.g. "Sched. A", "Amend. I").
+            starters = "|".join(re.escape(s) for s in self.SENTENCE_STARTERS if len(s) > 1)
+            if upper:
+                return rf"\.(?=(\s(?!(?:{starters})\s)|:\d+))"
+            if char and not char.isalpha():
+                # First char is non-alpha (e.g. opening quote/bracket).
+                # Allow splits before quoted sentence starters like:
+                # Cir. "The panel reversed," he wrote.
+                open_q = r"""[\"'\u201c\u00ab(\[]*"""
+                return rf"\.(?=(\s(?!{open_q}(?:{starters})\s)|:\d+))"
+        return r"\.(?=(\s|:\d+))"
+
     def scan_for_replacements(
         self, txt: str, am: str, ind: int, char_array, stripped: str = "", escaped: str | None = None
     ) -> str:
@@ -314,34 +356,20 @@ class AbbreviationReplacer:
         if not upper or am_lower in self._data.prepositive_set or am_lower in self._data.number_abbr_set:
             am_escaped = re.escape(am_stripped)
             if am_lower in self._data.prepositive_set:
-                should_protect_prepositive = not (
+                should_protect = not (
                     self.split_mode == "aggressive" and am_lower in self.AGGRESSIVE_PREPOSITIVE_BOUNDARY_BLOCKLIST
                 )
-                if should_protect_prepositive:
-                    # For abbreviations in STARTER_AWARE_PREPOSITIVE, allow
-                    # splits before known sentence starters.  This prevents
-                    # e.g. "Cir. The panel reversed." from collapsing into one
-                    # segment while still protecting "Bankr. Court".
-                    if self.SENTENCE_STARTERS and am_lower in self.STARTER_AWARE_PREPOSITIVE:
-                        # Exclude single-char starters like "A" and "I" — they
-                        # often appear as identifiers after prepositive
-                        # abbreviations (e.g. "Sched. A", "Amend. I").
-                        starters = "|".join(re.escape(s) for s in self.SENTENCE_STARTERS if len(s) > 1)
-                        if upper:
-                            suffix = rf"\.(?=(\s(?!(?:{starters})\s)|:\d+))"
-                        elif char and not char.isalpha():
-                            # First char is non-alpha (e.g. opening quote/bracket).
-                            # Allow splits before quoted sentence starters like:
-                            # Cir. "The panel reversed," he wrote.
-                            open_q = r"""[\"'\u201c\u00ab(\[]*"""
-                            suffix = rf"\.(?=(\s(?!{open_q}(?:{starters})\s)|:\d+))"
-                        else:
-                            suffix = r"\.(?=(\s|:\d+))"
-                    else:
-                        suffix = r"\.(?=(\s|:\d+))"
+                if should_protect:
+                    suffix = self._prepositive_suffix(am_lower, upper, char)
                     txt = _replace_with_escape(txt, am_escaped, suffix, "∯", boundary)
             elif am_lower in self._data.number_abbr_set:
                 txt = self._replace_number_abbr(txt, am_escaped, boundary, upper)
+                # Multi-char number abbreviations (eq, pt, fig, vol, …) also
+                # need regular abbreviation protection before lowercase text.
+                # Single-char entries like "p" are excluded — they are too
+                # ambiguous (e.g. "p" is also part of "p.m.").
+                if not upper and len(am_stripped) > 1:
+                    txt = self.replace_period_of_abbr(txt, am_stripped, am_escaped)
             else:
                 txt = self.replace_period_of_abbr(txt, am_stripped, am_escaped)
         return txt
