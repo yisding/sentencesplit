@@ -4,7 +4,7 @@ build-backend = "uv_build"
 
 [project]
 name = "sentencesplit"
-version = "0.0.0"
+version = "0.0.1"
 description = "sentencesplit is a rule-based sentence boundary detection library, derived from pySBD (Python Sentence Boundary Disambiguation), that works out-of-the-box across many languages."
 readme = "README.md"
 requires-python = ">=3.11"
