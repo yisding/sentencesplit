@@ -24,13 +24,13 @@ class Common:
     LATIN_UPPERCASE_RESPLIT = True
 
     # # Rubular: http://rubular.com/r/NqCqv372Ix
-    QUOTATION_AT_END_OF_SENTENCE_REGEX = re.compile(r"[!?\.-][\"\'“”]\s{1}[A-Z]")
+    QUOTATION_AT_END_OF_SENTENCE_REGEX = re.compile(r"[!?\.-][\"\'“”]\s+\S")
 
     # # Rubular: http://rubular.com/r/6flGnUMEVl
     PARENS_BETWEEN_DOUBLE_QUOTES_REGEX = re.compile(r'["\”]\s\(.*\)\s["\“]')
 
     # # Rubular: http://rubular.com/r/JMjlZHAT4g
-    SPLIT_SPACE_QUOTATION_AT_END_OF_SENTENCE_REGEX = re.compile(r"(?<=[!?\.-][\"\'“”])\s{1}(?=[A-Z])")
+    SPLIT_SPACE_QUOTATION_AT_END_OF_SENTENCE_REGEX = re.compile(r"(?<=[!?\.-][\"\'“”])\s+")
 
     # # Rubular: http://rubular.com/r/mQ8Es9bxtk
     CONTINUOUS_PUNCTUATION_REGEX = re.compile(r"(?<=\S)(!|\?){3,}(?=(\s|\Z|$))")

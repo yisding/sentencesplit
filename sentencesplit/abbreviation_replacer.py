@@ -76,6 +76,21 @@ def _replace_with_escape(txt: str, escaped: str, suffix_pattern: str, replacemen
     return txt[1:]
 
 
+def _next_nonspace_char(text: str) -> str:
+    stripped = text.lstrip()
+    return stripped[0] if stripped else ""
+
+
+def _next_nonspace_char_is_upper(text: str) -> bool:
+    char = _next_nonspace_char(text)
+    return bool(char) and char.isupper()
+
+
+def _next_nonspace_char_is_non_ascii_upper(text: str) -> bool:
+    char = _next_nonspace_char(text)
+    return bool(char) and char.isupper() and not char.isascii()
+
+
 class _AbbreviationData:
     """Pre-computed abbreviation data for a language, cached per Abbreviation class."""
 
@@ -168,8 +183,17 @@ class AbbreviationReplacer:
         # are handled separately by replace_abbreviation_as_sentence_boundary.
         # Only uppercase lookbehind so lowercase abbreviations like "a.k.a."
         # keep their non-boundary separator.
-        self.text = re.sub(r"(?<=[A-Z]∯[A-Z]∯[A-Z])∯(?=\s[A-Z])", ".", self.text)
+        restore_source = self.text
+
+        def restore_uppercase_initialism_boundary(match):
+            next_text = restore_source[match.end() :]
+            if _next_nonspace_char_is_upper(next_text):
+                return "."
+            return match.group()
+
+        self.text = re.sub(r"(?<=[A-Z]∯[A-Z]∯[A-Z])∯(?=\s)", restore_uppercase_initialism_boundary, self.text)
         self.text = apply_rules(self.text, *self.lang.AmPmRules.All)
+        self.text = self.restore_non_ascii_ampm_boundaries()
         self.text = self.replace_abbreviation_as_sentence_boundary()
         return self.text
 
@@ -205,7 +229,7 @@ class AbbreviationReplacer:
             # Keep sentence-final boundaries for mixed abbreviations like Ph.D.
             # when a likely new sentence starts next, but continue protecting
             # pure initialisms like A.I. before uppercase nouns.
-            if re.match(r"\s[A-Z]", next_text) and any(len(part) > 1 for part in parts):
+            if _next_nonspace_char_is_upper(next_text) and any(len(part) > 1 for part in parts):
                 protect_final_period = False
 
             body = matched[:-1].replace(".", "∯")
@@ -213,6 +237,25 @@ class AbbreviationReplacer:
             return body + tail
 
         self.text = ensure_compiled(self.lang.MULTI_PERIOD_ABBREVIATION_REGEX, re.IGNORECASE).sub(mpa_replace, self.text)
+
+    def restore_non_ascii_ampm_boundaries(self) -> str:
+        """Restore sentence boundaries after a.m./p.m. before non-ASCII capitals."""
+
+        def compact_replace(match):
+            next_text = self.text[match.end() :]
+            if _next_nonspace_char_is_non_ascii_upper(next_text):
+                return f"{match.group(1)}."
+            return match.group()
+
+        def spaced_replace(match):
+            next_text = self.text[match.end() :]
+            if _next_nonspace_char_is_non_ascii_upper(next_text):
+                return f"{match.group(1)}."
+            return match.group()
+
+        self.text = re.sub(r"\b([AaPp]∯[Mm])∯(?=\s)", compact_replace, self.text)
+        self.text = re.sub(r"\b([AaPp]∯\s+[Mm])∯(?=\s)", spaced_replace, self.text)
+        return self.text
 
     def replace_period_of_abbr(self, txt: str, abbr: str, escaped: str | None = None) -> str:
         txt = " " + txt

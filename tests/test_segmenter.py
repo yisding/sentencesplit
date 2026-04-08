@@ -144,6 +144,22 @@ def test_segment_with_lookahead_handles_empty_and_none_inputs():
     assert seg.segment_with_lookahead(None) == SegmentLookahead([], should_wait_for_more=False)
 
 
+@pytest.mark.parametrize(
+    "language,text,expected",
+    [
+        ("en", 'He said "hello." Élodie left.', ['He said "hello."', "Élodie left."]),
+        ("fr", 'Il a dit "bonjour." Élodie est partie.', ['Il a dit "bonjour."', "Élodie est partie."]),
+        ("fr", "Il est parti (vraiment.) Élodie reste.", ["Il est parti (vraiment.)", "Élodie reste."]),
+        ("en", "She earned a Ph.D. Élodie congratulated her.", ["She earned a Ph.D.", "Élodie congratulated her."]),
+        ("en", "I left at 6 p.m. Élodie arrived.", ["I left at 6 p.m.", "Élodie arrived."]),
+    ],
+)
+def test_non_ascii_uppercase_sentence_starters_split_correctly(language, text, expected):
+    seg = sentencesplit.Segmenter(language=language, clean=False, char_span=False)
+
+    assert [s.strip() for s in seg.segment(text)] == expected
+
+
 def test_should_wait_for_more_clean_mode_period_sentence():
     seg = sentencesplit.Segmenter(language="en", clean=True, char_span=False)
 

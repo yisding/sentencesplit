@@ -158,3 +158,15 @@ def test_en_url_with_country_code_domain(default_en_no_clean_no_span_fixture):
     text = "Visit us at https://example.co.uk. Thanks."
     segments = [s.strip() for s in default_en_no_clean_no_span_fixture.segment(text)]
     assert segments == ["Visit us at https://example.co.uk.", "Thanks."]
+
+
+@pytest.mark.parametrize(
+    "text,expected",
+    [
+        ("Substituting into Eq. 5 yields the result. The proof is complete.", ["Substituting into Eq. 5 yields the result.", "The proof is complete."]),
+        ("Pt. presented for evaluation. Results pending.", ["Pt. presented for evaluation.", "Results pending."]),
+    ],
+)
+def test_en_additional_abbreviations(default_en_no_clean_no_span_fixture, text, expected):
+    segments = [s.strip() for s in default_en_no_clean_no_span_fixture.segment(text)]
+    assert segments == expected

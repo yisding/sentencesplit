@@ -16,10 +16,32 @@ _TRAILING_EXCL_RE = re.compile(r"&ᓴ&$")
 _PAREN_SPACE_BEFORE_RE = re.compile(r"\s(?=\()")
 _PAREN_SPACE_AFTER_RE = re.compile(r"(?<=\))\s")
 _ORPHAN_SINGLE_CHARS = frozenset("'\")\u2019\u201d")
+_CJK_SENTENCE_START_RE = re.compile(r"[\u4e00-\u9fff\u3040-\u30ff\u31f0-\u31ff]")
 _CJK_QUOTE_RESPLIT_RE = re.compile(
     r"(?<=[。．][\]\"')”’」』】）》])(?=[\u4e00-\u9fff\u3040-\u30ff\u31f0-\u31ffA-Za-z0-9「『【（《])"
 )
-_LATIN_RESPLIT_RE = re.compile(r"(?<=[a-zA-Z]{2}\.\))\s+(?=[A-Z])")
+_LATIN_RESPLIT_RE = re.compile(r"(?<=[a-zA-Z]{2}\.\))\s+")
+
+
+def _next_nonspace_char_starts_sentence(text: str, start: int = 0) -> bool:
+    for char in text[start:]:
+        if not char.isspace():
+            return char.isupper() or bool(_CJK_SENTENCE_START_RE.match(char))
+    return False
+
+
+def _split_on_uppercase_boundary(text: str, whitespace_re: re.Pattern[str]) -> list[str] | None:
+    parts = []
+    last = 0
+    for match in whitespace_re.finditer(text):
+        if not _next_nonspace_char_starts_sentence(text, match.end()):
+            continue
+        parts.append(text[last : match.start()])
+        last = match.end()
+    if not parts:
+        return None
+    parts.append(text[last:])
+    return [part for part in parts if part]
 
 
 def _sub_symbols_fast(text, lang):
@@ -104,8 +126,11 @@ class Processor:
             # Re-split at ".) Capital" boundaries (period inside closing paren before new sentence)
             resplit = []
             for pps in postprocessed_sents:
-                parts = _LATIN_RESPLIT_RE.split(pps)
-                resplit.extend(p for p in parts if p)
+                parts = _split_on_uppercase_boundary(pps, _LATIN_RESPLIT_RE)
+                if parts is None:
+                    resplit.append(pps)
+                else:
+                    resplit.extend(parts)
             postprocessed_sents = resplit
         else:
             # CJK: Re-split at closing-quote boundaries
@@ -151,13 +176,13 @@ class Processor:
             return [txt]
 
         txt = apply_rules(txt, *self.lang.ReinsertEllipsisRules.All)
-        if self._quotation_end_re.search(txt):
-            txt = self._split_quotation_re.split(txt)
-            return [t for t in txt if t]
-        else:
-            txt = txt.replace("\n", "")
-            txt = txt.strip()
-            return [txt] if txt else []
+        quoted_parts = _split_on_uppercase_boundary(txt, self._split_quotation_re)
+        if quoted_parts is not None:
+            return quoted_parts
+
+        txt = txt.replace("\n", "")
+        txt = txt.strip()
+        return [txt] if txt else []
 
     def check_for_parens_between_quotes(self) -> None:
         def paren_replace(match):
