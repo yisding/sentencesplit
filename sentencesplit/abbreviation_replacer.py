@@ -4,7 +4,13 @@ from __future__ import annotations
 import re
 from collections import deque
 
-from sentencesplit.utils import apply_rules, ensure_compiled
+from sentencesplit.utils import (
+    _next_nonspace_char,
+    _next_nonspace_char_is_non_ascii_upper,
+    _next_nonspace_char_is_upper,
+    apply_rules,
+    ensure_compiled,
+)
 
 
 class AhoCorasickAutomaton:
@@ -74,21 +80,6 @@ def _replace_with_escape(txt: str, escaped: str, suffix_pattern: str, replacemen
     txt = " " + txt
     txt = re.sub(rf"(?<=[{boundary_class}]{escaped}){suffix_pattern}", replacement, txt)
     return txt[1:]
-
-
-def _next_nonspace_char(text: str) -> str:
-    stripped = text.lstrip()
-    return stripped[0] if stripped else ""
-
-
-def _next_nonspace_char_is_upper(text: str) -> bool:
-    char = _next_nonspace_char(text)
-    return bool(char) and char.isupper()
-
-
-def _next_nonspace_char_is_non_ascii_upper(text: str) -> bool:
-    char = _next_nonspace_char(text)
-    return bool(char) and char.isupper() and not char.isascii()
 
 
 class _AbbreviationData:
@@ -250,20 +241,14 @@ class AbbreviationReplacer:
     def restore_non_ascii_ampm_boundaries(self) -> str:
         """Restore sentence boundaries after a.m./p.m. before non-ASCII capitals."""
 
-        def compact_replace(match):
+        def _restore(match):
             next_text = self.text[match.end() :]
             if _next_nonspace_char_is_non_ascii_upper(next_text):
                 return f"{match.group(1)}."
             return match.group()
 
-        def spaced_replace(match):
-            next_text = self.text[match.end() :]
-            if _next_nonspace_char_is_non_ascii_upper(next_text):
-                return f"{match.group(1)}."
-            return match.group()
-
-        self.text = re.sub(r"(?<![a-zA-Z])([AaPp]∯[Mm])∯(?=\s)", compact_replace, self.text)
-        self.text = re.sub(r"(?<![a-zA-Z])([AaPp]∯\s+[Mm])∯(?=\s)", spaced_replace, self.text)
+        self.text = re.sub(r"(?<![a-zA-Z])([AaPp]∯[Mm])∯(?=\s)", _restore, self.text)
+        self.text = re.sub(r"(?<![a-zA-Z])([AaPp]∯\s+[Mm])∯(?=\s)", _restore, self.text)
         return self.text
 
     def replace_period_of_abbr(self, txt: str, abbr: str, escaped: str | None = None) -> str:

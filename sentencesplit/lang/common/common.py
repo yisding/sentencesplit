@@ -23,12 +23,19 @@ class Common:
 
     LATIN_UPPERCASE_RESPLIT = True
 
+    # Broadened to match any non-space continuation (not just ASCII uppercase).
+    # For Latin languages (LATIN_UPPERCASE_RESPLIT=True), the actual uppercase/CJK
+    # check is performed by _split_on_uppercase_boundary in processor.py.
+    # CJK languages override this regex entirely in CJKBoundaryProfile.
     # # Rubular: http://rubular.com/r/NqCqv372Ix
     QUOTATION_AT_END_OF_SENTENCE_REGEX = re.compile(r"[!?\.-][\"\'“”]\s+\S")
 
     # # Rubular: http://rubular.com/r/6flGnUMEVl
     PARENS_BETWEEN_DOUBLE_QUOTES_REGEX = re.compile(r'["\”]\s\(.*\)\s["\“]')
 
+    # Broadened to split on any whitespace (not just before ASCII uppercase).
+    # The uppercase/CJK guard is applied by _split_on_uppercase_boundary when
+    # LATIN_UPPERCASE_RESPLIT is True; CJK languages override in CJKBoundaryProfile.
     # # Rubular: http://rubular.com/r/JMjlZHAT4g
     SPLIT_SPACE_QUOTATION_AT_END_OF_SENTENCE_REGEX = re.compile(r"(?<=[!?\.-][\"\'“”])\s+")
 

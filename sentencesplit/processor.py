@@ -7,7 +7,7 @@ from sentencesplit.abbreviation_replacer import AbbreviationReplacer
 from sentencesplit.between_punctuation import BetweenPunctuation
 from sentencesplit.exclamation_words import ExclamationWords
 from sentencesplit.lists_item_replacer import ListItemReplacer
-from sentencesplit.utils import apply_rules, ensure_compiled
+from sentencesplit.utils import _next_nonspace_char_starts_sentence, apply_rules, ensure_compiled
 
 # Pre-compiled patterns used on the hot path
 _ALPHA_ONLY_RE = re.compile(r"\A[a-zA-Z]*\Z")
@@ -16,18 +16,10 @@ _TRAILING_EXCL_RE = re.compile(r"&ᓴ&$")
 _PAREN_SPACE_BEFORE_RE = re.compile(r"\s(?=\()")
 _PAREN_SPACE_AFTER_RE = re.compile(r"(?<=\))\s")
 _ORPHAN_SINGLE_CHARS = frozenset("'\")\u2019\u201d")
-_CJK_SENTENCE_START_RE = re.compile(r"[\u4e00-\u9fff\u3040-\u30ff\u31f0-\u31ff]")
 _CJK_QUOTE_RESPLIT_RE = re.compile(
     r"(?<=[。．][\]\"')”’」』】）》])(?=[\u4e00-\u9fff\u3040-\u30ff\u31f0-\u31ffA-Za-z0-9「『【（《])"
 )
 _LATIN_RESPLIT_RE = re.compile(r"(?<=[a-zA-Z]{2}\.\))\s+")
-
-
-def _next_nonspace_char_starts_sentence(text: str, start: int = 0) -> bool:
-    for char in text[start:]:
-        if not char.isspace():
-            return char.isupper() or bool(_CJK_SENTENCE_START_RE.match(char))
-    return False
 
 
 def _split_on_uppercase_boundary(text: str, whitespace_re: re.Pattern[str]) -> list[str] | None:
