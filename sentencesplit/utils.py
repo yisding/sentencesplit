@@ -32,9 +32,6 @@ def apply_rules(text: str, *rules: Rule) -> str:
     return text
 
 
-_CJK_SENTENCE_START_RE = re.compile(r"[\u4e00-\u9fff\u3040-\u30ff\u31f0-\u31ff]")
-
-
 def _next_nonspace_char(text: str, start: int = 0) -> str:
     """Return the first non-whitespace character in *text* at or after *start*, or empty string."""
     for char in text[start:]:
@@ -63,7 +60,7 @@ def _next_nonspace_char_is_non_ascii_upper(text: str, start: int = 0) -> bool:
 
 def _next_nonspace_char_starts_sentence(text: str, start: int = 0) -> bool:
     char = _next_nonspace_char(text, start)
-    return bool(char) and (_is_latin_upper(char) or bool(_CJK_SENTENCE_START_RE.match(char)))
+    return _is_latin_upper(char)
 
 
 @dataclass

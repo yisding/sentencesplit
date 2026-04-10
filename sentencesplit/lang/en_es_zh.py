@@ -59,7 +59,7 @@ class EnglishSpanishChinese(CJKBoundaryProfile, Common, Standard):
             if escaped is None:
                 escaped = re.escape(abbr.strip())
             txt = re.sub(
-                rf"(?<=\s{escaped})\.(?=(?:[.:\-?,]|\s(?:[a-z\u00e0-\u00f6\u00f8-\u00ff]|I\s|I'm|I'll|\d|\(|[\u3400-\u9FFF])|[\u3400-\u9FFF]))",
+                rf"(?<=\s{escaped})\.(?=(?:[.:\-?,]|\s(?:[^\W\d_]|I\s|I'm|I'll|\d|\()|[\u3400-\u9FFF]))",
                 "∯",
                 txt,
             )
@@ -92,7 +92,9 @@ class EnglishSpanishChinese(CJKBoundaryProfile, Common, Standard):
                 txt = txt[1:]
                 # Multi-char number abbreviations (eq, pt, fig, vol, …) also
                 # need regular abbreviation protection before lowercase text.
-                if am_lower in self._data.number_abbr_set and len(am.strip()) > 1:
+                # Guard with isupper() so uppercase starters (including non-ASCII
+                # Latin like É) still trigger sentence boundaries.
+                if am_lower in self._data.number_abbr_set and len(am.strip()) > 1 and not (char and char.isupper()):
                     txt = self.replace_period_of_abbr(txt, am.strip(), am_escaped)
             elif am_lower in self._data.number_abbr_set:
                 # Next word starts ASCII uppercase — protect only before Roman numerals.

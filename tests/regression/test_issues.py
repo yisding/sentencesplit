@@ -499,3 +499,40 @@ def test_en_es_zh_accented_uppercase_splits_after_number_abbreviation():
         "Él explica el resultado.",
         "Siguiente.",
     ]
+
+
+@pytest.mark.parametrize(
+    "language,text,expected",
+    [
+        ("en", 'The abbreviation is "etc." 中文里也常见。', ['The abbreviation is "etc." 中文里也常见。']),
+        ("fr", 'The abbreviation is "etc." 中文里也常见。', ['The abbreviation is "etc." 中文里也常见。']),
+        ("es", 'The abbreviation is "etc." 中文里也常见。', ['The abbreviation is "etc." 中文里也常见。']),
+    ],
+)
+def test_latin_quote_resplit_not_triggered_by_cjk(language, text, expected):
+    """Latin profiles must not resplit after quoted punctuation before CJK text."""
+    seg = sentencesplit.Segmenter(language=language, clean=False, char_span=False)
+    assert [s.strip() for s in seg.segment(text)] == expected
+
+
+@pytest.mark.parametrize(
+    "text,expected",
+    [
+        (
+            "Bring paper, pens, etc. český text continued.",
+            ["Bring paper, pens, etc. český text continued."],
+        ),
+        (
+            "Bring paper, pens, etc. ΔF508 remained detectable.",
+            ["Bring paper, pens, etc. ΔF508 remained detectable."],
+        ),
+        (
+            "Meet at Univ. český text continued.",
+            ["Meet at Univ. český text continued."],
+        ),
+    ],
+)
+def test_en_es_zh_abbreviation_protection_for_non_latin1_letters(text, expected):
+    """en_es_zh abbreviation protection must cover non-Latin-1 letters like č and Δ."""
+    seg = sentencesplit.Segmenter(language="en_es_zh", clean=False, char_span=False)
+    assert [s.strip() for s in seg.segment(text)] == expected
