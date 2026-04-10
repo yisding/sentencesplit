@@ -352,3 +352,187 @@ def test_issues_with_char_spans(issue_no, text, expected_sents_w_spans):
     assert segments == expected_text_spans
     # clubbing sentences and matching with original text
     assert text == "".join([seg.sent for seg in segments])
+
+
+@pytest.mark.parametrize(
+    "language,text,expected",
+    [
+        (
+            "zh",
+            "\u5979\u8bf4\uff1a\u201c\u4f60\u597d\u3002\u201d abc\u5f00\u59cb\u3002",
+            ["\u5979\u8bf4\uff1a\u201c\u4f60\u597d\u3002\u201d", "abc\u5f00\u59cb\u3002"],
+        ),
+        (
+            "ja",
+            "\u5f7c\u306f\u300c\u3053\u3093\u306b\u3061\u306f\u3002\u300d abc\u3068\u8a00\u3063\u305f\u3002",
+            ["\u5f7c\u306f\u300c\u3053\u3093\u306b\u3061\u306f\u3002\u300d", "abc\u3068\u8a00\u3063\u305f\u3002"],
+        ),
+        (
+            "ja",
+            "\u5f7c\u306f\u300c\u3053\u3093\u306b\u3061\u306f\u3002\u300d 123\u3068\u8a00\u3063\u305f\u3002",
+            ["\u5f7c\u306f\u300c\u3053\u3093\u306b\u3061\u306f\u3002\u300d", "123\u3068\u8a00\u3063\u305f\u3002"],
+        ),
+    ],
+)
+def test_cjk_quote_splitting_not_gated_by_uppercase(language, text, expected):
+    """CJK closing-quote boundaries must split without requiring an uppercase start."""
+    seg = sentencesplit.Segmenter(language=language, clean=False, char_span=False)
+    assert [s.strip() for s in seg.segment(text)] == expected
+
+
+def test_compact_ampm_before_non_ascii_uppercase():
+    """Compact 6p.m. form should split before non-ASCII uppercase sentence starters."""
+    seg = sentencesplit.Segmenter(language="en", clean=False, char_span=False)
+    assert [s.strip() for s in seg.segment("He left at 6p.m. \u00c9lodie arrived.")] == [
+        "He left at 6p.m.",
+        "\u00c9lodie arrived.",
+    ]
+
+
+def test_eq_abbreviation_before_roman_numeral():
+    """Eq. before a Roman numeral should stay joined like Fig."""
+    seg = sentencesplit.Segmenter(language="en", clean=False, char_span=False)
+    assert [s.strip() for s in seg.segment("Eq. IV shows the result. Next sentence.")] == [
+        "Eq. IV shows the result.",
+        "Next sentence.",
+    ]
+
+
+def test_pt_abbreviation_before_roman_numeral():
+    """Pt. before a Roman numeral should stay joined (number abbreviation)."""
+    seg = sentencesplit.Segmenter(language="en", clean=False, char_span=False)
+    assert [s.strip() for s in seg.segment("Pt. II discusses methods. Next sentence.")] == [
+        "Pt. II discusses methods.",
+        "Next sentence.",
+    ]
+
+
+def test_boundary_abbreviation_before_non_ascii_uppercase():
+    """Two-part boundary abbreviations (U.S.) stay joined before non-ASCII uppercase
+    that is not a known sentence starter — avoids over-splitting noun phrases like
+    'U.S. Élodie Foundation'."""
+    seg = sentencesplit.Segmenter(language="en", clean=False, char_span=False)
+    assert [s.strip() for s in seg.segment("He moved from the U.S. \u00c9lodie arrived.")] == [
+        "He moved from the U.S. \u00c9lodie arrived.",
+    ]
+
+
+@pytest.mark.parametrize(
+    "text,expected",
+    [
+        (
+            "He earned a Ph.D. \u4e2d\u6587\u5f00\u59cb\u3002",
+            ["He earned a Ph.D. \u4e2d\u6587\u5f00\u59cb\u3002"],
+        ),
+        (
+            "He left at 6 p.m. \u4e2d\u6587\u5f00\u59cb\u3002",
+            ["He left at 6 p.m. \u4e2d\u6587\u5f00\u59cb\u3002"],
+        ),
+    ],
+)
+def test_en_es_zh_latin_abbreviation_before_cjk(text, expected):
+    """Latin abbreviations in en_es_zh stay joined before CJK continuations —
+    CJK chars are not reliable sentence-start signals for abbreviation boundary logic."""
+    seg = sentencesplit.Segmenter(language="en_es_zh", clean=False, char_span=False)
+    assert [s.strip() for s in seg.segment(text)] == expected
+
+
+@pytest.mark.parametrize(
+    "text,expected",
+    [
+        (
+            "Bring paper, pens, etc. \u4e2d\u6587\u7ee7\u7eed\u3002",
+            ["Bring paper, pens, etc. \u4e2d\u6587\u7ee7\u7eed\u3002"],
+        ),
+        (
+            "Met at Univ. \u4e2d\u6587\u5b66\u9662\u3002",
+            ["Met at Univ. \u4e2d\u6587\u5b66\u9662\u3002"],
+        ),
+    ],
+)
+def test_en_es_zh_ordinary_abbreviation_before_cjk_stays_joined(text, expected):
+    """Ordinary English abbreviations (etc., Univ.) in en_es_zh must NOT split
+    before CJK continuations — CJK text is not a sentence-start signal."""
+    seg = sentencesplit.Segmenter(language="en_es_zh", clean=False, char_span=False)
+    assert [s.strip() for s in seg.segment(text)] == expected
+
+
+def test_three_part_initialism_before_non_ascii_uppercase_stays_joined():
+    """Pure initialisms like U.S.A. should stay joined before non-ASCII uppercase
+    proper nouns like Élodie — avoids false splits in noun phrases."""
+    seg = sentencesplit.Segmenter(language="en", clean=False, char_span=False)
+    assert [s.strip() for s in seg.segment("He works for the U.S.A. \u00c9lodie Foundation.")] == [
+        "He works for the U.S.A. \u00c9lodie Foundation.",
+    ]
+
+
+@pytest.mark.parametrize(
+    "text,expected",
+    [
+        (
+            "Substituting into Eq. 5 yields the result. The proof is complete.",
+            ["Substituting into Eq. 5 yields the result.", "The proof is complete."],
+        ),
+        ("Pt. presented for evaluation. Results pending.", ["Pt. presented for evaluation.", "Results pending."]),
+    ],
+)
+def test_en_es_zh_number_abbreviations_before_lowercase(text, expected):
+    """Number abbreviations (eq, pt) in en_es_zh must stay joined before lowercase text."""
+    seg = sentencesplit.Segmenter(language="en_es_zh", clean=False, char_span=False)
+    assert [s.strip() for s in seg.segment(text)] == expected
+
+
+def test_greek_uppercase_not_treated_as_sentence_start():
+    """Greek/Cyrillic uppercase (e.g. Δ) should not trigger sentence splits —
+    only accented Latin uppercase (e.g. É) should."""
+    seg = sentencesplit.Segmenter(language="en", clean=False, char_span=False)
+    assert [s.strip() for s in seg.segment("The reading was taken at 6 p.m. ΔF508 remained detectable.")] == [
+        "The reading was taken at 6 p.m. ΔF508 remained detectable.",
+    ]
+
+
+def test_en_es_zh_accented_uppercase_splits_after_number_abbreviation():
+    """Accented uppercase starters like Él must split after number abbreviations in en_es_zh."""
+    seg = sentencesplit.Segmenter(language="en_es_zh", clean=False, char_span=False)
+    assert [s.strip() for s in seg.segment("Fig. Él explica el resultado. Siguiente.")] == [
+        "Fig.",
+        "Él explica el resultado.",
+        "Siguiente.",
+    ]
+
+
+@pytest.mark.parametrize(
+    "language,text,expected",
+    [
+        ("en", 'The abbreviation is "etc." 中文里也常见。', ['The abbreviation is "etc." 中文里也常见。']),
+        ("fr", 'The abbreviation is "etc." 中文里也常见。', ['The abbreviation is "etc." 中文里也常见。']),
+        ("es", 'The abbreviation is "etc." 中文里也常见。', ['The abbreviation is "etc." 中文里也常见。']),
+    ],
+)
+def test_latin_quote_resplit_not_triggered_by_cjk(language, text, expected):
+    """Latin profiles must not resplit after quoted punctuation before CJK text."""
+    seg = sentencesplit.Segmenter(language=language, clean=False, char_span=False)
+    assert [s.strip() for s in seg.segment(text)] == expected
+
+
+@pytest.mark.parametrize(
+    "text,expected",
+    [
+        (
+            "Bring paper, pens, etc. český text continued.",
+            ["Bring paper, pens, etc. český text continued."],
+        ),
+        (
+            "Bring paper, pens, etc. ΔF508 remained detectable.",
+            ["Bring paper, pens, etc. ΔF508 remained detectable."],
+        ),
+        (
+            "Meet at Univ. český text continued.",
+            ["Meet at Univ. český text continued."],
+        ),
+    ],
+)
+def test_en_es_zh_abbreviation_protection_for_non_latin1_letters(text, expected):
+    """en_es_zh abbreviation protection must cover non-Latin-1 letters like č and Δ."""
+    seg = sentencesplit.Segmenter(language="en_es_zh", clean=False, char_span=False)
+    assert [s.strip() for s in seg.segment(text)] == expected

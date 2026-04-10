@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+import unicodedata
 from dataclasses import dataclass
 
 
@@ -29,6 +30,37 @@ def apply_rules(text: str, *rules: Rule) -> str:
     for rule in rules:
         text = rule.regex.sub(rule.replacement, text)
     return text
+
+
+def _next_nonspace_char(text: str, start: int = 0) -> str:
+    """Return the first non-whitespace character in *text* at or after *start*, or empty string."""
+    for char in text[start:]:
+        if not char.isspace():
+            return char
+    return ""
+
+
+def _is_latin_upper(char: str) -> bool:
+    """True for ASCII uppercase or non-ASCII Latin uppercase (e.g. É, Ñ), but not Greek/Cyrillic."""
+    if not char or not char.isupper():
+        return False
+    return char.isascii() or unicodedata.name(char, "").startswith("LATIN")
+
+
+def _next_nonspace_char_is_upper(text: str, start: int = 0) -> bool:
+    char = _next_nonspace_char(text, start)
+    return _is_latin_upper(char)
+
+
+def _next_nonspace_char_is_non_ascii_upper(text: str, start: int = 0) -> bool:
+    """True only for non-ASCII *Latin* uppercase (e.g. É, Ñ), not Greek/Cyrillic."""
+    char = _next_nonspace_char(text, start)
+    return bool(char) and char.isupper() and not char.isascii() and unicodedata.name(char, "").startswith("LATIN")
+
+
+def _next_nonspace_char_starts_sentence(text: str, start: int = 0) -> bool:
+    char = _next_nonspace_char(text, start)
+    return _is_latin_upper(char)
 
 
 @dataclass

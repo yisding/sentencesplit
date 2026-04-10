@@ -14,12 +14,13 @@ from sentencesplit.processor import (
     _ELLIPSIS_RE,
     _ORPHAN_SINGLE_CHARS,
     Processor,
+    _split_on_uppercase_boundary,
     _sub_symbols_fast,
 )
 from sentencesplit.punctuation_replacer import replace_punctuation
 from sentencesplit.utils import Rule, apply_rules
 
-_LATIN_PAREN_RESPLIT_RE = re.compile(r"(?<=[a-zA-Z]{2}\.\))\s+(?=[A-Z])")
+_LATIN_PAREN_RESPLIT_RE = re.compile(r"(?<=[a-zA-Z]{2}\.\))\s+")
 _CJK_FOLLOWING_CHAR_RE = re.compile(r"[\u3400-\u9FFF]")
 _ENGLISH_HEURISTIC_ABBREVIATIONS = frozenset(a.lower() for a in Standard.Abbreviation.ABBREVIATIONS)
 _QUOTE_CLOSER_RE = re.compile(r"""["'”’」』》】]+$""")
@@ -89,6 +90,12 @@ class EnglishSpanishChinese(CJKBoundaryProfile, Common, Standard):
                     txt = self.replace_period_of_abbr(txt[1:], am, am_escaped)
                     return txt
                 txt = txt[1:]
+                # Multi-char number abbreviations (eq, pt, fig, vol, …) also
+                # need regular abbreviation protection before lowercase text.
+                # Guard with isupper() so uppercase starters (including non-ASCII
+                # Latin like É) still trigger sentence boundaries.
+                if am_lower in self._data.number_abbr_set and len(am.strip()) > 1 and not (char and char.isupper()):
+                    txt = self.replace_period_of_abbr(txt, am.strip(), am_escaped)
             elif am_lower in self._data.number_abbr_set:
                 # Next word starts ASCII uppercase — protect only before Roman numerals.
                 # Exclude lone "I" to avoid false joins with the pronoun "I".
@@ -145,7 +152,8 @@ class EnglishSpanishChinese(CJKBoundaryProfile, Common, Standard):
             postprocessed_sents = [apply_rules(ns, self.lang.SubSingleQuoteRule) for ns in postprocessed_sents]
             resplit = []
             for pps in postprocessed_sents:
-                for latin_part in _LATIN_PAREN_RESPLIT_RE.split(pps):
+                latin_parts = _split_on_uppercase_boundary(pps, _LATIN_PAREN_RESPLIT_RE)
+                for latin_part in latin_parts or [pps]:
                     if not latin_part:
                         continue
                     parts = _CJK_QUOTE_RESPLIT_RE.split(latin_part)
