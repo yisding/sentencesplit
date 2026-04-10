@@ -43,9 +43,16 @@ def _next_nonspace_char(text: str, start: int = 0) -> str:
     return ""
 
 
+def _is_latin_upper(char: str) -> bool:
+    """True for ASCII uppercase or non-ASCII Latin uppercase (e.g. É, Ñ), but not Greek/Cyrillic."""
+    if not char or not char.isupper():
+        return False
+    return char.isascii() or unicodedata.name(char, "").startswith("LATIN")
+
+
 def _next_nonspace_char_is_upper(text: str, start: int = 0) -> bool:
     char = _next_nonspace_char(text, start)
-    return bool(char) and char.isupper()
+    return _is_latin_upper(char)
 
 
 def _next_nonspace_char_is_non_ascii_upper(text: str, start: int = 0) -> bool:
@@ -56,7 +63,7 @@ def _next_nonspace_char_is_non_ascii_upper(text: str, start: int = 0) -> bool:
 
 def _next_nonspace_char_starts_sentence(text: str, start: int = 0) -> bool:
     char = _next_nonspace_char(text, start)
-    return bool(char) and (char.isupper() or bool(_CJK_SENTENCE_START_RE.match(char)))
+    return bool(char) and (_is_latin_upper(char) or bool(_CJK_SENTENCE_START_RE.match(char)))
 
 
 @dataclass
