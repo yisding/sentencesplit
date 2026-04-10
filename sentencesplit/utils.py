@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+import unicodedata
 from dataclasses import dataclass
 
 
@@ -48,8 +49,9 @@ def _next_nonspace_char_is_upper(text: str, start: int = 0) -> bool:
 
 
 def _next_nonspace_char_is_non_ascii_upper(text: str, start: int = 0) -> bool:
+    """True only for non-ASCII *Latin* uppercase (e.g. É, Ñ), not Greek/Cyrillic."""
     char = _next_nonspace_char(text, start)
-    return bool(char) and char.isupper() and not char.isascii()
+    return bool(char) and char.isupper() and not char.isascii() and unicodedata.name(char, "").startswith("LATIN")
 
 
 def _next_nonspace_char_starts_sentence(text: str, start: int = 0) -> bool:

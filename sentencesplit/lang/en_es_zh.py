@@ -59,7 +59,7 @@ class EnglishSpanishChinese(CJKBoundaryProfile, Common, Standard):
             if escaped is None:
                 escaped = re.escape(abbr.strip())
             txt = re.sub(
-                rf"(?<=\s{escaped})\.(?=(?:[.:\-?,]|\s(?:[^\W\d_]|I\s|I'm|I'll|\d|\()|[\u3400-\u9FFF]))",
+                rf"(?<=\s{escaped})\.(?=(?:[.:\-?,]|\s(?:[a-z\u00e0-\u00f6\u00f8-\u00ff]|I\s|I'm|I'll|\d|\(|[\u3400-\u9FFF])|[\u3400-\u9FFF]))",
                 "∯",
                 txt,
             )

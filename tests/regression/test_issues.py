@@ -480,3 +480,22 @@ def test_en_es_zh_number_abbreviations_before_lowercase(text, expected):
     """Number abbreviations (eq, pt) in en_es_zh must stay joined before lowercase text."""
     seg = sentencesplit.Segmenter(language="en_es_zh", clean=False, char_span=False)
     assert [s.strip() for s in seg.segment(text)] == expected
+
+
+def test_greek_uppercase_not_treated_as_sentence_start():
+    """Greek/Cyrillic uppercase (e.g. Δ) should not trigger sentence splits —
+    only accented Latin uppercase (e.g. É) should."""
+    seg = sentencesplit.Segmenter(language="en", clean=False, char_span=False)
+    assert [s.strip() for s in seg.segment("The reading was taken at 6 p.m. ΔF508 remained detectable.")] == [
+        "The reading was taken at 6 p.m. ΔF508 remained detectable.",
+    ]
+
+
+def test_en_es_zh_accented_uppercase_splits_after_number_abbreviation():
+    """Accented uppercase starters like Él must split after number abbreviations in en_es_zh."""
+    seg = sentencesplit.Segmenter(language="en_es_zh", clean=False, char_span=False)
+    assert [s.strip() for s in seg.segment("Fig. Él explica el resultado. Siguiente.")] == [
+        "Fig.",
+        "Él explica el resultado.",
+        "Siguiente.",
+    ]
