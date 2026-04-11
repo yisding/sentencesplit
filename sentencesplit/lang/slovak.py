@@ -273,41 +273,39 @@ class Slovak(Common, Standard):
         def process(self):
             if not self.text:
                 return []
-            self.text = self.text.replace("\n", "\r")
+            text = self._normalize_newlines(self.text)
 
             # Here we use language specific ListItemReplacer:
-            li = self.lang.ListItemReplacer(self.text)
-            self.text = li.add_line_break()
+            text = self.lang.ListItemReplacer(text).add_line_break()
 
-            self.replace_abbreviations()
-            self.replace_numbers()
-            self.replace_continuous_punctuation()
-            self.replace_periods_before_numeric_references()
-            self.text = apply_rules(
-                self.text,
+            text = self.replace_abbreviations(text)
+            text = self.replace_numbers(text)
+            text = self.replace_continuous_punctuation(text)
+            text = self.replace_periods_before_numeric_references(text)
+            text = apply_rules(
+                text,
                 self.lang.Abbreviation.WithMultiplePeriodsAndEmailRule,
                 self.lang.GeoLocationRule,
                 self.lang.FileFormatRule,
             )
-            postprocessed_sents = self.split_into_segments()
-            return postprocessed_sents
+            return self.split_into_segments(text)
 
-        def replace_numbers(self):
-            self.text = apply_rules(self.text, *self.lang.Numbers.All)
-            self.replace_period_in_slovak_dates()
-            self.replace_period_in_ordinal_numerals()
-            self.replace_period_in_roman_numerals()
-            return self.text
+        def replace_numbers(self, text: str) -> str:
+            text = apply_rules(text, *self.lang.Numbers.All)
+            text = self.replace_period_in_slovak_dates(text)
+            text = self.replace_period_in_ordinal_numerals(text)
+            text = self.replace_period_in_roman_numerals(text)
+            return text
 
-        def replace_period_in_ordinal_numerals(self):
+        def replace_period_in_ordinal_numerals(self, text: str) -> str:
             # Rubular: https://rubular.com/r/0HkmvzMGTqgWs6
-            self.text = re.sub(r"(?<=\d)\.(?=\s*[a-z]+)", "∯", self.text)
+            return re.sub(r"(?<=\d)\.(?=\s*[a-z]+)", "∯", text)
 
-        def replace_period_in_roman_numerals(self):
+        def replace_period_in_roman_numerals(self, text: str) -> str:
             # Rubular: https://rubular.com/r/XlzTIi7aBRThSl
-            self.text = re.sub(r"((\s+[VXI]+)|(^[VXI]+))(\.)(?=\s+)", r"\1∯", self.text, flags=re.IGNORECASE)
+            return re.sub(r"((\s+[VXI]+)|(^[VXI]+))(\.)(?=\s+)", r"\1∯", text, flags=re.IGNORECASE)
 
-        def replace_period_in_slovak_dates(self):
+        def replace_period_in_slovak_dates(self, text: str) -> str:
             MONTHS = [
                 "Január",
                 "Február",
@@ -336,4 +334,5 @@ class Slovak(Common, Standard):
             ]
             for month in MONTHS:
                 # Rubular: https://rubular.com/r/dGLZqsbjcdJvCd
-                self.text = re.sub(rf"(?<=\d)\.(?=\s*{month})", "∯", self.text)
+                text = re.sub(rf"(?<=\d)\.(?=\s*{month})", "∯", text)
+            return text

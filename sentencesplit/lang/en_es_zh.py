@@ -15,10 +15,9 @@ from sentencesplit.processor import (
     _ORPHAN_SINGLE_CHARS,
     Processor,
     _split_on_uppercase_boundary,
-    _sub_symbols_fast,
 )
 from sentencesplit.punctuation_replacer import replace_punctuation
-from sentencesplit.utils import Rule, apply_rules
+from sentencesplit.utils import Rule
 
 _LATIN_PAREN_RESPLIT_RE = re.compile(r"(?<=[a-zA-Z]{2}\.\))\s+")
 _CJK_FOLLOWING_CHAR_RE = re.compile(r"[\u3400-\u9FFF]")
@@ -134,22 +133,7 @@ class EnglishSpanishChinese(CJKBoundaryProfile, Common, Standard):
             return re.sub(r"（(?=(?P<tmp>[^）\\]+|\\{2}|\\.)*)(?P=tmp)）", replace_punctuation, txt)
 
     class Processor(Processor):
-        def split_into_segments(self) -> list[str]:
-            self.check_for_parens_between_quotes()
-            sents = self.text.split("\r")
-            sents = self.rm_none_flatten(sents)
-            sents = [apply_rules(s, self.lang.SingleNewLineRule, *self.lang.EllipsisRules.All) for s in sents]
-            sents = [self.check_for_punctuation(s) for s in sents]
-            sents = self.rm_none_flatten(sents)
-
-            postprocessed_sents = []
-            for sent in sents:
-                sent = _sub_symbols_fast(sent, self.lang)
-                for pps in self.post_process_segments(sent):
-                    if pps:
-                        postprocessed_sents.append(pps)
-
-            postprocessed_sents = [apply_rules(ns, self.lang.SubSingleQuoteRule) for ns in postprocessed_sents]
+        def _resplit_segments(self, postprocessed_sents: list[str]) -> list[str]:
             resplit = []
             for pps in postprocessed_sents:
                 latin_parts = _split_on_uppercase_boundary(pps, _LATIN_PAREN_RESPLIT_RE)
@@ -158,8 +142,7 @@ class EnglishSpanishChinese(CJKBoundaryProfile, Common, Standard):
                         continue
                     parts = _CJK_QUOTE_RESPLIT_RE.split(latin_part)
                     resplit.extend(part for part in parts if part)
-            resplit = self._merge_quote_continuations(resplit or postprocessed_sents)
-            return self._merge_orphans(resplit)
+            return self._merge_quote_continuations(resplit or postprocessed_sents)
 
         def _merge_quote_continuations(self, sentences: list[str]) -> list[str]:
             merged: list[str] = []
@@ -188,7 +171,7 @@ class EnglishSpanishChinese(CJKBoundaryProfile, Common, Standard):
                 return True
             return False
 
-        def _merge_orphans(self, sentences: list[str]) -> list[str]:
+        def _merge_orphan_fragments(self, sentences: list[str]) -> list[str]:
             merged = []
             for sent in sentences:
                 stripped = sent.strip()

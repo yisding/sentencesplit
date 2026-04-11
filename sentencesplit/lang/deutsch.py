@@ -25,12 +25,11 @@ class Deutsch(Common, Standard):
         def __init__(self, text, lang, char_span=False, **kwargs):
             super().__init__(text, lang, char_span, **kwargs)
 
-        def replace_numbers(self):
-            self.text = apply_rules(self.text, *self.lang.Numbers.All)
-            self.replace_period_in_deutsch_dates()
-            return self.text
+        def replace_numbers(self, text: str) -> str:
+            text = apply_rules(text, *self.lang.Numbers.All)
+            return self.replace_period_in_deutsch_dates(text)
 
-        def replace_period_in_deutsch_dates(self):
+        def replace_period_in_deutsch_dates(self, text: str) -> str:
             MONTHS = [
                 "Januar",
                 "Februar",
@@ -47,7 +46,8 @@ class Deutsch(Common, Standard):
             ]
             for month in MONTHS:
                 # Rubular: http://rubular.com/r/zlqgj7G5dA
-                self.text = re.sub(rf"(?<=\d)\.(?=\s*{month})", "∯", self.text)
+                text = re.sub(rf"(?<=\d)\.(?=\s*{month})", "∯", text)
+            return text
 
     class Abbreviation(Standard.Abbreviation):
         ABBREVIATIONS = [
