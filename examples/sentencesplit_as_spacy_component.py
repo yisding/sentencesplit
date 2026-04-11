@@ -2,7 +2,13 @@
 Example of sentencesplit as a sentencizer component for spaCy
 
 Installation:
-pip install spacy
+pip install spacy sentencesplit
+
+If you only need the packaged component, prefer:
+
+    nlp.add_pipe("sentencesplit")
+
+This example shows a manual wrapper built on top of `Segmenter(char_span=True)`.
 """
 
 import spacy

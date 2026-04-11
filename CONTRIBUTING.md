@@ -40,15 +40,14 @@ When opening an issue, use an **appropriate and descriptive title** and include 
 To understand the internals of this project, a good place to start is to refer to the implementation section of the [pySBD research paper](https://arxiv.org/abs/2010.09657).
 
 ### Getting started
-To make changes to the code base, you need to fork then clone the GitHub repository. You'll need Python 3.11+, pip and git installed.
+To make changes to the code base, you need to fork then clone the GitHub repository. You'll need Python 3.11+, `uv`, and git installed.
 
 ```python
-python -m pip install -U pip
-git clone https://github.com/yisding/pySBD
-cd pySBD
-pip install -e ".[dev]"
+git clone https://github.com/yisding/sentencesplit
+cd sentencesplit
+uv sync --group dev
 ```
-Since sentencesplit is lightweight, it requires only Python built-in modules, specifically the `re` module, to function. Development packages are provided through the `dev` extra in `pyproject.toml`. If you want benchmark dependencies (`spacy`, `stanza`, etc.), install `pip install -e ".[benchmark]"`.
+Since sentencesplit is lightweight, it requires only Python built-in modules, specifically the `re` module, to function. Development packages are managed through the `dev` dependency group in `pyproject.toml`. If you want benchmark dependencies (`spacy`, `stanza`, etc.), install them with `uv sync --extra benchmark`.
 
 ### Add a new rule to existing *Golden Rules Set* (GRS)
 The language specific *Golden Rules Set* are hand-constructed rules, designed to cover sentence boundaries across a variety of domains. The set is by no means complete and will evolve and expand over time. If you would like to report an issue in an existing rule or report a new rule, please [open an issue.](#submitting-issues) If you want to contribute yourself then please go ahead and send a pull request by referring to the [add tests](#add-tests) section.
@@ -62,8 +61,21 @@ You would need to create a *Golden Rule Set* representing basic to complex sente
 2. **Add your language module**</br>
 Create a new file at `sentencesplit/lang/<language_name>.py` and define a new class `LanguageName` which should inherit from two base classes - `Common, Standard` - involving basic rules common across the majority of languages. Try running tests to see if your GRS passes. If it fails, you would need to override `SENTENCE_BOUNDARY_REGEX`, `Punctuations` class variables and `AbbreviationReplacer` class to support your language-specific punctuations and sentence boundaries.
 
+If you need custom pipeline behavior, prefer overriding `Processor` hooks instead of reimplementing the entire `process()` method. The processor now resolves language hooks through the internal `LanguageProfile` adapter and expects most overrides to use pure string-in/string-out signatures:
+
+- `replace_abbreviations(text: str) -> str`
+- `replace_numbers(text: str) -> str`
+- `replace_continuous_punctuation(text: str) -> str`
+- `replace_periods_before_numeric_references(text: str) -> str`
+- `between_punctuation(text: str) -> str`
+- `split_into_segments(text: str | None = None) -> list[str]`
+- `_resplit_segments(sentences: list[str]) -> list[str]`
+- `_merge_orphan_fragments(sentences: list[str]) -> list[str]`
+
+Call `super()` and transform the returned value when you can. Use a full `process()` override only when the language really has a different pipeline shape, as Slovak does.
+
 3. **Add language code**<br>
-Your language module & language GRS should be in place by now. Next, make it available in the [`languages`](sentencesplit/languages.py) module by importing your language module and adding a new key with the [ISO 639-1](https://en.wikipedia.org/wiki/List_of_ISO_639-1_codes) language code to the `LANGUAGE_CODES` dictionary.
+Your language module & language GRS should be in place by now. Next, make it available in the [`languages`](sentencesplit/languages.py) module by adding a new entry to `_LANGUAGE_MODULES` with the [ISO 639-1](https://en.wikipedia.org/wiki/List_of_ISO_639-1_codes) language code, module path, and class name.
 
 ### Add tests
 We emphasize Test-Driven Development [(TDD)](https://testdriven.io/test-driven-development/) to ensure robustness. Follow a "Red-Green-Refactor" cycle.

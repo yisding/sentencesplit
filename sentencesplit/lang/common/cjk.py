@@ -25,8 +25,8 @@ class CJKBoundaryProfile:
 
 
 class CJKProcessor(Processor):
-    def split_into_segments(self) -> list[str]:
-        return self._merge_quote_continuations(super().split_into_segments())
+    def split_into_segments(self, text: str | None = None) -> list[str]:
+        return self._merge_quote_continuations(super().split_into_segments(text))
 
     def _merge_quote_continuations(self, sentences: list[str]) -> list[str]:
         clause_regex = getattr(self.lang, "CJK_REPORTING_CLAUSE_REGEX", None)

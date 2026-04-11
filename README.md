@@ -14,7 +14,7 @@ This project is a direct port of ruby gem - [Pragmatic Segmenter](https://github
 
 ## Usage
 
--   Currently sentencesplit supports 24 languages.
+-   Currently sentencesplit supports 26 languages.
 
 ```python
 import sentencesplit
@@ -109,6 +109,48 @@ print(seg.segment("Hola Srta. Ledesma. How are you?"))
 ```
 
 This works well for languages that share the `Common` and `Standard` base classes and use the same sentence-ending punctuation (`.`, `!`, `?`). The same pattern can be extended to other similar languages like Italian, Dutch, or Danish. Languages with different writing systems or punctuation (e.g. Japanese, Arabic) would need a different approach.
+
+## Custom processor hooks
+
+If you need to customize segmentation beyond regex tables and abbreviation lists, override `Processor` hooks on your language class.
+
+The processor now treats most hooks as pure transformations:
+
+- `replace_abbreviations(text: str) -> str`
+- `replace_numbers(text: str) -> str`
+- `replace_continuous_punctuation(text: str) -> str`
+- `replace_periods_before_numeric_references(text: str) -> str`
+- `between_punctuation(text: str) -> str`
+- `split_into_segments(text: str | None = None) -> list[str]`
+- `_resplit_segments(sentences: list[str]) -> list[str]`
+- `_merge_orphan_fragments(sentences: list[str]) -> list[str]`
+
+For most languages, overriding one or two of these hooks is enough. Prefer calling `super()` and transforming the returned text instead of mutating `self.text` directly.
+
+```python
+from sentencesplit.lang.common import Common, Standard
+from sentencesplit.languages import LANGUAGE_CODES
+from sentencesplit.processor import Processor
+
+
+class Demo(Common, Standard):
+    iso_code = "demo"
+
+    class Processor(Processor):
+        def replace_numbers(self, text: str) -> str:
+            text = super().replace_numbers(text)
+            # Example: protect section markers like "§. 5"
+            return text.replace("§.", "§∯")
+
+        def _resplit_segments(self, sentences: list[str]) -> list[str]:
+            # Reuse the default resplit logic, then add project-specific tweaks.
+            return super()._resplit_segments(sentences)
+
+
+LANGUAGE_CODES["demo"] = Demo
+```
+
+`sentencesplit.language_profile.LanguageProfile` is the internal adapter that resolves these hooks and compiled regexes for the processor. It is useful for contributors working on the engine, but it is not intended as a stable public extension API.
 
 ## Releasing
 
