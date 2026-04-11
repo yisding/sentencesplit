@@ -1492,7 +1492,7 @@ wheels = [
 
 [[package]]
 name = "sentencesplit"
-version = "0.0.1"
+version = "0.0.2"
 source = { editable = "." }
 
 [package.optional-dependencies]
