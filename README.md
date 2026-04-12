@@ -1,73 +1,159 @@
 # sentencesplit
 
-> **Derived from [pySBD](https://github.com/nipunsadvilkar/pySBD)** (Python Sentence Boundary Disambiguation) by Nipun Sadvilkar.
+Rule-based sentence boundary detection that works out-of-the-box for 24 languages. Pure Python, zero dependencies.
 
-sentencesplit is a rule-based sentence boundary detection library that works out-of-the-box across many languages.
+## Why sentencesplit
 
-This project is a direct port of ruby gem - [Pragmatic Segmenter](https://github.com/diasks2/pragmatic_segmenter) which provides rule-based sentence boundary detection.
+Most sentence splitters choke on abbreviations, numbered references, initials, and other ambiguous periods. sentencesplit uses a deep rule engine (derived from [pySBD](https://github.com/nipunsadvilkar/pySBD) / [Pragmatic Segmenter](https://github.com/diasks2/pragmatic_segmenter)) to handle these correctly:
+
+```python
+import sentencesplit
+
+seg = sentencesplit.Segmenter(language="en")
+seg.segment("My name is Jonas E. Smith. Please turn to p. 55.")
+# ['My name is Jonas E. Smith. ', 'Please turn to p. 55.']
+```
+
+Naive `split(".")` or regex-based splitters would break on `E.`, `p.`, and `55.` above. sentencesplit gets these right across English, Chinese, Japanese, Spanish, and 20+ other languages.
+
+**What it's good at:**
+
+- Abbreviations, honorifics, and initials (`Dr.`, `U.S.`, `p. 55`)
+- CJK sentence-ending punctuation (`。`, `！`, `？`) with quote/bracket awareness
+- Mixed-language text via the built-in `en_es_zh` combined profile
+- Streaming/incremental input: `should_wait_for_more()` tells you if the last boundary might change as more text arrives
+- Character-offset spans for downstream annotation, NER, or LLM token alignment
+- Lists, parentheticals, ellipses, and OCR/PDF artifacts
+- No model downloads, no GPU, no network calls -- just `pip install` and go
 
 ## Install
 
-**Python 3.11+ required.**
-
-    pip install sentencesplit
-
-## Usage
-
--   Currently sentencesplit supports 26 languages.
-
-```python
-import sentencesplit
-text = "My name is Jonas E. Smith. Please turn to p. 55."
-seg = sentencesplit.Segmenter(language="en", clean=False)
-print(seg.segment(text))
-# ['My name is Jonas E. Smith.', 'Please turn to p. 55.']
+```
+pip install sentencesplit
 ```
 
+Python 3.11+. No dependencies to install.
+
+## Quick start
+
+### Basic segmentation
+
 ```python
 import sentencesplit
 
-seg = sentencesplit.Segmenter(language="en", clean=False)
+seg = sentencesplit.Segmenter(language="en")
+seg.segment("Dr. Smith called at 3 p.m. He said to see p. 55. Then he left.")
+# ['Dr. Smith called at 3 p.m. ', 'He said to see p. 55. ', 'Then he left.']
+```
+
+### Character-offset spans
+
+```python
+seg = sentencesplit.Segmenter(language="en")
+seg.segment_spans("My name is Jonas E. Smith. Please turn to p. 55.")
+# [TextSpan(sent='My name is Jonas E. Smith. ', start=0, end=27),
+#  TextSpan(sent='Please turn to p. 55.', start=27, end=48)]
+```
+
+`segment_spans()` always returns `TextSpan` objects with `.sent`, `.start`, `.end` regardless of the `char_span` constructor flag.
+
+### Streaming / lookahead
+
+When processing streaming text (e.g. LLM output), you often can't tell if the last period is truly the end of a sentence. sentencesplit can probe for you:
+
+```python
+seg = sentencesplit.Segmenter(language="en")
 
 result = seg.segment_with_lookahead("The model is GPT 3.")
-print(result.segments)
-# ['The model is GPT 3.']
-print(result.should_wait_for_more)
-# True
+result.segments          # ['The model is GPT 3.']
+result.should_wait_for_more  # True  -- "3." might continue as "3.5"
 
-print(seg.should_wait_for_more("This is the finale."))
-# False
+result = seg.segment_with_lookahead("This is the finale.")
+result.should_wait_for_more  # False -- clearly a complete sentence
 ```
 
-### Why lookahead uses probes
+`should_wait_for_more()` works by appending tiny probe suffixes and re-running segmentation. If the final boundary changes, it returns `True`. This handles abbreviations, numeric decimals, and language-specific ambiguities without any special configuration.
 
-`should_wait_for_more()` answers a *counterfactual* question: "if more characters arrived, would the last boundary stay a boundary?"  
-The existing regex/rule pipeline is deterministic for the text you pass in, but it cannot directly encode every continuation-sensitive case in one pass (for example `"Dr."` vs `"This is the finale."`, numeric endings, and language-specific abbreviation/starter interactions) without effectively duplicating parser state.
+### CJK languages
 
-Instead, lookahead appends a few tiny probe suffixes and re-runs segmentation to see whether the final segment remains stable. If adding plausible continuation tokens changes that final boundary, we return `should_wait_for_more=True`; otherwise `False`.
+```python
+seg = sentencesplit.Segmenter(language="zh")
+seg.segment("这是第一句。这是第二句！这是第三句？")
+# ['这是第一句。', '这是第二句！', '这是第三句？']
+```
 
-To keep this efficient for streaming inputs, lookahead probes only the located tail segment when possible and falls back to full-text probing only when needed.
+Chinese (`zh`) and Japanese (`ja`) use `CJKBoundaryProfile`, which recognizes CJK sentence-ending punctuation and closing quotes/brackets.
 
--   Use `sentencesplit` as a [spaCy](https://spacy.io/usage/processing-pipelines) pipeline component. (recommended)</br>Please refer to example [sentencesplit\_as\_spacy\_component.py](examples/sentencesplit_as_spacy_component.py)
-- Use sentencesplit through [entry points](https://spacy.io/usage/saving-loading#entry-points-components)
+### Mixed-language text
+
+Use the built-in `en_es_zh` profile for text that mixes English, Spanish, and Chinese:
+
+```python
+seg = sentencesplit.Segmenter(language="en_es_zh")
+seg.segment("Hola Sr. Lopez. This is Dr. Wang. 今天天气很好。")
+# ['Hola Sr. Lopez. ', 'This is Dr. Wang. ', '今天天气很好。']
+```
+
+You can build your own combined profile by merging abbreviation lists from any languages that share the same writing system. See [Multi-language segmentation](#multi-language-segmentation) below.
+
+### Split mode
+
+Controls how aggressively abbreviation-period ambiguity is resolved:
+
+```python
+# Default: conservative -- fewer splits, preserves abbreviation boundaries
+seg = sentencesplit.Segmenter(language="en", split_mode="conservative")
+
+# Aggressive: more splits at ambiguous abbreviation periods (e.g. "St.")
+seg = sentencesplit.Segmenter(language="en", split_mode="aggressive")
+```
+
+### spaCy integration
+
+sentencesplit registers as a [spaCy pipeline component](https://spacy.io/usage/processing-pipelines) via entry points:
 
 ```python
 import spacy
 
-nlp = spacy.blank('en')
-
-# add sentencesplit component registered via package entry points
+nlp = spacy.blank("en")
 nlp.add_pipe("sentencesplit")
 
-doc = nlp('My name is Jonas E. Smith. Please turn to p. 55.')
+doc = nlp("My name is Jonas E. Smith. Please turn to p. 55.")
 print(list(doc.sents))
 # [My name is Jonas E. Smith., Please turn to p. 55.]
-
 ```
+
+See [examples/sentencesplit_as_spacy_component.py](examples/sentencesplit_as_spacy_component.py) for more.
+
+### PDF / OCR text
+
+```python
+seg = sentencesplit.Segmenter(language="en", clean=True, doc_type="pdf")
+seg.segment(ocr_text)
+```
+
+`clean=True` normalizes HTML entities, escaped newlines, and PDF line-break artifacts before segmenting.
+
+## Supported languages
+
+24 languages with ISO 639-1 codes, plus 2 specialized profiles:
+
+| Code | Language | Code | Language | Code | Language |
+|------|----------|------|----------|------|----------|
+| `am` | Amharic | `fa` | Persian | `mr` | Marathi |
+| `ar` | Arabic | `fr` | French | `my` | Burmese |
+| `bg` | Bulgarian | `el` | Greek | `nl` | Dutch |
+| `da` | Danish | `hi` | Hindi | `pl` | Polish |
+| `de` | German | `hy` | Armenian | `ru` | Russian |
+| `en` | English | `it` | Italian | `sk` | Slovak |
+| `es` | Spanish | `ja` | Japanese | `tl` | Tagalog |
+| `kk` | Kazakh | `zh` | Chinese | `ur` | Urdu |
+
+**Specialized profiles:** `en_es_zh` (combined English/Spanish/Chinese), `en_legal` (English legal text).
 
 ## Multi-language segmentation
 
-Languages with similar writing systems (e.g. English, Spanish, French) can be combined into a single segmenter by merging their abbreviation lists. This avoids needing to detect the language of each sentence before segmenting.
+Languages with similar writing systems can be combined into a single segmenter by merging their abbreviation lists. This avoids needing to detect the language of each sentence before segmenting.
 
 ```python
 import sentencesplit
@@ -105,7 +191,7 @@ LANGUAGE_CODES['multi'] = MultiLang
 
 seg = sentencesplit.Segmenter(language="multi", clean=False)
 print(seg.segment("Hola Srta. Ledesma. How are you?"))
-# ['Hola Srta. Ledesma.', 'How are you?']
+# ['Hola Srta. Ledesma. ', 'How are you?']
 ```
 
 This works well for languages that share the `Common` and `Standard` base classes and use the same sentence-ending punctuation (`.`, `!`, `?`). The same pattern can be extended to other similar languages like Italian, Dutch, or Danish. Languages with different writing systems or punctuation (e.g. Japanese, Arabic) would need a different approach.
@@ -114,7 +200,7 @@ This works well for languages that share the `Common` and `Standard` base classe
 
 If you need to customize segmentation beyond regex tables and abbreviation lists, override `Processor` hooks on your language class.
 
-The processor now treats most hooks as pure transformations:
+The processor treats most hooks as pure transformations:
 
 - `replace_abbreviations(text: str) -> str`
 - `replace_numbers(text: str) -> str`
@@ -171,7 +257,7 @@ Release steps:
 6. After the release step succeeds, the `Release` workflow calls the separate `Publish to PyPI` workflow, which checks out the new tag and uploads the built distributions using Trusted Publishing.
 7. If you need to publish an already-created release tag, run `Publish to PyPI` manually and enter the existing tag, for example `v0.0.1`.
 
-`python-semantic-release` still uses Conventional Commits to generate changelog entries cleanly, so commit messages like `fix: ...`, `feat: ...`, and `feat!: ...` are still recommended even though releases are now triggered manually.
+`python-semantic-release` uses Conventional Commits to generate changelog entries, so commit messages like `fix: ...`, `feat: ...`, and `feat!: ...` are recommended.
 
 ## Contributing
 
@@ -184,6 +270,7 @@ If you want to contribute new feature/language support or found a text that is i
 5.  Create a new Pull Request
 
 ## Citation
+
 This project is derived from pySBD. If you use it in your projects or research, please cite the original [PySBD: Pragmatic Sentence Boundary Disambiguation](https://www.aclweb.org/anthology/2020.nlposs-1.15) paper.
 ```
 @inproceedings{sadvilkar-neumann-2020-pysbd,

@@ -54,6 +54,12 @@ CI in `.github/workflows/python-package.yml` runs lint + tests on Python 3.11, 3
 - For language-rule changes, update or add the relevant Golden Rules file in `tests/lang/` and verify the language remains registered in `tests/test_languages.py`.
 
 ## Commit & Pull Request Guidelines
-- Commit messages in this repo are short, imperative, and specific (for example: `Refine lookahead handling for quoted terminal periods`).
+- Commit messages MUST follow the [Conventional Commits](https://www.conventionalcommits.org/) spec — releases are cut by `python-semantic-release` (configured in `pyproject.toml` with `commit_parser = "conventional"`), which derives the next version from commit types.
+- Format: `<type>(<optional scope>): <imperative subject>`. Examples:
+  - `fix(lookahead): refine handling for quoted terminal periods` (→ patch)
+  - `feat(lang): add Vietnamese segmentation profile` (→ minor)
+  - `feat!: drop Python 3.10 support` or a `BREAKING CHANGE:` footer (→ major)
+- Allowed types: `feat`, `fix`, `perf`, `refactor`, `docs`, `test`, `build`, `ci`, `chore`, `style`, `revert`. Use `fix`/`feat`/`perf`/`refactor` for anything that should appear in the changelog; use `chore`/`docs`/`test`/`ci`/`build` for non-release-worthy work.
+- Keep the subject short, imperative, and specific. Put rationale and details in the body.
 - Keep commits focused; separate refactors/formatting from behavior changes when practical.
 - PRs should include a clear problem statement and scope, linked issue(s) for bug fixes, test evidence (`uv run pytest ...`), and representative input/output examples for language, lookahead, `split_mode`, or spaCy behavior changes.
