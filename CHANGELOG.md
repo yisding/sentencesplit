@@ -1,3 +1,28 @@
+# v0.0.3 (2026-04-12)
+- refactor: split the processor into explicit text-processing and boundary-processing phase pipelines (`_text_processing_phases`, `_boundary_processing_phases`).
+- ci: decouple the release workflow from the PyPI publish workflow so tags can be republished independently.
+- docs: refresh `CLAUDE.md`, `AGENTS.md`, and `README.md` for accuracy and onboarding.
+
+# v0.0.2 (2026-04-11)
+- feat(lang): add `Eq.` and `Pt.` to number abbreviations and tighten en_es_zh abbreviation handling.
+- fix: handle non-ASCII boundary characters across the abbreviation paths without over-splitting CJK text.
+- fix: exclude CJK from the Latin uppercase resplit heuristic; restrict sentence-start detection to Latin uppercase only.
+- fix(en_es_zh): broaden abbreviation protection so CJK after an abbreviation does not trigger a false split.
+- fix: CJK quote-split regression and compact AM/PM matching.
+- refactor: deduplicate helpers and document broadened quotation regexes.
+- ci: allow manual PyPI publishes and call the publish workflow from the release workflow.
+
+# v0.0.1 (2026-04-08)
+- First PyPI release under the `sentencesplit` name (project renamed from `pysbd`, derived with attribution).
+- feat(lang): add `en_legal` profile specialized for legal-document segmentation, plus common English abbreviations to prevent false splits.
+- feat: add Python 3.14 to the supported matrix.
+- perf: pre-compile regex patterns, lazy language loading, and cache class references; `LANGUAGE_CODES` now implements `MutableMapping` for dict-compatible mutation.
+- fix: prevent `ListItemReplacer` from mis-splitting `v.` as an alphabetical list item.
+- fix(lang): improve Italian abbreviation handling.
+- fix: CJK-related boundary fixes for Chinese and Japanese.
+- ci: add `uv`-based release and publish GitHub Actions workflows.
+- docs: add release instructions.
+
 # v0.4.0
 - Renamed package from `pysbd` to `sentencesplit`. The project is derived from pySBD with clear attribution.
 
