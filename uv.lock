@@ -1506,6 +1506,9 @@ benchmark = [
 release = [
     { name = "python-semantic-release" },
 ]
+spacy = [
+    { name = "spacy" },
+]
 
 [package.dev-dependencies]
 dev = [
@@ -1522,10 +1525,11 @@ requires-dist = [
     { name = "nltk", marker = "extra == 'benchmark'", specifier = ">=3.9" },
     { name = "python-semantic-release", marker = "extra == 'release'", specifier = ">=10,<11" },
     { name = "spacy", marker = "extra == 'benchmark'", specifier = ">=3.8" },
+    { name = "spacy", marker = "extra == 'spacy'", specifier = ">=3.8" },
     { name = "stanza", marker = "extra == 'benchmark'", specifier = ">=1.8" },
     { name = "syntok", marker = "extra == 'benchmark'", specifier = ">=1.4.4" },
 ]
-provides-extras = ["benchmark", "release"]
+provides-extras = ["spacy", "benchmark", "release"]
 
 [package.metadata.requires-dev]
 dev = [

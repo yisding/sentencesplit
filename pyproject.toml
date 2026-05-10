@@ -37,6 +37,7 @@ dependencies = []
 Repository = "https://github.com/yisding/sentencesplit"
 
 [project.optional-dependencies]
+spacy = ["spacy>=3.8"]
 benchmark = [
   "blingfire>=0.1.8",
   "nltk>=3.9",

@@ -110,7 +110,11 @@ seg = sentencesplit.Segmenter(language="en", split_mode="aggressive")
 
 ### spaCy integration
 
-sentencesplit registers as a [spaCy pipeline component](https://spacy.io/usage/processing-pipelines) via entry points:
+sentencesplit registers as a [spaCy pipeline component](https://spacy.io/usage/processing-pipelines) via entry points. Install with the optional `spacy` extra:
+
+```
+pip install sentencesplit[spacy]
+```
 
 ```python
 import spacy
