@@ -16,6 +16,7 @@ GOLDEN_DA_RULES_TEST_CASES = [
         "De lukkede aftalen med Pitt, Briggs & Co. Det lukkede i går.",
         ["De lukkede aftalen med Pitt, Briggs & Co.", "Det lukkede i går."],
     ),
+    ("Mød Fru. Jensen i dag. Hun bliver.", ["Mød Fru. Jensen i dag.", "Hun bliver."]),
     ("De holdt Skt. Hans i byen.", ["De holdt Skt. Hans i byen."]),
     ("St. Michael's Kirke er på 5. gade nær ved lyset.", ["St. Michael's Kirke er på 5. gade nær ved lyset."]),
     ("That is JFK Jr.'s book.", ["That is JFK Jr.'s book."]),

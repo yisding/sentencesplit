@@ -14,6 +14,7 @@ GOLDEN_NL_RULES_TEST_CASES = [
         ["81 procent van de schoten was raak.", "...en toen barste de hel los."],
     ),
     ("Afkorting aanw. vnw.", ["Afkorting aanw. vnw."]),
+    ("Zie deelw. voorbeeld. Daarna klaar.", ["Zie deelw. voorbeeld.", "Daarna klaar."]),
 ]
 
 

@@ -21,6 +21,16 @@ def test_cleaner_doesnt_mutate_input(text="It was a cold \nnight in the city."):
     assert text == "It was a cold \nnight in the city."
 
 
+def test_cleaner_removes_newline_in_middle_of_sentence_after_period():
+    cleaned_text = Cleaner("First sentence. It was a cold \nnight in the city.", Language.get_language_code("en")).clean()
+    assert cleaned_text == "First sentence. It was a cold night in the city."
+
+
+def test_cleaner_leaves_newline_after_period_as_sentence_break():
+    cleaned_text = Cleaner("First sentence.\nNext sentence.", Language.get_language_code("en")).clean()
+    assert cleaned_text == "First sentence.\rNext sentence."
+
+
 def test_cleaner_none_input(text=None):
     cleaned_text = Cleaner(text, Language.get_language_code("en")).clean()
     assert cleaned_text == text

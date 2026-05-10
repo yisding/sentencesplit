@@ -278,6 +278,8 @@ class Segmenter:
                 continue
 
             start_idx, end_idx = match_span
+            if start_idx > prior_end:
+                start_idx = prior_end
             while end_idx < len(original_text) and original_text[end_idx].isspace():
                 end_idx += 1
             yield original_text[start_idx:end_idx], start_idx, end_idx

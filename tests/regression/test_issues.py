@@ -240,6 +240,12 @@ def test_descending_alphabetical_sequences_not_treated_as_list_items():
     assert ListItemReplacer(text).add_line_break() == text
 
 
+def test_hyphen_prefixed_numbered_period_paren_list_items_split():
+    seg = sentencesplit.Segmenter(language="en", clean=False)
+    segments = [s.strip() for s in seg.segment("-1.) The first item -2.) The second item")]
+    assert segments == ["-1.) The first item", "-2.) The second item"]
+
+
 def test_common_abbreviations_no_false_split():
     """Common abbreviations like govt., approx., misc. should not cause false splits."""
     seg = sentencesplit.Segmenter(language="en", clean=False)

@@ -48,7 +48,7 @@ benchmark = [
 release = ["python-semantic-release>=10,<11"]
 
 [project.entry-points."spacy_factories"]
-sentencesplit = "sentencesplit.spacy_component:SentenceSplitFactory"
+sentencesplit = "sentencesplit.spacy_component:create_sentencesplit"
 
 [dependency-groups]
 dev = [

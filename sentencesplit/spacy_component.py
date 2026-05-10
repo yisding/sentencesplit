@@ -16,11 +16,32 @@ class SentenceSplitFactory:
         self.seg = Segmenter(language=language, clean=False, char_span=True)
 
     def __call__(self, doc):
-        sents_char_spans = self.seg.segment(doc.text_with_ws)
-        start_token_ids = [sent.start for sent in sents_char_spans]
-        for token in doc:
+        sents_char_spans = self.seg.segment(doc.text)
+        tokens = list(doc)
+        start_token_ids = _sentence_start_token_indices(tokens, sents_char_spans)
+        for token in tokens:
             token.is_sent_start = True if token.idx in start_token_ids else False
         return doc
+
+
+def _sentence_start_token_indices(tokens, sentence_spans):
+    start_token_ids = set()
+    token_index = 0
+    for sent in sentence_spans:
+        while token_index < len(tokens) and tokens[token_index].idx < sent.start:
+            token_index += 1
+        search_index = token_index
+        while search_index < len(tokens) and tokens[search_index].idx < sent.end:
+            start_token_ids.add(tokens[search_index].idx)
+            token_index = search_index + 1
+            break
+        else:
+            token_index = search_index
+    return start_token_ids
+
+
+def create_sentencesplit(nlp, name, language):
+    return SentenceSplitFactory(nlp, name, language)
 
 
 try:
@@ -34,6 +55,4 @@ else:
 
     from spacy.language import Language
 
-    @Language.factory("sentencesplit", default_config={"language": "en"})
-    def create_sentencesplit(nlp, name, language):
-        return SentenceSplitFactory(nlp, name, language)
+    Language.factory("sentencesplit", default_config={"language": "en"})(create_sentencesplit)

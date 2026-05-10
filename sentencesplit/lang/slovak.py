@@ -188,7 +188,6 @@ class Slovak(Common, Standard):
             "a. r. k",
             "d. c",
             "k. o",
-            "a. r. k",
             "soc",
             "bc",
             "zs",
@@ -226,7 +225,6 @@ class Slovak(Common, Standard):
             "z.z",
             "z. z",
             "judr",
-            "ing",
             "hod",
             "vs",
             "písm",
@@ -267,29 +265,6 @@ class Slovak(Common, Standard):
             return txt
 
     class Processor(Processor):
-        def __init__(self, text, lang, char_span=False, **kwargs):
-            super().__init__(text, lang, char_span, **kwargs)
-
-        def process(self):
-            if not self.text:
-                return []
-            text = self._normalize_newlines(self.text)
-
-            # Here we use language specific ListItemReplacer:
-            text = self.lang.ListItemReplacer(text).add_line_break()
-
-            text = self.replace_abbreviations(text)
-            text = self.replace_numbers(text)
-            text = self.replace_continuous_punctuation(text)
-            text = self.replace_periods_before_numeric_references(text)
-            text = apply_rules(
-                text,
-                self.lang.Abbreviation.WithMultiplePeriodsAndEmailRule,
-                self.lang.GeoLocationRule,
-                self.lang.FileFormatRule,
-            )
-            return self.split_into_segments(text)
-
         def replace_numbers(self, text: str) -> str:
             text = apply_rules(text, *self.lang.Numbers.All)
             text = self.replace_period_in_slovak_dates(text)

@@ -44,6 +44,29 @@ def test_segment_spans_helper_returns_textspans(text="My name is Jonas E. Smith.
     assert text == "".join([seg_span.sent for seg_span in spans])
 
 
+def test_no_clean_segment_preserves_leading_whitespace():
+    text = "\n  Hello.  World."
+    seg = sentencesplit.Segmenter(language="en", clean=False, char_span=False)
+
+    segments = seg.segment(text)
+
+    assert segments == ["\n  Hello.  ", "World."]
+    assert "".join(segments) == text
+
+
+def test_segment_spans_preserve_leading_whitespace():
+    text = "\n  Hello.  World."
+    seg = sentencesplit.Segmenter(language="en", clean=False, char_span=False)
+
+    spans = seg.segment_spans(text)
+
+    assert spans == [
+        TextSpan("\n  Hello.  ", 0, 11),
+        TextSpan("World.", 11, 17),
+    ]
+    assert "".join(span.sent for span in spans) == text
+
+
 def test_segment_clean_helper_matches_clean_segmenter(text="This is the U.S. Senate my friends. <em>Yes.</em>"):
     seg = sentencesplit.Segmenter(language="en", clean=False, char_span=False)
     clean_seg = sentencesplit.Segmenter(language="en", clean=True, char_span=False)
