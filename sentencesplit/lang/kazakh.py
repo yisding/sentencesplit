@@ -17,8 +17,8 @@ class Kazakh(Common, Standard):
     )
 
     class Processor(Processor):
-        def __init__(self, text, lang, char_span=False, **kwargs):
-            super().__init__(text, lang, char_span, **kwargs)
+        def __init__(self, text, lang, **kwargs):
+            super().__init__(text, lang, **kwargs)
 
         def between_punctuation(self, txt):
             txt = self.between_punctuation_processor(txt).replace()
@@ -63,14 +63,11 @@ class Kazakh(Common, Standard):
             "idf",
             "imd",
             "ime",
-            "icu",
-            "idf",
             "ip",
             "iso",
             "kaz",
             "kpo",
             "kpa",
-            "kz",
             "kz",
             "mri",
             "nasa",
@@ -98,7 +95,6 @@ class Kazakh(Common, Standard):
             "x",
             "zdf",
             "әқбк",
-            "әқбк",
             "аақ",
             "авг.",
             "aбб",
@@ -121,8 +117,6 @@ class Kazakh(Common, Standard):
             "әч",
             "т. б.",
             "б. з. б.",
-            "б. з. б.",
-            "б. з. д.",
             "б. з. д.",
             "биікт.",
             "б. т.",
@@ -145,9 +139,7 @@ class Kazakh(Common, Standard):
             "млрд",
             "т",
             "ғ. с.",
-            "ғ.",
             "қ.",
-            "ғ.",
             "дек.",
             "днқ",
             "дсұ",
@@ -158,7 +150,6 @@ class Kazakh(Common, Standard):
             "еуразэқ",
             "еуроодақ",
             "еұу",
-            "ж.",
             "ж.",
             "жж.",
             "жоо",
@@ -173,8 +164,6 @@ class Kazakh(Common, Standard):
             "кеу",
             "кг",
             "км²",
-            "км²",
-            "км³",
             "км³",
             "кимеп",
             "кср",
@@ -187,15 +176,12 @@ class Kazakh(Common, Standard):
             "қазмұнайгаз",
             "қазпошта",
             "қазтаг",
-            "қазұу",
             "қкп",
             "қмдб",
             "қр",
             "қхр",
             "лат.",
             "м²",
-            "м²",
-            "м³",
             "м³",
             "магатэ",
             "май.",
@@ -233,7 +219,6 @@ class Kazakh(Common, Standard):
             "см",
             "снпс",
             "солт.",
-            "солт.",
             "сооно",
             "ссро",
             "сср",
@@ -241,8 +226,6 @@ class Kazakh(Common, Standard):
             "ссс",
             "сэс",
             "дк",
-            "т. б.",
-            "т",
             "тв",
             "тереңд.",
             "тех.",
@@ -253,15 +236,12 @@ class Kazakh(Common, Standard):
             "тр",
             "т.",
             "и.",
-            "м.",
             "с.",
             "ш.",
-            "т.",
             "т. с. с.",
             "тэц",
             "уаз",
             "уефа",
-            "еқыұ",
             "ұқк",
             "ұқшұ",
             "февр.",
@@ -279,8 +259,6 @@ class Kazakh(Common, Standard):
             "dvd",
             "жкт",
             "ққс",
-            "км",
-            "ацат",
             "юнеско",
             "ббс",
             "mgm",
@@ -303,7 +281,6 @@ class Kazakh(Common, Standard):
             "гсбп",
             "эыдұ",
             "нұсжп",
-            "шыұ",
             "жтсх",
             "хдп",
             "эқк",
@@ -328,7 +305,6 @@ class Kazakh(Common, Standard):
             "жко",
             "еэы",
             "еаэы",
-            "кхдр",
             "рфкп",
             "рлдп",
             "хвқ",
@@ -338,7 +314,6 @@ class Kazakh(Common, Standard):
             "ртж",
             "тим",
             "мемдум",
-            "ксро",
             "т.с.с",
             "с.ш.",
             "ш.б.",
@@ -346,7 +321,6 @@ class Kazakh(Common, Standard):
             "руб",
             "мин",
             "акад.",
-            "ғ.",
             "мм",
             "мм.",
         ]
@@ -354,11 +328,6 @@ class Kazakh(Common, Standard):
         NUMBER_ABBREVIATIONS = []
 
     class AbbreviationReplacer(AbbreviationReplacer):
-        SENTENCE_STARTERS = []
-
-        def __init__(self, text, lang, **kwargs):
-            super().__init__(text, lang, **kwargs)
-
         def replace(self):
             SingleUpperCaseCyrillicLetterAtStartOfLineRule = Rule(r"(?<=^[А-ЯЁ])\.(?=\s)", "∯")
             SingleUpperCaseCyrillicLetterRule = Rule(r"(?<=\s[А-ЯЁ])\.(?=\s)", "∯")

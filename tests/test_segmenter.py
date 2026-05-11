@@ -294,6 +294,33 @@ def test_nondestructive_when_processed_sentence_cannot_be_matched_exactly():
     assert "".join(span.sent for span in spans) == text
 
 
+def test_nondestructive_when_processed_sentence_diverges_from_original_text():
+    # Crafted input where processor rewrites bytes so a processed sentence
+    # cannot be located in the original by either substring or
+    # whitespace-flexible regex matching (triggers _unmatched_span /
+    # _next_sentence_start / fallback fill-in branches in _match_spans).
+    text = "].;YZ2Yb{♟,(cc♟0X\nX\tb2c\n♬\t2[♟?2♬),)1.3Z\n♟]2"
+    seg = sentencesplit.Segmenter(language="en", clean=False, char_span=False)
+    spans_seg = sentencesplit.Segmenter(language="en", clean=False, char_span=True)
+
+    segments = seg.segment(text)
+    spans = spans_seg.segment(text)
+
+    # The key invariant under the fallback branches: even when individual
+    # processed sentences cannot be matched verbatim, concatenating the
+    # emitted segments (and their spans) reproduces the original text.
+    assert "".join(segments) == text
+    assert "".join(span.sent for span in spans) == text
+
+
+# NOTE: Segmenter._wait_with_full_probe (segmenter.py lines 161-168) is a
+# defensive branch that only fires when analysis_text.rfind(last_segment) == -1
+# -- i.e., when processing/cleaning rewrites the last segment text so it is no
+# longer a substring of analysis_text. We were unable to construct an input
+# that reaches it in practice; leaving it as an unreachable fallback to audit
+# later rather than fabricating a synthetic test.
+
+
 def test_split_mode_must_be_valid():
     with pytest.raises(ValueError, match="split_mode must be either"):
         sentencesplit.Segmenter(language="en", split_mode="fast")
@@ -340,6 +367,24 @@ def test_split_mode_propagates_to_helper_segmenters():
         "I live on 1st st. ",
         "It is nice.",
     ]
+
+
+def test_segment_spans_raises_with_clean_true():
+    seg = sentencesplit.Segmenter(language="en", clean=True, char_span=False)
+    with pytest.raises(ValueError, match="requires clean=False"):
+        seg.segment_spans("Anything.")
+
+
+def test_segment_spans_handles_empty_and_none_input():
+    seg = sentencesplit.Segmenter(language="en", clean=False, char_span=False)
+    assert seg.segment_spans("") == []
+    assert seg.segment_spans(None) == []
+
+
+def test_segment_clean_handles_empty_and_none_input():
+    seg = sentencesplit.Segmenter(language="en", clean=False, char_span=False)
+    assert seg.segment_clean("") == []
+    assert seg.segment_clean(None) == []
 
 
 def test_exception_with_both_clean_and_span_true():

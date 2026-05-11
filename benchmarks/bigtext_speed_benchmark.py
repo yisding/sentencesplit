@@ -7,7 +7,7 @@ from syntok.tokenizer import Tokenizer
 
 import sentencesplit
 
-pysbd_segmenter = sentencesplit.Segmenter(language="en", clean=False, char_span=False)
+sentencesplit_segmenter = sentencesplit.Segmenter(language="en", clean=False, char_span=False)
 
 nlp = spacy.blank("en")
 nlp.add_pipe("sentencizer")
@@ -26,8 +26,8 @@ def nltk_tokenize(text):
     return nltk.sent_tokenize(text)
 
 
-def pysbd_tokenize(text):
-    segments = pysbd_segmenter.segment(text)
+def sentencesplit_tokenize(text):
+    segments = sentencesplit_segmenter.segment(text)
     segments = [s.strip() for s in segments]
     return segments
 
@@ -67,7 +67,7 @@ if __name__ == "__main__":
     libraries = (
         blingfire_tokenize,
         nltk_tokenize,
-        pysbd_tokenize,
+        sentencesplit_tokenize,
         spacy_tokenize,
         spacy_dep_tokenize,
         stanza_tokenize,

@@ -1,13 +1,9 @@
 # -*- coding: utf-8 -*-
-from sentencesplit.abbreviation_replacer import AbbreviationReplacer
 from sentencesplit.lang.common import Common, Standard
 
 
 class French(Common, Standard):
     iso_code = "fr"
-
-    class AbbreviationReplacer(AbbreviationReplacer):
-        SENTENCE_STARTERS = []
 
     class Abbreviation(Standard.Abbreviation):
         ELISION_CHARACTERS = "'\u2019"

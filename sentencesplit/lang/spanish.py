@@ -1,13 +1,9 @@
 # -*- coding: utf-8 -*-
-from sentencesplit.abbreviation_replacer import AbbreviationReplacer
 from sentencesplit.lang.common import Common, Standard
 
 
 class Spanish(Common, Standard):
     iso_code = "es"
-
-    class AbbreviationReplacer(AbbreviationReplacer):
-        SENTENCE_STARTERS = []
 
     class Abbreviation(Standard.Abbreviation):
         ABBREVIATIONS = [

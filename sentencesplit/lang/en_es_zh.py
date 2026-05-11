@@ -6,7 +6,12 @@ import re
 from sentencesplit.abbreviation_replacer import AbbreviationReplacer
 from sentencesplit.between_punctuation import BetweenPunctuation
 from sentencesplit.lang.common import Common, Standard
-from sentencesplit.lang.common.cjk import CJKBoundaryProfile
+from sentencesplit.lang.common.cjk import (
+    _CJK_REPORTING_CLAUSE_BOUNDARY,
+    _QUOTE_CLOSER_RE,
+    CJKBetweenPunctuationMixin,
+    CJKBoundaryProfile,
+)
 from sentencesplit.lang.english import English
 from sentencesplit.lang.spanish import Spanish
 from sentencesplit.processor import (
@@ -16,26 +21,14 @@ from sentencesplit.processor import (
     Processor,
     _split_on_uppercase_boundary,
 )
-from sentencesplit.punctuation_replacer import replace_punctuation
 from sentencesplit.utils import Rule
 
 _LATIN_PAREN_RESPLIT_RE = re.compile(r"(?<=[a-zA-Z]{2}\.\))\s+")
 _CJK_FOLLOWING_CHAR_RE = re.compile(r"[\u3400-\u9FFF]")
 _ENGLISH_HEURISTIC_ABBREVIATIONS = frozenset(a.lower() for a in Standard.Abbreviation.ABBREVIATIONS)
-_QUOTE_CLOSER_RE = re.compile(r"""["'”’」』》】]+$""")
-_CJK_SLANTED_QUOTE_END_RE = re.compile(r"(&ᓰ&|&ᓱ&|&ᓳ&|&ᓴ&|&ᓷ&|&ᓸ&)(?=[”’][^\s])")
-_CJK_REPORTING_CLAUSE_BOUNDARY = r"(?=$|[，,：:。．.!！?？…])"
 _CJK_REPORTING_CLAUSE_RE = re.compile(
     rf"^(?:他|她|他们|她们|我|我们|记者|警方|老师|母亲|父亲|主持人|发言人).{{0,6}}(?:说|问|答|表示|回应|补充|解释){_CJK_REPORTING_CLAUSE_BOUNDARY}"
 )
-_RESTORE_CJK_TERMINAL_PUNCT = {
-    "&ᓰ&": "。",
-    "&ᓱ&": "．",
-    "&ᓳ&": "！",
-    "&ᓴ&": "!",
-    "&ᓷ&": "?",
-    "&ᓸ&": "？",
-}
 
 
 class EnglishSpanishChinese(CJKBoundaryProfile, Common, Standard):
@@ -110,27 +103,10 @@ class EnglishSpanishChinese(CJKBoundaryProfile, Common, Standard):
 
         All = [IntraAbbreviationPeriodRule, EndAbbreviationBeforeCjkRule]
 
-    class BetweenPunctuation(BetweenPunctuation):
+    class BetweenPunctuation(CJKBetweenPunctuationMixin, BetweenPunctuation):
         def replace(self) -> str:
             txt = super().replace()
-            txt = self.sub_punctuation_between_double_angled_quotation_marks(txt)
-            txt = self.sub_punctuation_between_cn_brackets(txt)
-            txt = self.sub_punctuation_between_cn_corner_quotes(txt)
-            txt = self.sub_punctuation_between_cn_parens(txt)
-            txt = _CJK_SLANTED_QUOTE_END_RE.sub(lambda match: _RESTORE_CJK_TERMINAL_PUNCT[match.group(1)], txt)
-            return txt
-
-        def sub_punctuation_between_double_angled_quotation_marks(self, txt: str) -> str:
-            return re.sub(r"《(?=(?P<tmp>[^》\\]+|\\{2}|\\.)*)(?P=tmp)》", replace_punctuation, txt)
-
-        def sub_punctuation_between_cn_brackets(self, txt: str) -> str:
-            return re.sub(r"「(?=(?P<tmp>[^」\\]+|\\{2}|\\.)*)(?P=tmp)」", replace_punctuation, txt)
-
-        def sub_punctuation_between_cn_corner_quotes(self, txt: str) -> str:
-            return re.sub(r"『(?=(?P<tmp>[^』\\]+|\\{2}|\\.)*)(?P=tmp)』", replace_punctuation, txt)
-
-        def sub_punctuation_between_cn_parens(self, txt: str) -> str:
-            return re.sub(r"（(?=(?P<tmp>[^）\\]+|\\{2}|\\.)*)(?P=tmp)）", replace_punctuation, txt)
+            return self.apply_cjk_punctuation(txt)
 
     class Processor(Processor):
         def _resplit_segments(self, postprocessed_sents: list[str]) -> list[str]:

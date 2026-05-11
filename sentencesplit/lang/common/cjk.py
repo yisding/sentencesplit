@@ -4,8 +4,43 @@ from __future__ import annotations
 import re
 
 from sentencesplit.processor import Processor
+from sentencesplit.punctuation_replacer import replace_punctuation
 
 _QUOTE_CLOSER_RE = re.compile(r"""["'”’」』》】]+$""")
+
+_CJK_SLANTED_QUOTE_END_RE = re.compile(r"(&ᓰ&|&ᓱ&|&ᓳ&|&ᓴ&|&ᓷ&|&ᓸ&)(?=[”’][^\s])")
+_CJK_REPORTING_CLAUSE_BOUNDARY = r"(?=$|[，,：:。．.!！?？…])"
+_RESTORE_CJK_TERMINAL_PUNCT = {
+    "&ᓰ&": "。",
+    "&ᓱ&": "．",
+    "&ᓳ&": "！",
+    "&ᓴ&": "!",
+    "&ᓷ&": "?",
+    "&ᓸ&": "？",
+}
+
+_CJK_DOUBLE_ANGLE_QUOTE_RE = re.compile(r"《(?=(?P<tmp>[^》\\]+|\\{2}|\\.)*)(?P=tmp)》")
+_CJK_L_BRACKET_RE = re.compile(r"「(?=(?P<tmp>[^」\\]+|\\{2}|\\.)*)(?P=tmp)」")
+_CJK_CORNER_QUOTE_RE = re.compile(r"『(?=(?P<tmp>[^』\\]+|\\{2}|\\.)*)(?P=tmp)』")
+_CJK_FULLWIDTH_PAREN_RE = re.compile(r"（(?=(?P<tmp>[^）\\]+|\\{2}|\\.)*)(?P=tmp)）")
+
+
+class CJKBetweenPunctuationMixin:
+    """Shared between-punctuation helpers for CJK quotes and full-width parens.
+
+    Subclasses inherit ``BetweenPunctuation`` and call ``apply_cjk_punctuation(txt)``
+    inside their ``replace()`` override (after ``super().replace()``) to protect
+    punctuation inside CJK delimiters from splitting sentences. Also restores the
+    CJK terminal-punctuation placeholders that the base slanted-quote step
+    consumes when they appear at quote-final position followed by non-space.
+    """
+
+    def apply_cjk_punctuation(self, txt: str) -> str:
+        txt = _CJK_DOUBLE_ANGLE_QUOTE_RE.sub(replace_punctuation, txt)
+        txt = _CJK_L_BRACKET_RE.sub(replace_punctuation, txt)
+        txt = _CJK_CORNER_QUOTE_RE.sub(replace_punctuation, txt)
+        txt = _CJK_FULLWIDTH_PAREN_RE.sub(replace_punctuation, txt)
+        return _CJK_SLANTED_QUOTE_END_RE.sub(lambda m: _RESTORE_CJK_TERMINAL_PUNCT[m.group(1)], txt)
 
 
 class CJKBoundaryProfile:
