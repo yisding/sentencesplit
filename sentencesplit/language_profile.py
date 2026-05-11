@@ -5,6 +5,7 @@ from dataclasses import dataclass
 
 from sentencesplit.abbreviation_replacer import AbbreviationReplacer
 from sentencesplit.between_punctuation import BetweenPunctuation
+from sentencesplit.lists_item_replacer import ListItemReplacer
 from sentencesplit.utils import Rule, ensure_compiled
 
 
@@ -14,6 +15,7 @@ class LanguageProfile:
 
     abbreviation_replacer_cls: type[AbbreviationReplacer]
     between_punctuation_cls: type[BetweenPunctuation]
+    list_item_replacer_cls: type[ListItemReplacer]
     cjk_abbreviation_rules: tuple[Rule, ...]
     colon_rule: Rule | None
     comma_rule: Rule | None
@@ -32,6 +34,7 @@ class LanguageProfile:
         return cls(
             abbreviation_replacer_cls=getattr(lang, "AbbreviationReplacer", AbbreviationReplacer),
             between_punctuation_cls=getattr(lang, "BetweenPunctuation", BetweenPunctuation),
+            list_item_replacer_cls=getattr(lang, "ListItemReplacer", ListItemReplacer),
             cjk_abbreviation_rules=cjk_rules,
             colon_rule=getattr(lang, "ReplaceColonBetweenNumbersRule", None),
             comma_rule=getattr(lang, "ReplaceNonSentenceBoundaryCommaRule", None),

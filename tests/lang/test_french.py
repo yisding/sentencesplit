@@ -37,6 +37,7 @@ GOLDEN_FR_RULES_TEST_CASES = [
     ),
     ("Nous avons vu Ste. Anne hier.", ["Nous avons vu Ste. Anne hier."]),
     ("No. 12 est disponible. Merci.", ["No. 12 est disponible.", "Merci."]),
+    ("Voir p. 12. Merci.", ["Voir p. 12.", "Merci."]),
     ("Mmes. Dupont et Durand sont là.", ["Mmes. Dupont et Durand sont là."]),
     ("MM. Dupont et Durand sont là.", ["MM. Dupont et Durand sont là."]),
     (

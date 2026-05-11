@@ -5,7 +5,6 @@ import re
 
 from sentencesplit.exclamation_words import ExclamationWords
 from sentencesplit.language_profile import LanguageProfile
-from sentencesplit.lists_item_replacer import ListItemReplacer
 from sentencesplit.utils import _next_nonspace_char_starts_sentence, apply_rules
 
 # Pre-compiled patterns used on the hot path
@@ -90,7 +89,7 @@ class Processor:
         return text.replace("\n", "\r")
 
     def _mark_list_item_boundaries(self, text: str) -> str:
-        return ListItemReplacer(text).add_line_break()
+        return self.profile.list_item_replacer_cls(text).add_line_break()
 
     def _apply_cjk_abbreviation_rules(self, text: str) -> str:
         return apply_rules(text, *self.profile.cjk_abbreviation_rules)
@@ -268,7 +267,7 @@ class Processor:
         return apply_rules(text, self.lang.QuestionMarkInQuotationRule, *self.lang.ExclamationPointRules.All)
 
     def _replace_list_parens(self, text: str) -> str:
-        return ListItemReplacer(text).replace_parens()
+        return self.profile.list_item_replacer_cls(text).replace_parens()
 
     def replace_numbers(self, text: str) -> str:
         return apply_rules(text, *self.lang.Numbers.All)

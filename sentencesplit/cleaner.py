@@ -7,7 +7,7 @@ from sentencesplit.clean.rules import HTML, PDF
 from sentencesplit.clean.rules import CleanRules as cr
 from sentencesplit.utils import apply_rules
 
-_NON_DOT_RE = re.compile(r"(?:[^\.])*")
+_NON_DOT_RE = re.compile(r"[^.]+")
 _BRACKET_RE = re.compile(r"\[(?:[^\]])*\]")
 _BACKTICK_RE = re.compile(r"`")
 

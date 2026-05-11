@@ -16,11 +16,15 @@ GOLDEN_SK_RULES_TEST_CASES = [
         "Spoločnosť bola založená 7. Apríla 2020, na zmluve však figuruje dátum 20. marec 2020.",
         ["Spoločnosť bola založená 7. Apríla 2020, na zmluve však figuruje dátum 20. marec 2020."],
     ),
+    (
+        "Používame .NET Framework. Funguje to.",
+        ["Používame .NET Framework.", "Funguje to."],
+    ),
 ]
 
 
 @pytest.mark.parametrize("text,expected_sents", GOLDEN_SK_RULES_TEST_CASES)
-def test_pl_sbd(sk_default_fixture, text, expected_sents):
+def test_sk_sbd(sk_default_fixture, text, expected_sents):
     """Slovak language SBD tests"""
     segments = sk_default_fixture.segment(text)
     segments = [s.strip() for s in segments]
