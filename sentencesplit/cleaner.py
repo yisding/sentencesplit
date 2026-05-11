@@ -5,7 +5,7 @@ import re
 
 from sentencesplit.clean.rules import HTML, PDF
 from sentencesplit.clean.rules import CleanRules as cr
-from sentencesplit.utils import apply_rules
+from sentencesplit.utils import Rule, apply_rules
 
 _NON_DOT_RE = re.compile(r"[^.]+")
 _BRACKET_RE = re.compile(r"\[(?:[^\]])*\]")
@@ -106,7 +106,7 @@ class Cleaner:
     def clean_table_of_contents(self):
         self.text = apply_rules(self.text, cr.TableOfContentsRule)
 
-    def search_for_connected_sentences(self, word: str, regex: re.Pattern[str], rule) -> str:
+    def search_for_connected_sentences(self, word: str, regex: re.Pattern[str], rule: Rule) -> str:
         if not regex.search(word):
             return word
         if any(k in word for k in cr.URL_EMAIL_KEYWORDS):

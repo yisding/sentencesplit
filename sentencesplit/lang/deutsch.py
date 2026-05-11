@@ -8,6 +8,12 @@ from sentencesplit.processor import Processor
 from sentencesplit.punctuation_replacer import replace_punctuation
 from sentencesplit.utils import Rule, apply_rules
 
+# Rubular: http://rubular.com/r/TkZomF9tTM
+_BETWEEN_DOUBLE_QUOTES_DE_RE = re.compile(r"„(?=(?P<tmp>[^“\\]+|\\{2}|\\.)*)(?P=tmp)“")
+
+# Rubular: http://rubular.com/r/OdcXBsub0w
+_BETWEEN_UNCONVENTIONAL_DOUBLE_QUOTE_DE_RE = re.compile(r",,(?=(?P<tmp>[^“\\]+|\\{2}|\\.)*)(?P=tmp)“")
+
 
 class Deutsch(Common, Standard):
     iso_code = "de"
@@ -22,8 +28,8 @@ class Deutsch(Common, Standard):
         All = Common.Numbers.All + [NumberPeriodSpaceRule, NegativeNumberPeriodSpaceRule]
 
     class Processor(Processor):
-        def __init__(self, text, lang, char_span=False, **kwargs):
-            super().__init__(text, lang, char_span, **kwargs)
+        def __init__(self, text, lang, **kwargs):
+            super().__init__(text, lang, **kwargs)
 
         def replace_numbers(self, text: str) -> str:
             text = apply_rules(text, *self.lang.Numbers.All)
@@ -236,19 +242,10 @@ class Deutsch(Common, Standard):
             return txt
 
     class BetweenPunctuation(BetweenPunctuation):
-        def __init__(self, text):
-            super().__init__(text)
-
         def sub_punctuation_between_double_quotes(self, txt):
-            # Rubular: http://rubular.com/r/OdcXBsub0w
-            BETWEEN_UNCONVENTIONAL_DOUBLE_QUOTE_DE_REGEX = r",,(?=(?P<tmp>[^“\\]+|\\{2}|\\.)*)(?P=tmp)“"
-
-            # Rubular: http://rubular.com/r/TkZomF9tTM
-            BETWEEN_DOUBLE_QUOTES_DE_REGEX = r"„(?=(?P<tmp>[^“\\]+|\\{2}|\\.)*)(?P=tmp)“"
-
             if "„" in txt:
-                return re.sub(BETWEEN_DOUBLE_QUOTES_DE_REGEX, replace_punctuation, txt)
+                return _BETWEEN_DOUBLE_QUOTES_DE_RE.sub(replace_punctuation, txt)
             elif ",," in txt:
-                return re.sub(BETWEEN_UNCONVENTIONAL_DOUBLE_QUOTE_DE_REGEX, replace_punctuation, txt)
+                return _BETWEEN_UNCONVENTIONAL_DOUBLE_QUOTE_DE_RE.sub(replace_punctuation, txt)
             else:
                 return txt

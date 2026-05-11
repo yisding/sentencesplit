@@ -363,11 +363,9 @@ CHALLENGING_EN_TEST_CASES = [
         ],
     ),
     # 101) "Eq." in scientific text
-    # xfail: Eq. not in abbreviation list, falsely splits
-    pytest.param(
+    (
         "Substituting into Eq. 5 yields the result. The proof is complete.",
         ["Substituting into Eq. 5 yields the result.", "The proof is complete."],
-        marks=pytest.mark.xfail,
     ),
     # ===== Complex real-world text =====
     # 102) News-style dense text with multiple abbreviations

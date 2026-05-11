@@ -114,12 +114,12 @@ class ListItemReplacer:
         def replace_item(match, val=None, strip=False, repl="♨"):
             match = match.group()
             if strip:
-                match = str(match).strip()
+                match = match.strip()
             chomped_match = match if len(match) == 1 else match.strip(".])")
             if str(each) == chomped_match:
                 return "{}{}".format(each, replacement)
             else:
-                return str(match)
+                return match
 
         self.text = re.sub(regex, partial(replace_item, val=each, strip=strip, repl=replacement), self.text)
 

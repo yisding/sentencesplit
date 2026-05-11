@@ -34,7 +34,7 @@ def _split_on_uppercase_boundary(text: str, whitespace_re: re.Pattern[str]) -> l
     return [part for part in parts if part]
 
 
-def _sub_symbols_fast(text, lang):
+def _sub_symbols_fast(text: str, lang) -> str:
     """Replace temporary symbols using str.replace() instead of regex."""
     for old, new in lang.SubSymbolsRules.SUBS_TABLE:
         text = text.replace(old, new)
@@ -42,10 +42,9 @@ def _sub_symbols_fast(text, lang):
 
 
 class Processor:
-    def __init__(self, text: str | None, lang, char_span: bool = False, split_mode: str = "conservative") -> None:
+    def __init__(self, text: str | None, lang, split_mode: str = "conservative") -> None:
         self.text = text
         self.lang = lang
-        self.char_span = char_span
         self.split_mode = split_mode
         self.profile = LanguageProfile.from_language(lang)
 
