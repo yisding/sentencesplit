@@ -7,6 +7,17 @@ from sentencesplit.processor import Processor
 
 _QUOTE_CLOSER_RE = re.compile(r"""["'”’」』》】]+$""")
 
+_CJK_SLANTED_QUOTE_END_RE = re.compile(r"(&ᓰ&|&ᓱ&|&ᓳ&|&ᓴ&|&ᓷ&|&ᓸ&)(?=[”’][^\s])")
+_CJK_REPORTING_CLAUSE_BOUNDARY = r"(?=$|[，,：:。．.!！?？…])"
+_RESTORE_CJK_TERMINAL_PUNCT = {
+    "&ᓰ&": "。",
+    "&ᓱ&": "．",
+    "&ᓳ&": "！",
+    "&ᓴ&": "!",
+    "&ᓷ&": "?",
+    "&ᓸ&": "？",
+}
+
 
 class CJKBoundaryProfile:
     """Boundary defaults for CJK scripts that do not assume Latin uppercase starts."""

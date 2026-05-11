@@ -4,20 +4,15 @@ import re
 from sentencesplit.abbreviation_replacer import AbbreviationReplacer
 from sentencesplit.between_punctuation import BetweenPunctuation
 from sentencesplit.lang.common import Common, Standard
-from sentencesplit.lang.common.cjk import CJKBoundaryProfile, CJKProcessor
+from sentencesplit.lang.common.cjk import (
+    _CJK_REPORTING_CLAUSE_BOUNDARY,
+    _CJK_SLANTED_QUOTE_END_RE,
+    _RESTORE_CJK_TERMINAL_PUNCT,
+    CJKBoundaryProfile,
+    CJKProcessor,
+)
 from sentencesplit.punctuation_replacer import replace_punctuation
 from sentencesplit.utils import Rule
-
-_CJK_SLANTED_QUOTE_END_RE = re.compile(r"(&ᓰ&|&ᓱ&|&ᓳ&|&ᓴ&|&ᓷ&|&ᓸ&)(?=[”’][^\s])")
-_CJK_REPORTING_CLAUSE_BOUNDARY = r"(?=$|[，,：:。．.!！?？…])"
-_RESTORE_CJK_TERMINAL_PUNCT = {
-    "&ᓰ&": "。",
-    "&ᓱ&": "．",
-    "&ᓳ&": "！",
-    "&ᓴ&": "!",
-    "&ᓷ&": "?",
-    "&ᓸ&": "？",
-}
 
 
 class Chinese(CJKBoundaryProfile, Common, Standard):
