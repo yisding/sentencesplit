@@ -6,12 +6,10 @@ from sentencesplit.between_punctuation import BetweenPunctuation
 from sentencesplit.lang.common import Common, Standard
 from sentencesplit.lang.common.cjk import (
     _CJK_REPORTING_CLAUSE_BOUNDARY,
-    _CJK_SLANTED_QUOTE_END_RE,
-    _RESTORE_CJK_TERMINAL_PUNCT,
+    CJKBetweenPunctuationMixin,
     CJKBoundaryProfile,
     CJKProcessor,
 )
-from sentencesplit.punctuation_replacer import replace_punctuation
 from sentencesplit.utils import Rule
 
 
@@ -44,40 +42,7 @@ class Chinese(CJKBoundaryProfile, Common, Standard):
     class Processor(CJKProcessor):
         pass
 
-    class BetweenPunctuation(BetweenPunctuation):
-        def __init__(self, text):
-            super().__init__(text)
-
-        def replace(self):
-            self.text = super().sub_punctuation_between_parens(self.text)
-            self.text = super().sub_punctuation_between_square_brackets(self.text)
-            self.sub_punctuation_between_cjk_quotes_and_parens()
-            return self.text
-
-        def sub_punctuation_between_double_angled_quotation_marks(self):
-            regex = r"《(?=(?P<tmp>[^》\\]+|\\{2}|\\.)*)(?P=tmp)》"
-            self.text = re.sub(regex, replace_punctuation, self.text)
-
-        def sub_punctuation_between_l_bracket(self):
-            regex = r"「(?=(?P<tmp>[^」\\]+|\\{2}|\\.)*)(?P=tmp)」"
-            self.text = re.sub(regex, replace_punctuation, self.text)
-
-        def sub_punctuation_between_cn_corner_quotes(self):
-            regex = r"『(?=(?P<tmp>[^』\\]+|\\{2}|\\.)*)(?P=tmp)』"
-            self.text = re.sub(regex, replace_punctuation, self.text)
-
-        def sub_punctuation_between_slanted_quotes(self):
-            regex = r"“(?=(?P<tmp>[^”\\]+|\\{2}|\\.)*)(?P=tmp)”"
-            self.text = re.sub(regex, replace_punctuation, self.text)
-            self.text = _CJK_SLANTED_QUOTE_END_RE.sub(lambda match: _RESTORE_CJK_TERMINAL_PUNCT[match.group(1)], self.text)
-
-        def sub_punctuation_between_cn_parens(self):
-            regex = r"（(?=(?P<tmp>[^）\\]+|\\{2}|\\.)*)(?P=tmp)）"
-            self.text = re.sub(regex, replace_punctuation, self.text)
-
-        def sub_punctuation_between_cjk_quotes_and_parens(self):
-            self.sub_punctuation_between_double_angled_quotation_marks()
-            self.sub_punctuation_between_slanted_quotes()
-            self.sub_punctuation_between_l_bracket()
-            self.sub_punctuation_between_cn_corner_quotes()
-            self.sub_punctuation_between_cn_parens()
+    class BetweenPunctuation(CJKBetweenPunctuationMixin, BetweenPunctuation):
+        def replace(self) -> str:
+            txt = super().replace()
+            return self.apply_cjk_punctuation(txt)

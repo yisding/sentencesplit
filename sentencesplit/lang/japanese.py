@@ -5,8 +5,7 @@ from sentencesplit.abbreviation_replacer import AbbreviationReplacer
 from sentencesplit.between_punctuation import BetweenPunctuation
 from sentencesplit.cleaner import Cleaner
 from sentencesplit.lang.common import Common, Standard
-from sentencesplit.lang.common.cjk import CJKBoundaryProfile, CJKProcessor
-from sentencesplit.punctuation_replacer import replace_punctuation
+from sentencesplit.lang.common.cjk import CJKBetweenPunctuationMixin, CJKBoundaryProfile, CJKProcessor
 from sentencesplit.utils import Rule, apply_rules
 
 
@@ -64,29 +63,7 @@ class Japanese(CJKBoundaryProfile, Common, Standard):
     class Processor(CJKProcessor):
         pass
 
-    class BetweenPunctuation(BetweenPunctuation):
-        def __init__(self, text):
-            super().__init__(text)
-
-        def replace(self):
-            self.text = super().sub_punctuation_between_parens(self.text)
-            self.text = super().sub_punctuation_between_square_brackets(self.text)
-            self.sub_punctuation_between_cjk_quotes_and_parens()
-            return self.text
-
-        def sub_punctuation_between_parens_ja(self):
-            regex = r"（(?=(?P<tmp>[^（）]+|\\{2}|\\.)*)(?P=tmp)）"
-            self.text = re.sub(regex, replace_punctuation, self.text)
-
-        def sub_punctuation_between_quotes_ja(self):
-            regex = r"「(?=(?P<tmp>[^「」]+|\\{2}|\\.)*)(?P=tmp)」"
-            self.text = re.sub(regex, replace_punctuation, self.text)
-
-        def sub_punctuation_between_corner_quotes_ja(self):
-            regex = r"『(?=(?P<tmp>[^『』]+|\\{2}|\\.)*)(?P=tmp)』"
-            self.text = re.sub(regex, replace_punctuation, self.text)
-
-        def sub_punctuation_between_cjk_quotes_and_parens(self):
-            self.sub_punctuation_between_parens_ja()
-            self.sub_punctuation_between_quotes_ja()
-            self.sub_punctuation_between_corner_quotes_ja()
+    class BetweenPunctuation(CJKBetweenPunctuationMixin, BetweenPunctuation):
+        def replace(self) -> str:
+            txt = super().replace()
+            return self.apply_cjk_punctuation(txt)
