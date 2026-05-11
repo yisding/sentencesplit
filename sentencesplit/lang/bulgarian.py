@@ -86,11 +86,6 @@ class Bulgarian(Common, Standard):
         PREPOSITIVE_ABBREVIATIONS = []
 
     class AbbreviationReplacer(AbbreviationReplacer):
-        SENTENCE_STARTERS = []
-
-        def __init__(self, text, lang, **kwargs):
-            super().__init__(text, lang, **kwargs)
-
         def replace_period_of_abbr(self, txt, abbr, escaped=None):
             txt = re.sub(r"(?<=\s{abbr})\.|(?<=^{abbr})\.".format(abbr=abbr.strip()), "∯", txt)
             return txt

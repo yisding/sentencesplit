@@ -203,14 +203,22 @@ class ListItemReplacer:
     def last_array_item_replacement(self, a, i, alphabet, alphabet_index, list_array, parens):
         if i == 0:
             return self.text
-        if (len(alphabet) == 0) and (len(list_array) == 0) or (list_array[i - 1] not in alphabet) or (a not in alphabet):
+        if not alphabet and not list_array:
+            return
+        if list_array[i - 1] not in alphabet:
+            return
+        if a not in alphabet:
             return
         if alphabet_index[a] - alphabet_index[list_array[i - 1]] != 1:
             return
         self.replace_correct_alphabet_list(a, parens)
 
     def other_items_replacement(self, a, i, alphabet, alphabet_index, list_array, parens):
-        if (len(alphabet) == 0) and (len(list_array) == 0) or (a not in alphabet) or (list_array[i + 1] not in alphabet):
+        if not alphabet and not list_array:
+            return
+        if a not in alphabet:
+            return
+        if list_array[i + 1] not in alphabet:
             return
         forward_match = alphabet_index[list_array[i + 1]] - alphabet_index[a] == 1
         backward_match = i > 0 and list_array[i - 1] in alphabet and alphabet_index[a] - alphabet_index[list_array[i - 1]] == 1

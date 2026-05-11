@@ -232,6 +232,16 @@ class Processor:
         return self.profile.continuous_punct_re.sub(continuous_puncs_replace, text)
 
     def replace_periods_before_numeric_references(self, text: str) -> str:
+        """Protect the period in numeric/bracket citations and insert a sentence boundary after them.
+
+        For matches like "see [12]. Next" or "page 1.2 3 next.", rewrites the
+        period to a protected placeholder (∯) and inserts a boundary marker (\\r)
+        immediately after the numeric reference, so the citation does not trigger
+        a mid-sentence split but the next sentence is still recognized.
+
+        \\2 is the numeric reference itself; \\7 is the trailing whitespace.
+        Group structure is defined in lang/common/common.py NUMBERED_REFERENCE_REGEX.
+        """
         # https://github.com/diasks2/pragmatic_segmenter/commit/d9ec1a352aff92b91e2e572c30bb9561eb42c703
         return self.profile.numbered_ref_re.sub(r"∯\2\r\7", text)
 

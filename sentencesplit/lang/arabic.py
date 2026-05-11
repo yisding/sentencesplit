@@ -19,11 +19,6 @@ class Arabic(Common, Standard):
     ReplaceNonSentenceBoundaryCommaRule = Rule(r"،(?=\s\S+،)", "♬")
 
     class AbbreviationReplacer(AbbreviationReplacer):
-        SENTENCE_STARTERS = []
-
-        def __init__(self, text, lang, **kwargs):
-            super().__init__(text, lang, **kwargs)
-
         def scan_for_replacements(self, txt, am, index, character_array, stripped=None, escaped=None):
             txt = re.sub(r"(?<={0})\.".format(am), "∯", txt)
             return txt

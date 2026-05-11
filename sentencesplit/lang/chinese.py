@@ -20,8 +20,6 @@ class Chinese(CJKBoundaryProfile, Common, Standard):
     )
 
     class AbbreviationReplacer(AbbreviationReplacer):
-        SENTENCE_STARTERS = []
-
         def replace_period_of_abbr(self, txt: str, abbr: str, escaped: str | None = None) -> str:
             txt = " " + txt
             if escaped is None:

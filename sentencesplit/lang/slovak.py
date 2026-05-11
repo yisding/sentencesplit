@@ -26,8 +26,6 @@ class Slovak(Common, Standard):
             return self.text
 
     class AbbreviationReplacer(AbbreviationReplacer):
-        SENTENCE_STARTERS = []
-
         def replace_period_of_abbr(self, txt, abbr, escaped=None):
             # This is a very simple version of the original function, which makes sure
             # all of the periods in the abbreviation get replaced, not only the last one.
