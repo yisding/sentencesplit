@@ -22,7 +22,10 @@ class Japanese(CJKBoundaryProfile, Common, Standard):
 
     class Cleaner(Cleaner):
         def __init__(self, text, lang, doc_type=None):
-            super().__init__(text, lang)
+            # NOTE: clean() is fully overridden below with a particle-aware
+            # line-join, so doc_type (incl. "pdf") has no effect for Japanese —
+            # PDF-specific cleaning is intentionally unsupported here.
+            super().__init__(text, lang, doc_type=doc_type)
 
         def clean(self):
             self.remove_newline_in_middle_of_word()

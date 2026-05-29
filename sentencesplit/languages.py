@@ -39,7 +39,7 @@ _CLASS_NAME_TO_MODULE: dict[str, tuple[str, str]] = {
 
 _loaded_cache: dict[str, type] = {}
 
-__all__ = ["LANGUAGE_CODES", "Language"] + list(_CLASS_NAME_TO_MODULE.keys())
+__all__ = ["LANGUAGE_CODES", "Language", "register_language", "unregister_language"] + list(_CLASS_NAME_TO_MODULE.keys())
 
 
 def _load_language(code: str) -> type:
@@ -168,6 +168,24 @@ class _LazyLanguageCodes(dict):
 
 
 LANGUAGE_CODES = _LazyLanguageCodes()
+
+
+def register_language(code: str, language_cls: type) -> None:
+    """Register (or override) a language class for an ISO 639-1 ``code``.
+
+    ``LANGUAGE_CODES`` is a process-global, non-thread-safe registry shared by
+    every ``Segmenter``. Register custom languages once at import time, before
+    any concurrent segmentation, rather than mutating it from worker threads.
+    """
+    LANGUAGE_CODES[code] = language_cls
+
+
+def unregister_language(code: str) -> None:
+    """Remove a registered (or built-in) language ``code`` if present."""
+    try:
+        del LANGUAGE_CODES[code]
+    except KeyError:
+        pass
 
 
 class Language:
