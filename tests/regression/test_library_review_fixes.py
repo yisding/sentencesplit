@@ -128,3 +128,42 @@ def test_orphan_merge_does_not_swallow_short_sentences(text, expected):
     seg = sentencesplit.Segmenter(language="en")
     assert [s.strip() for s in seg.segment(text)] == expected
     assert "".join(seg.segment(text)) == text
+
+
+# ---------------------------------------------------------------------------
+# Cleaner fixes.
+# ---------------------------------------------------------------------------
+def test_escaped_html_rule_preserves_escaped_comparisons():
+    """&lt; / &gt; in prose (escaped math) must not be deleted as a fake tag."""
+    from sentencesplit.cleaner import Cleaner
+    from sentencesplit.languages import Language
+
+    en = Language.get_language_code("en")
+    # Genuine escaped tags are still stripped...
+    assert Cleaner("a &lt;b&gt;x&lt;/b&gt; c", en).clean() == "a x c"
+    # ...but escaped comparison operators in prose are preserved.
+    cleaned = Cleaner("The value x &lt; 5 and y &gt; 3 here.", en).clean()
+    assert "5 and y" in cleaned
+
+
+def test_table_of_contents_rule_does_not_eat_ellipsis_prose():
+    from sentencesplit.cleaner import Cleaner
+    from sentencesplit.languages import Language
+
+    en = Language.get_language_code("en")
+    assert Cleaner("wait.... 42 things happened", en).clean() == "wait.... 42 things happened"
+
+
+def test_escaped_and_real_newlines_clean_identically():
+    from sentencesplit.cleaner import Cleaner
+    from sentencesplit.languages import Language
+
+    en = Language.get_language_code("en")
+    escaped = Cleaner("Line one.\\nLine two.", en).clean()
+    real = Cleaner("Line one.\nLine two.", en).clean()
+    assert escaped == real
+
+
+def test_pdf_mode_dehyphenates_line_broken_words():
+    seg = sentencesplit.Segmenter(language="en", clean=True, doc_type="pdf")
+    assert seg.segment("This is a hyphen-\nated word in pdf.") == ["This is a hyphenated word in pdf."]
