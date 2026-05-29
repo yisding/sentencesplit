@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+import weakref
 from dataclasses import dataclass
 
 from sentencesplit.abbreviation_replacer import AbbreviationReplacer
@@ -9,8 +10,10 @@ from sentencesplit.lists_item_replacer import ListItemReplacer
 from sentencesplit.utils import Rule, ensure_compiled
 
 # Resolved profiles keyed by language class. Language classes are effectively
-# immutable singletons, so a profile only needs to be built once per class.
-_PROFILE_CACHE: dict[type, "LanguageProfile"] = {}
+# immutable singletons, so a profile only needs to be built once per class. A
+# WeakKeyDictionary lets a dynamically registered+unregistered language class be
+# garbage-collected instead of being pinned forever by the cache.
+_PROFILE_CACHE: "weakref.WeakKeyDictionary[type, LanguageProfile]" = weakref.WeakKeyDictionary()
 
 
 @dataclass(frozen=True)

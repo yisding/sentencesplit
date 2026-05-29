@@ -267,3 +267,75 @@ def test_html_tag_rule_still_strips_tags():
 
     en = Language.get_language_code("en")
     assert Cleaner("Yes <em>really</em> <p class='x'>now</p>.", en).clean() == "Yes really now."
+
+
+# ---------------------------------------------------------------------------
+# Second-round fixes surfaced by adversarial verification of the first round.
+# ---------------------------------------------------------------------------
+def test_sentinel_escape_handles_preexisting_private_use_chars():
+    """A pre-existing private-use codepoint must round-trip even when the input
+    also contains a reserved sentinel that triggers escaping."""
+    # clean=False: nothing dropped (escape targets are chosen absent from input)
+    seg = sentencesplit.Segmenter(language="en")
+    text = "Math  and  with ∯ sentinel. Then  more."
+    assert "".join(seg.segment(text)) == text
+    # clean=True: the user's private-use chars and sentinel survive verbatim
+    clean = sentencesplit.Segmenter(language="en", clean=True)
+    t2 = "Glyph  next to ∯ here."
+    assert "".join(clean.segment_clean(t2)) == t2
+
+
+def test_escaped_html_rule_is_not_redos_vulnerable():
+    import time
+
+    seg = sentencesplit.Segmenter(language="en", clean=True)
+    evil = "Hello. &lt;a" + "b" * 40000 + " world."
+    start = time.perf_counter()
+    seg.segment(evil)
+    assert time.perf_counter() - start < 2.0
+
+
+def test_html_tag_rule_not_redos_on_long_unclosed_run():
+    import time
+
+    seg = sentencesplit.Segmenter(language="en", clean=True)
+    evil = "Intro. <a" + "b" * 40000 + " trailing."
+    start = time.perf_counter()
+    seg.segment(evil)
+    assert time.perf_counter() - start < 2.0
+
+
+def test_html_tag_rule_preserves_gt_inside_quoted_attribute():
+    from sentencesplit.cleaner import Cleaner
+    from sentencesplit.languages import Language
+
+    en = Language.get_language_code("en")
+    assert Cleaner('<a title="a>b">link</a>', en).clean() == "link"
+
+
+def test_cjk_bang_resplit_does_not_oversplit_ascii_in_combined_profile():
+    """A Latin '!'/'?' inside parens must not be resplit in the CJK-aware
+    en_es_zh profile (only fullwidth ！？ trigger the bang resplit)."""
+    ez = sentencesplit.Segmenter(language="en_es_zh")
+    en = sentencesplit.Segmenter(language="en")
+    for text in ["The album (Help!)was great.", "I asked (why?)but got no reply."]:
+        assert ez.segment(text) == en.segment(text) == [text]
+
+
+def test_profile_cache_does_not_pin_unregistered_language_classes():
+    import gc
+    import weakref
+
+    from sentencesplit.lang.common import Common, Standard
+    from sentencesplit.languages import register_language, unregister_language
+
+    refs = []
+    for i in range(25):
+        cls = type(f"Demo{i}", (Common, Standard), {"iso_code": "demo"})
+        register_language("demo", cls)
+        sentencesplit.Segmenter(language="demo").segment("Hello. Bye.")
+        refs.append(weakref.ref(cls))
+        unregister_language("demo")
+        del cls
+    gc.collect()
+    assert all(ref() is None for ref in refs)

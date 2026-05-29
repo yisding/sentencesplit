@@ -170,6 +170,16 @@ class _LazyLanguageCodes(dict):
 LANGUAGE_CODES = _LazyLanguageCodes()
 
 
+def _evict_profile(code: str) -> None:
+    """Drop any cached LanguageProfile for the class currently bound to ``code``
+    so a re-registration (or override) is rebuilt fresh."""
+    from sentencesplit.language_profile import _PROFILE_CACHE
+
+    existing = LANGUAGE_CODES.get(code)
+    if existing is not None:
+        _PROFILE_CACHE.pop(existing, None)
+
+
 def register_language(code: str, language_cls: type) -> None:
     """Register (or override) a language class for an ISO 639-1 ``code``.
 
@@ -177,11 +187,13 @@ def register_language(code: str, language_cls: type) -> None:
     every ``Segmenter``. Register custom languages once at import time, before
     any concurrent segmentation, rather than mutating it from worker threads.
     """
+    _evict_profile(code)
     LANGUAGE_CODES[code] = language_cls
 
 
 def unregister_language(code: str) -> None:
     """Remove a registered (or built-in) language ``code`` if present."""
+    _evict_profile(code)
     try:
         del LANGUAGE_CODES[code]
     except KeyError:

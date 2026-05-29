@@ -17,13 +17,15 @@ _ORPHAN_SINGLE_CHARS = frozenset("'\")\u2019\u201d")
 _CJK_QUOTE_RESPLIT_RE = re.compile(
     r"(?<=[。．][\]\"')”’」』】）》])(?=[\u4e00-\u9fff\u3040-\u30ff\u31f0-\u31ffA-Za-z0-9「『【（《])"
 )
-# Exclamation/question terminals inside a CJK quote or paren also end a sentence
-# when a new clause follows (e.g. 「快跑！」大家都散开了。). Narrower than the period
-# case: title marks 《》【】 hold non-terminal punctuation (book titles), and a closer
-# immediately followed by the Japanese quotative と (or っ for って) marks an embedded
-# reported quote (彼は「来るの？」と聞いた。) — neither is a sentence boundary.
+# Fullwidth exclamation/question terminals inside a CJK quote or paren also end a
+# sentence when a new clause follows (e.g. 「快跑！」大家都散开了。). Like the period rule,
+# only the fullwidth marks ！？ are matched (not ASCII !/?), so a Latin exclamation
+# in CJK-profile text — "(Help!)was great." — is not over-split. Title marks 《》【】
+# hold non-terminal punctuation (book titles), and a closer immediately followed by
+# the Japanese quotative と (or っ for って) marks an embedded reported quote
+# (彼は「来るの？」と聞いた。) — neither is a sentence boundary.
 _CJK_BANG_RESPLIT_RE = re.compile(
-    r"(?<=[！!?？][\]\"')”’」』）])(?![とっ])(?=[\u4e00-\u9fff\u3040-\u30ff\u31f0-\u31ffA-Za-z0-9「『【（《])"
+    r"(?<=[！？][\]\"')”’」』）])(?![とっ])(?=[\u4e00-\u9fff\u3040-\u30ff\u31f0-\u31ffA-Za-z0-9「『【（《])"
 )
 _LATIN_RESPLIT_RE = re.compile(r"(?<=[a-zA-Z]{2}\.\))\s+")
 
@@ -32,14 +34,31 @@ _LATIN_RESPLIT_RE = re.compile(r"(?<=[a-zA-Z]{2}\.\))\s+")
 # user's input already contains one, naive processing would rewrite it on output
 # (corrupting clean=True text) and break span mapping (silently dropping text in
 # the default clean=False mode). To stay non-destructive, any pre-existing
-# single-char sentinel in the input is escaped to a Private Use Area codepoint
-# before processing and restored verbatim afterwards. Multi-char "&X&" sentinels
-# are intentionally excluded: they are also produced by the Cleaner (e.g. "&ᓷ&"
-# for a bracketed "?") and are not realistically present in source text.
+# single-char sentinel in the input is escaped to a placeholder codepoint before
+# processing and restored verbatim afterwards. Multi-char "&X&" sentinels are
+# intentionally excluded: they are also produced by the Cleaner (e.g. "&ᓷ&" for a
+# bracketed "?") and are not realistically present in source text.
 _RESERVED_SENTINELS = "∯♬♭☉☇☈☄☊☋☌☍ȸȹƪ♟♝☏∮♨☝"
-_SENTINEL_ESCAPE_TABLE = {ord(ch): chr(0xE000 + i) for i, ch in enumerate(_RESERVED_SENTINELS)}
-_SENTINEL_RESTORE_TABLE = {0xE000 + i: ch for i, ch in enumerate(_RESERVED_SENTINELS)}
 _RESERVED_SENTINEL_SET = frozenset(_RESERVED_SENTINELS)
+# Private-use codepoints (BMP + both supplementary planes) used as escape
+# targets. Targets are chosen per call from this pool to be absent from the
+# input, so escape→restore is always a clean bijection even when the input
+# already contains private-use characters.
+_PRIVATE_USE_RANGES = ((0xE000, 0xF8FF), (0xF0000, 0xFFFFD), (0x100000, 0x10FFFD))
+
+
+def _build_sentinel_escape_tables(text: str) -> tuple[dict[int, int], dict[int, str]]:
+    """Return (escape, restore) translate tables mapping each reserved sentinel
+    to a private-use codepoint that does not occur in *text*."""
+    used = set(text)
+    free = (cp for lo, hi in _PRIVATE_USE_RANGES for cp in range(lo, hi + 1) if chr(cp) not in used)
+    escape: dict[int, int] = {}
+    restore: dict[int, str] = {}
+    for ch in _RESERVED_SENTINELS:
+        cp = next(free)
+        escape[ord(ch)] = cp
+        restore[cp] = ch
+    return escape, restore
 
 
 def _split_on_uppercase_boundary(text: str, whitespace_re: re.Pattern[str]) -> list[str] | None:
@@ -73,13 +92,16 @@ class Processor:
     def process(self) -> list[str]:
         if not self.text:
             return []
-        has_reserved = not _RESERVED_SENTINEL_SET.isdisjoint(self.text)
-        text = self.text.translate(_SENTINEL_ESCAPE_TABLE) if has_reserved else self.text
+        restore = None
+        text = self.text
+        if not _RESERVED_SENTINEL_SET.isdisjoint(text):
+            escape, restore = _build_sentinel_escape_tables(text)
+            text = text.translate(escape)
         for phase in self._text_processing_phases():
             text = phase(text)
         segments = self.split_into_segments(text)
-        if has_reserved:
-            segments = [seg.translate(_SENTINEL_RESTORE_TABLE) for seg in segments]
+        if restore is not None:
+            segments = [seg.translate(restore) for seg in segments]
         return segments
 
     def _text_processing_phases(self):

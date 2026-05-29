@@ -74,19 +74,20 @@ cr = CleanRules
 
 class HTML:
     # Rubular: http://rubular.com/r/9d0OVOEJWj
-    # Linear tag matcher: "<", optional "/", a tag name, then any non-">" chars
-    # up to the closing ">". The previous nested-quantifier pattern exhibited
-    # catastrophic backtracking on an unclosed tag with repeated attributes
-    # (a ReDoS on untrusted clean=True input); "[^>]*" cannot backtrack like that
-    # and still strips real tags such as <em>, <p class="x">, <img src="y"> and
-    # self-closing <br/>.
-    HTMLTagRule = Rule(r"<\/?\w+[^>]*>", "")
+    # Tag matcher: "<", optional "/", a tag name, then attribute content up to the
+    # closing ">", allowing ">" inside a quoted attribute value. Possessive
+    # quantifiers (\w++ / *+ — Python 3.11+) forbid the backtracking that made the
+    # earlier patterns ReDoS-vulnerable on untrusted clean=True input (an unclosed
+    # tag with a long run was quadratic). Still strips <em>, <p class="x">,
+    # <img src="y">, self-closing <br/>, and <a title="a>b">.
+    HTMLTagRule = Rule(r"""<\/?\w++(?:"[^"]*"|'[^']*'|[^>"'])*+>""", "")
 
     # Rubular: http://rubular.com/r/XZVqMPJhea
     # Match an escaped tag &lt;tag ...&gt; — the inner content must start with a
     # tag-name word char so escaped comparisons in prose ("x &lt; 5 and y &gt; 3")
     # are left intact instead of being deleted between &lt; and a bare "gt;".
-    EscapedHTMLTagRule = Rule(r"&lt;\/?\w+[^&]*?&gt;", "")
+    # Possessive quantifiers keep it linear (no ReDoS on a long unclosed "&lt;...").
+    EscapedHTMLTagRule = Rule(r"&lt;\/?\w++[^&]*+&gt;", "")
 
     All = [HTMLTagRule, EscapedHTMLTagRule]
 
