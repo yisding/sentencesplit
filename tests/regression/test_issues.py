@@ -229,6 +229,23 @@ def test_period_before_comma_is_not_a_sentence_boundary():
     assert segments == ["Su única especie: Didymaotus lapidiformis (Marloth) N.E.Br., es originaria de Sudáfrica."]
 
 
+def test_period_before_dutch_opening_quote_still_splits():
+    """The period-before-comma protection must NOT swallow a Dutch opening quote.
+
+    Dutch typography uses a doubled comma (",,") as an *opening* quotation mark,
+    so a period before ",," ends a real sentence. The period-before-comma rule
+    therefore excludes a doubled comma; only a single comma protects the period.
+    """
+    seg = sentencesplit.Segmenter(language="nl", clean=False)
+    text = "Dat was het einde. ,,Een nieuwe zin begint hier. En nog een zin."
+    segments = [s.strip() for s in seg.segment(text)]
+    assert segments == [
+        "Dat was het einde.",
+        ",,Een nieuwe zin begint hier.",
+        "En nog een zin.",
+    ]
+
+
 def test_versus_abbreviation_not_treated_as_list_item():
     """v. in case names like 'Marbury v. Madison' should not be split as a list item."""
     seg = sentencesplit.Segmenter(language="en", clean=False)

@@ -27,11 +27,13 @@ _LATIN_RESPLIT_RE = re.compile(r"(?<=[a-zA-Z]{2}\.\))\s+")
 # _next_nonspace_char_starts_sentence so accented Latin capitals (Ä/Ö/Ü, É, …) count.
 # The cluster is left intact; only the whitespace after it becomes a split point.
 _MULTI_TERMINATOR_RESPLIT_RE = re.compile(r"(?<=[!?]{2})\s+")
-# A period immediately followed (after optional spaces) by a comma can never be
-# a sentence boundary, since no sentence starts with a comma. This protects the
-# final period of unlisted multi-period abbreviations such as the botanical
-# author tag "N.E.Br.," from being treated as terminal.
-_PERIOD_BEFORE_COMMA_RE = re.compile(r"\.(?=\s*,)")
+# A period immediately followed (after optional spaces) by a *single* comma can
+# never be a sentence boundary, since no sentence starts with a comma. This
+# protects the final period of unlisted multi-period abbreviations such as the
+# botanical author tag "N.E.Br.," from being treated as terminal. The negative
+# lookahead excludes a doubled comma (",,"), which in Dutch typography is an
+# *opening* quotation mark beginning a new sentence (e.g. "...einde. ,,Nieuwe...").
+_PERIOD_BEFORE_COMMA_RE = re.compile(r"\.(?=\s*,(?!,))")
 
 # The between-punctuation pass protects everything from an opening quote to its
 # closing quote as one unsplittable region, so a quotation that wraps several
