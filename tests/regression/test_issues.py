@@ -644,3 +644,62 @@ def test_trailing_zero_width_space_preserves_char_spans():
     # Each returned span's text must be an exact slice of the original text.
     for span in spans:
         assert text[span.start : span.end] == span.sent
+
+
+@pytest.mark.parametrize(
+    "language,text,expected",
+    [
+        # Multi-character terminator (!!!) before a capitalized word ends a sentence.
+        (
+            "de",
+            "Der Betrieb AF Wintergarten ist einfach Top!!! Der Fisch ist immer frisch und der Wein ist sehr gut.",
+            [
+                "Der Betrieb AF Wintergarten ist einfach Top!!!",
+                "Der Fisch ist immer frisch und der Wein ist sehr gut.",
+            ],
+        ),
+        (
+            "de",
+            "Bei Kontaktanfragen wird man bei Problemen wochenlang ignoriert!!! "
+            "Bei Rechtsanwalt Lansky sind wir seit 2002 Mandanten.",
+            [
+                "Bei Kontaktanfragen wird man bei Problemen wochenlang ignoriert!!!",
+                "Bei Rechtsanwalt Lansky sind wir seit 2002 Mandanten.",
+            ],
+        ),
+        # Accented German capital after the cluster still counts as a boundary.
+        (
+            "de",
+            "Das ist Top!!! Über alles begeistert.",
+            ["Das ist Top!!!", "Über alles begeistert."],
+        ),
+        # English behaves the same.
+        (
+            "en",
+            "This place is amazing!!! Go there now.",
+            ["This place is amazing!!!", "Go there now."],
+        ),
+    ],
+)
+def test_multi_char_terminator_before_capital_splits(language, text, expected):
+    """A run of '!'/'?' (3+) that ends a sentence must split before a capitalized
+    next word, while the cluster itself is kept intact."""
+    seg = sentencesplit.Segmenter(language=language, clean=False)
+    assert [s.strip() for s in seg.segment(text)] == expected
+
+
+@pytest.mark.parametrize(
+    "language,text,expected",
+    [
+        # End-of-text cluster must stay attached, not become its own fragment.
+        ("en", "This place is 5 stars!!!", ["This place is 5 stars!!!"]),
+        # A cluster mid-clause followed by a lowercase word must not split.
+        ("en", "wow!!! amazing place", ["wow!!! amazing place"]),
+        ("de", "einfach Top!!! aber teuer", ["einfach Top!!! aber teuer"]),
+    ],
+)
+def test_multi_char_terminator_protected_when_no_capital_follower(language, text, expected):
+    """Protect the cluster from splitting when it does not end a sentence
+    (end of text, or followed by a lowercase continuation)."""
+    seg = sentencesplit.Segmenter(language=language, clean=False)
+    assert [s.strip() for s in seg.segment(text)] == expected

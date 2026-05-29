@@ -22,6 +22,11 @@ _CJK_QUOTE_RESPLIT_RE = re.compile(
     r"(?<=[。．][\]\"')”’」』】）》])(?=[\u4e00-\u9fff\u3040-\u30ff\u31f0-\u31ffA-Za-z0-9「『【（《])"
 )
 _LATIN_RESPLIT_RE = re.compile(r"(?<=[a-zA-Z]{2}\.\))\s+")
+# A run of 2+ '!'/'?' (restored from the continuous-punctuation placeholders) that
+# ends a sentence: the boundary check itself is delegated to
+# _next_nonspace_char_starts_sentence so accented Latin capitals (Ä/Ö/Ü, É, …) count.
+# The cluster is left intact; only the whitespace after it becomes a split point.
+_MULTI_TERMINATOR_RESPLIT_RE = re.compile(r"(?<=[!?]{2})\s+")
 # A period immediately followed (after optional spaces) by a comma can never be
 # a sentence boundary, since no sentence starts with a comma. This protects the
 # final period of unlisted multi-period abbreviations such as the botanical
@@ -168,9 +173,13 @@ class Processor:
     def _resplit_segments(self, postprocessed_sents: list[str]) -> list[str]:
         if self.profile.latin_uppercase_resplit:
             # Re-split at ".) Capital" boundaries (period inside closing paren before new sentence)
+            # and at multi-character terminators ("Top!!! Der") whose cluster the
+            # continuous-punctuation protection prevented from splitting earlier.
             resplit = []
             for pps in postprocessed_sents:
-                parts = _split_on_uppercase_boundary(pps, _LATIN_RESPLIT_RE)
+                parts = _split_on_uppercase_boundary(pps, _LATIN_RESPLIT_RE) or _split_on_uppercase_boundary(
+                    pps, _MULTI_TERMINATOR_RESPLIT_RE
+                )
                 if parts is None:
                     resplit.append(pps)
                 else:
