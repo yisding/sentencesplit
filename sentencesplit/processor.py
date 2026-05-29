@@ -14,6 +14,10 @@ _TRAILING_EXCL_RE = re.compile(r"&ᓴ&$")
 _PAREN_SPACE_BEFORE_RE = re.compile(r"\s(?=\()")
 _PAREN_SPACE_AFTER_RE = re.compile(r"(?<=\))\s")
 _ORPHAN_SINGLE_CHARS = frozenset("'\")\u2019\u201d")
+# Zero-width / format characters that str.strip() does not remove. Wikipedia
+# reference markers leave a lone U+200B at a sentence boundary, which otherwise
+# survives as a phantom empty sentence or is folded into the next sentence.
+_ZERO_WIDTH_CHARS = "\u200b\u200c\u200d\ufeff"
 _CJK_QUOTE_RESPLIT_RE = re.compile(
     r"(?<=[。．][\]\"')”’」』】）》])(?=[\u4e00-\u9fff\u3040-\u30ff\u31f0-\u31ffA-Za-z0-9「『【（《])"
 )
@@ -129,7 +133,20 @@ class Processor:
         postprocessed_sents = self._restore_and_postprocess_segments(sents)
         postprocessed_sents = [apply_rules(ns, self.lang.SubSingleQuoteRule) for ns in postprocessed_sents]
         postprocessed_sents = self._resplit_segments(postprocessed_sents)
-        return self._merge_orphan_fragments(postprocessed_sents)
+        postprocessed_sents = self._merge_orphan_fragments(postprocessed_sents)
+        return self._strip_zero_width_chars(postprocessed_sents)
+
+    def _strip_zero_width_chars(self, postprocessed_sents: list[str]) -> list[str]:
+        # str.strip() does not remove zero-width / format characters, so a lone
+        # U+200B (e.g. a Wikipedia reference marker) survives as a phantom empty
+        # sentence and a leading one is folded into the next sentence. Strip them
+        # from the segment edges and drop segments that become empty.
+        cleaned = []
+        for sent in postprocessed_sents:
+            stripped = sent.strip(_ZERO_WIDTH_CHARS).strip()
+            if stripped:
+                cleaned.append(stripped)
+        return cleaned
 
     def _apply_single_newline_and_ellipsis_rules(self, text: str) -> str:
         return apply_rules(text, self.lang.SingleNewLineRule, *self.lang.EllipsisRules.All)

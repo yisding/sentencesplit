@@ -542,3 +542,51 @@ def test_en_es_zh_abbreviation_protection_for_non_latin1_letters(text, expected)
     """en_es_zh abbreviation protection must cover non-Latin-1 letters like č and Δ."""
     seg = sentencesplit.Segmenter(language="en_es_zh", clean=False, char_span=False)
     assert [s.strip() for s in seg.segment(text)] == expected
+
+
+@pytest.mark.parametrize(
+    "text,expected",
+    [
+        # Lone trailing U+200B (Wikipedia reference marker) must not survive as a phantom sentence.
+        ("Texto.​", ["Texto."]),
+        (
+            "siendo la 1.ª área metropolitana española en actividad económica −19 % del PIB.​",
+            ["siendo la 1.ª área metropolitana española en actividad económica −19 % del PIB."],
+        ),
+        # Mid-text U+200B must not be folded into the FOLLOWING sentence as a leading char.
+        (
+            "Frase uno.​ Frase dos.​",
+            ["Frase uno.", "Frase dos."],
+        ),
+        (
+            "En sus Novelas ejemplares, Cervantes dice ser tartamudo. "
+            "Para José Manuel Lucía Megías, se trataría de una figura retórica "
+            "para describirse a sí mismo como falto de elocuencia verbal.​ "
+            "Krzysztof Sliwa, por el contrario, cree que Cervantes padecía una verdadera "
+            "alteración del lenguaje, citando similares comentarios del manchego en tres de "
+            "sus escritos además de las Novelas.​",
+            [
+                "En sus Novelas ejemplares, Cervantes dice ser tartamudo.",
+                "Para José Manuel Lucía Megías, se trataría de una figura retórica "
+                "para describirse a sí mismo como falto de elocuencia verbal.",
+                "Krzysztof Sliwa, por el contrario, cree que Cervantes padecía una verdadera "
+                "alteración del lenguaje, citando similares comentarios del manchego en tres de "
+                "sus escritos además de las Novelas.",
+            ],
+        ),
+    ],
+)
+def test_trailing_zero_width_space_not_emitted_as_sentence(text, expected):
+    """Wikipedia U+200B reference markers must not produce phantom/leading-char sentences."""
+    seg = sentencesplit.Segmenter(language="es", clean=False, char_span=False)
+    assert [s.strip() for s in seg.segment(text)] == expected
+
+
+def test_trailing_zero_width_space_preserves_char_spans():
+    """Dropping zero-width chars must keep char-span mapping non-destructive."""
+    seg = sentencesplit.Segmenter(language="es", clean=False, char_span=True)
+    text = "Frase uno.​ Frase dos.​"
+    spans = seg.segment(text)
+    # Each returned span's text must be an exact slice of the original text.
+    for span in spans:
+        assert text[span.start : span.end] == span.sent
