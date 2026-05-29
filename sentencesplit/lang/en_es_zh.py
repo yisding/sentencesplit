@@ -26,7 +26,16 @@ from sentencesplit.utils import Rule
 
 _LATIN_PAREN_RESPLIT_RE = re.compile(r"(?<=[a-zA-Z]{2}\.\))\s+")
 _CJK_FOLLOWING_CHAR_RE = re.compile(r"[\u3400-\u9FFF]")
-_ENGLISH_HEURISTIC_ABBREVIATIONS = frozenset(a.lower() for a in Standard.Abbreviation.ABBREVIATIONS)
+# The uppercase sentence-start heuristic applies to BOTH the English and Spanish
+# abbreviation sets. Gating it to English-only previously made common words that
+# are also Spanish abbreviations (doc, dir, dom, \u2026) under-split versus both the
+# standalone "en" and "es" profiles.
+_HEURISTIC_ABBREVIATIONS = frozenset(
+    a.lower() for a in (Standard.Abbreviation.ABBREVIATIONS + Spanish.Abbreviation.ABBREVIATIONS)
+)
+# Closers that mark an embedded CJK quote/title; a lowercase Latin continuation
+# after one of these is not a quote continuation (unlike a Latin quote closer).
+_CJK_QUOTE_CLOSERS = frozenset("\u300d\u300f\u300b\u3011")
 _CJK_REPORTING_CLAUSE_RE = re.compile(
     rf"^(?:他|她|他们|她们|我|我们|记者|警方|老师|母亲|父亲|主持人|发言人).{{0,6}}(?:说|问|答|表示|回应|补充|解释){_CJK_REPORTING_CLAUSE_BOUNDARY}"
 )
@@ -67,7 +76,7 @@ class EnglishSpanishChinese(CJKBoundaryProfile, Common, Standard):
                 char = ""
             am_lower = am.strip().lower()
             ascii_upper = bool(char) and char.isascii() and char.isupper()
-            use_uppercase_heuristic = ascii_upper and am_lower in _ENGLISH_HEURISTIC_ABBREVIATIONS
+            use_uppercase_heuristic = ascii_upper and am_lower in _HEURISTIC_ABBREVIATIONS
             if not use_uppercase_heuristic or am_lower in self._data.prepositive_set:
                 am_escaped = re.escape(am.strip())
                 txt = " " + txt
@@ -139,10 +148,15 @@ class EnglishSpanishChinese(CJKBoundaryProfile, Common, Standard):
             current = current.lstrip()
             if not previous or not current:
                 return False
-            if not _QUOTE_CLOSER_RE.search(previous):
+            closer = _QUOTE_CLOSER_RE.search(previous)
+            if not closer:
                 return False
-            first_char = current[0]
-            if first_char.islower():
+            # A lowercase Latin continuation is only a quote continuation after a
+            # Latin quote closer ("…" then he said). After a CJK closer (」』》】)
+            # a lowercase word is a separate sentence (matching standalone zh);
+            # only the CJK reporting clause re-merges those.
+            is_cjk_closer = any(c in _CJK_QUOTE_CLOSERS for c in closer.group())
+            if current[0].islower() and not is_cjk_closer:
                 return True
             if _CJK_REPORTING_CLAUSE_RE.match(current):
                 return True

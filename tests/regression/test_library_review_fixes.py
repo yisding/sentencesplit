@@ -203,3 +203,28 @@ def test_exclamation_words_longest_match_first():
     # "!Kung-Ekoka" must be matched whole, not as "!Kung" + dangling "-Ekoka".
     out = ExclamationWords.apply_rules("the !Kung-Ekoka people")
     assert "!" not in out  # the protected "!" was replaced by its placeholder
+
+
+# ---------------------------------------------------------------------------
+# en_es_zh combined-profile divergences from the component languages.
+# ---------------------------------------------------------------------------
+def test_en_es_zh_spanish_abbreviation_splits_before_capital_like_components():
+    """A Spanish-only abbreviation that is also a plain word (doc) must split
+    before a capitalized sentence start, as it does in both en and es."""
+    ez = sentencesplit.Segmenter(language="en_es_zh")
+    en = sentencesplit.Segmenter(language="en")
+    es = sentencesplit.Segmenter(language="es")
+    text = "I read the doc. He left."
+    expected = ["I read the doc.", "He left."]
+    assert [s.strip() for s in en.segment(text)] == expected
+    assert [s.strip() for s in es.segment(text)] == expected
+    assert [s.strip() for s in ez.segment(text)] == expected
+
+
+def test_en_es_zh_cjk_closer_then_lowercase_latin_splits_like_zh():
+    """A lowercase Latin word after a CJK closing quote is a new sentence
+    (matching standalone zh), not a quote continuation."""
+    text = "结果是「好。」then nothing happened."
+    ez = [s.strip() for s in sentencesplit.Segmenter(language="en_es_zh").segment(text)]
+    zh = [s.strip() for s in sentencesplit.Segmenter(language="zh").segment(text)]
+    assert ez == zh == ["结果是「好。」", "then nothing happened."]

@@ -12,6 +12,7 @@ from sentencesplit.utils import SegmentLookahead, TextSpan
 _DEFAULT_LOOKAHEAD_STEMS = ("a", "A")
 _LANGUAGE_LOOKAHEAD_STEMS = {
     "am": ("ሀ",),
+    "en_es_zh": ("a", "A", "甲"),
     "ar": ("ا",),
     "bg": ("А",),
     "el": ("Α",),
