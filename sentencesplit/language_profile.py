@@ -17,6 +17,7 @@ class LanguageProfile:
     between_punctuation_cls: type[BetweenPunctuation]
     list_item_replacer_cls: type[ListItemReplacer]
     cjk_abbreviation_rules: tuple[Rule, ...]
+    cjk_reporting_clause_re: re.Pattern[str] | None
     colon_rule: Rule | None
     comma_rule: Rule | None
     latin_uppercase_resplit: bool
@@ -31,11 +32,13 @@ class LanguageProfile:
     @classmethod
     def from_language(cls, lang) -> LanguageProfile:
         cjk_rules = tuple(getattr(getattr(lang, "CjkAbbreviationRules", None), "All", ()))
+        clause_regex = getattr(lang, "CJK_REPORTING_CLAUSE_REGEX", None)
         return cls(
             abbreviation_replacer_cls=getattr(lang, "AbbreviationReplacer", AbbreviationReplacer),
             between_punctuation_cls=getattr(lang, "BetweenPunctuation", BetweenPunctuation),
             list_item_replacer_cls=getattr(lang, "ListItemReplacer", ListItemReplacer),
             cjk_abbreviation_rules=cjk_rules,
+            cjk_reporting_clause_re=ensure_compiled(clause_regex) if clause_regex is not None else None,
             colon_rule=getattr(lang, "ReplaceColonBetweenNumbersRule", None),
             comma_rule=getattr(lang, "ReplaceNonSentenceBoundaryCommaRule", None),
             latin_uppercase_resplit=getattr(lang, "LATIN_UPPERCASE_RESPLIT", True),

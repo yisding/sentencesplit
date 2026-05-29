@@ -1,27 +1,15 @@
 # -*- coding: utf-8 -*-
 import re
 
-from sentencesplit.abbreviation_replacer import AbbreviationReplacer
 from sentencesplit.lang.common import Common, Standard
-from sentencesplit.utils import Rule
+from sentencesplit.lang.common.arabic_script import ArabicScriptProfile
 
 
-class Arabic(Common, Standard):
+class Arabic(ArabicScriptProfile, Common, Standard):
     iso_code = "ar"
 
     Punctuations = ["?", "!", ":", ".", "؟", "،"]
     SENTENCE_BOUNDARY_REGEX = re.compile(r".*?[:\.!\?؟،]|.*?\Z|.*?$")
-
-    # Rubular: http://rubular.com/r/RX5HpdDIyv
-    ReplaceColonBetweenNumbersRule = Rule(r"(?<=\d):(?=\d)", "♭")
-
-    # Rubular: http://rubular.com/r/kPRgApNHUg
-    ReplaceNonSentenceBoundaryCommaRule = Rule(r"،(?=\s\S+،)", "♬")
-
-    class AbbreviationReplacer(AbbreviationReplacer):
-        def scan_for_replacements(self, txt, am, index, character_array, stripped=None, escaped=None):
-            txt = re.sub(r"(?<={0})\.".format(am), "∯", txt)
-            return txt
 
     class Abbreviation(Standard.Abbreviation):
         ABBREVIATIONS = [
