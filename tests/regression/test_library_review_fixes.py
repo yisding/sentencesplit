@@ -167,3 +167,39 @@ def test_escaped_and_real_newlines_clean_identically():
 def test_pdf_mode_dehyphenates_line_broken_words():
     seg = sentencesplit.Segmenter(language="en", clean=True, doc_type="pdf")
     assert seg.segment("This is a hyphen-\nated word in pdf.") == ["This is a hyphenated word in pdf."]
+
+
+# ---------------------------------------------------------------------------
+# Between-punctuation: a single-quoted phrase at the start of the text must be
+# protected (mirroring double quotes / parens).
+# ---------------------------------------------------------------------------
+@pytest.mark.parametrize(
+    "text",
+    [
+        "'stop now. go away.' he said",
+        "‘stop now. go away.’ he said",
+    ],
+)
+def test_leading_single_quote_phrase_is_protected(text):
+    seg = sentencesplit.Segmenter(language="en")
+    assert seg.segment(text) == [text]
+
+
+# ---------------------------------------------------------------------------
+# Hindi: "." is not a sentence terminator (danda is); periods must not split.
+# ---------------------------------------------------------------------------
+def test_hindi_period_is_not_a_boundary():
+    seg = sentencesplit.Segmenter(language="hi")
+    assert seg.segment("First sentence. Second sentence.") == ["First sentence. Second sentence."]
+    assert [s.strip() for s in seg.segment("अ आ। इ ई।")] == ["अ आ।", "इ ई।"]
+
+
+# ---------------------------------------------------------------------------
+# Exclamation-word alternation must match the longest entry first.
+# ---------------------------------------------------------------------------
+def test_exclamation_words_longest_match_first():
+    from sentencesplit.exclamation_words import ExclamationWords
+
+    # "!Kung-Ekoka" must be matched whole, not as "!Kung" + dangling "-Ekoka".
+    out = ExclamationWords.apply_rules("the !Kung-Ekoka people")
+    assert "!" not in out  # the protected "!" was replaced by its placeholder

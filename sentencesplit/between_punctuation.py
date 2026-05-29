@@ -11,9 +11,11 @@ class BetweenPunctuation:
     """Replace punctuation inside quotes/brackets so it won't split sentences."""
 
     # Rubular: http://rubular.com/r/2YFrKWQUYi
-    BETWEEN_SINGLE_QUOTES_REGEX = re.compile(r"(?<=\s)'(?:[^']|'[a-zA-Z])*'")
+    # Accept a single-quoted phrase at the start of the string too, mirroring the
+    # double-quote/paren regexes which already protect at string start.
+    BETWEEN_SINGLE_QUOTES_REGEX = re.compile(r"(?:(?<=\s)|^)'(?:[^']|'[a-zA-Z])*'")
 
-    BETWEEN_SINGLE_QUOTE_SLANTED_REGEX = re.compile(r"(?<=\s)\u2018(?:[^\u2019]|\u2019[a-zA-Z])*\u2019")
+    BETWEEN_SINGLE_QUOTE_SLANTED_REGEX = re.compile(r"(?:(?<=\s)|^)\u2018(?:[^\u2019]|\u2019[a-zA-Z])*\u2019")
 
     BETWEEN_DOUBLE_QUOTES_REGEX_2 = re.compile(r'"[^"\\]*(?:\\.[^"\\]*)*"')
 
