@@ -1,3 +1,9 @@
+# v0.0.4 (2026-05-10)
+- feat(api): export `TextSpan` from the package root.
+- feat(typing): add a `py.typed` marker so type checkers see inline types.
+- build: add a `spacy` optional-dependency group and bump `uv-build` to 0.11.x.
+- docs: add a pull request template; ci: add Dependabot for GitHub Actions.
+
 # v0.0.3 (2026-04-12)
 - refactor: split the processor into explicit text-processing and boundary-processing phase pipelines (`_text_processing_phases`, `_boundary_processing_phases`).
 - ci: decouple the release workflow from the PyPI publish workflow so tags can be republished independently.

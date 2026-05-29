@@ -86,6 +86,9 @@ mccabe.max-complexity = 10
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# Fail the suite if an xfail-marked test starts passing, so a fixed bug's stale
+# xfail can't silently rot as an xpass.
+xfail_strict = true
 
 [tool.semantic_release]
 tag_format = "v{version}"

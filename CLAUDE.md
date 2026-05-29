@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What This Is
 
-sentencesplit is a rule-based sentence boundary detection library (derived from pySBD) supporting 24 languages. Pure Python, no external dependencies — only the `re` module. Python 3.11+.
+sentencesplit is a rule-based sentence boundary detection library (derived from pySBD) supporting 24 languages. Pure Python, no external dependencies — only the Python standard library (`re`, `unicodedata`, `string`, `functools`, `dataclasses`, …). Python 3.11+.
 
 ## Commands
 

@@ -74,7 +74,13 @@ cr = CleanRules
 
 class HTML:
     # Rubular: http://rubular.com/r/9d0OVOEJWj
-    HTMLTagRule = Rule(r"<\/?\w+((\s+\w+(\s*=\s*(?:\".*?\"|'.*?'|[\^'\">\s]+))?)+\s*|\s*)\/?>", "")
+    # Linear tag matcher: "<", optional "/", a tag name, then any non-">" chars
+    # up to the closing ">". The previous nested-quantifier pattern exhibited
+    # catastrophic backtracking on an unclosed tag with repeated attributes
+    # (a ReDoS on untrusted clean=True input); "[^>]*" cannot backtrack like that
+    # and still strips real tags such as <em>, <p class="x">, <img src="y"> and
+    # self-closing <br/>.
+    HTMLTagRule = Rule(r"<\/?\w+[^>]*>", "")
 
     # Rubular: http://rubular.com/r/XZVqMPJhea
     # Match an escaped tag &lt;tag ...&gt; — the inner content must start with a

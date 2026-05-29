@@ -228,3 +228,42 @@ def test_en_es_zh_cjk_closer_then_lowercase_latin_splits_like_zh():
     ez = [s.strip() for s in sentencesplit.Segmenter(language="en_es_zh").segment(text)]
     zh = [s.strip() for s in sentencesplit.Segmenter(language="zh").segment(text)]
     assert ez == zh == ["结果是「好。」", "then nothing happened."]
+
+
+# ---------------------------------------------------------------------------
+# CJK abbreviation-period override (zh/ja): a Latin abbreviation period before a
+# CJK character is protected (stays joined).
+# ---------------------------------------------------------------------------
+@pytest.mark.parametrize(
+    "language,text",
+    [
+        ("zh", "He works at Inc.中文继续。"),
+        ("ja", "He works at co.日本語が続く。"),
+    ],
+)
+def test_cjk_abbreviation_period_before_cjk_stays_joined(language, text):
+    seg = sentencesplit.Segmenter(language=language)
+    assert seg.segment(text) == [text]
+
+
+# ---------------------------------------------------------------------------
+# ReDoS: an unclosed HTML-like tag with repeated attributes must clean quickly
+# (the old HTMLTagRule had catastrophic backtracking on untrusted clean=True
+# input). We assert correctness + a generous wall-clock ceiling.
+# ---------------------------------------------------------------------------
+def test_html_tag_rule_is_not_redos_vulnerable():
+    import time
+
+    seg = sentencesplit.Segmenter(language="en", clean=True)
+    evil = "ok <a " + 'b="c" ' * 60 + "z."
+    start = time.perf_counter()
+    seg.segment(evil)
+    assert time.perf_counter() - start < 2.0
+
+
+def test_html_tag_rule_still_strips_tags():
+    from sentencesplit.cleaner import Cleaner
+    from sentencesplit.languages import Language
+
+    en = Language.get_language_code("en")
+    assert Cleaner("Yes <em>really</em> <p class='x'>now</p>.", en).clean() == "Yes really now."

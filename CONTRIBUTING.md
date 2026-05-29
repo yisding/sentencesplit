@@ -47,7 +47,7 @@ git clone https://github.com/yisding/sentencesplit
 cd sentencesplit
 uv sync --group dev
 ```
-Since sentencesplit is lightweight, it requires only Python built-in modules, specifically the `re` module, to function. Development packages are managed through the `dev` dependency group in `pyproject.toml`. If you want benchmark dependencies (`spacy`, `stanza`, etc.), install them with `uv sync --extra benchmark`.
+Since sentencesplit is lightweight, it requires only the Python standard library (`re`, `unicodedata`, `string`, `functools`, `dataclasses`, and friends) to function. Development packages are managed through the `dev` dependency group in `pyproject.toml`. If you want benchmark dependencies (`spacy`, `stanza`, etc.), install them with `uv sync --extra benchmark`.
 
 ### Add a new rule to existing *Golden Rules Set* (GRS)
 The language specific *Golden Rules Set* are hand-constructed rules, designed to cover sentence boundaries across a variety of domains. The set is by no means complete and will evolve and expand over time. If you would like to report an issue in an existing rule or report a new rule, please [open an issue.](#submitting-issues) If you want to contribute yourself then please go ahead and send a pull request by referring to the [add tests](#add-tests) section.

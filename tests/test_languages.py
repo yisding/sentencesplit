@@ -9,7 +9,9 @@ class _Stub:
     """Sentinel class used in mutation tests to stand in for a real language."""
 
 
-DEDUPED_ABBREVIATION_LANGUAGE_CODES = ("ar", "da", "es", "fr", "nl", "sk")
+# All registered languages should have duplicate-free, whitespace-trimmed
+# abbreviation lists.
+DEDUPED_ABBREVIATION_LANGUAGE_CODES = tuple(sorted(LANGUAGE_CODES))
 
 
 def test_lang_code2instance_mapping():
@@ -28,6 +30,14 @@ def test_language_abbreviations_do_not_repeat_literals(code):
     counts = Counter(abbreviations)
     duplicates = sorted(abbreviation for abbreviation, count in counts.items() if count > 1)
     assert duplicates == []
+
+
+@pytest.mark.parametrize("code", tuple(sorted(LANGUAGE_CODES)))
+def test_language_abbreviations_are_whitespace_trimmed(code):
+    """Abbreviation entries must not carry stray leading/trailing whitespace."""
+    abbreviations = LANGUAGE_CODES[code].Abbreviation.ABBREVIATIONS
+    untrimmed = sorted(a for a in abbreviations if a != a.strip())
+    assert untrimmed == []
 
 
 def test_specialized_abbreviations_are_registered_abbreviations():
