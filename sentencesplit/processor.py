@@ -17,7 +17,29 @@ _ORPHAN_SINGLE_CHARS = frozenset("'\")\u2019\u201d")
 _CJK_QUOTE_RESPLIT_RE = re.compile(
     r"(?<=[。．][\]\"')”’」』】）》])(?=[\u4e00-\u9fff\u3040-\u30ff\u31f0-\u31ffA-Za-z0-9「『【（《])"
 )
+# Exclamation/question terminals inside a CJK quote or paren also end a sentence
+# when a new clause follows (e.g. 「快跑！」大家都散开了。). Narrower than the period
+# case: title marks 《》【】 hold non-terminal punctuation (book titles), and a closer
+# immediately followed by the Japanese quotative と (or っ for って) marks an embedded
+# reported quote (彼は「来るの？」と聞いた。) — neither is a sentence boundary.
+_CJK_BANG_RESPLIT_RE = re.compile(
+    r"(?<=[！!?？][\]\"')”’」』）])(?![とっ])(?=[\u4e00-\u9fff\u3040-\u30ff\u31f0-\u31ffA-Za-z0-9「『【（《])"
+)
 _LATIN_RESPLIT_RE = re.compile(r"(?<=[a-zA-Z]{2}\.\))\s+")
+
+# Internal placeholder ("sentinel") characters the pipeline uses to protect
+# punctuation from splitting. They are ordinary printable codepoints, so if a
+# user's input already contains one, naive processing would rewrite it on output
+# (corrupting clean=True text) and break span mapping (silently dropping text in
+# the default clean=False mode). To stay non-destructive, any pre-existing
+# single-char sentinel in the input is escaped to a Private Use Area codepoint
+# before processing and restored verbatim afterwards. Multi-char "&X&" sentinels
+# are intentionally excluded: they are also produced by the Cleaner (e.g. "&ᓷ&"
+# for a bracketed "?") and are not realistically present in source text.
+_RESERVED_SENTINELS = "∯♬♭☉☇☈☄☊☋☌☍ȸȹƪ♟♝☏∮♨☝"
+_SENTINEL_ESCAPE_TABLE = {ord(ch): chr(0xE000 + i) for i, ch in enumerate(_RESERVED_SENTINELS)}
+_SENTINEL_RESTORE_TABLE = {0xE000 + i: ch for i, ch in enumerate(_RESERVED_SENTINELS)}
+_RESERVED_SENTINEL_SET = frozenset(_RESERVED_SENTINELS)
 
 
 def _split_on_uppercase_boundary(text: str, whitespace_re: re.Pattern[str]) -> list[str] | None:
@@ -51,10 +73,14 @@ class Processor:
     def process(self) -> list[str]:
         if not self.text:
             return []
-        text = self.text
+        has_reserved = not _RESERVED_SENTINEL_SET.isdisjoint(self.text)
+        text = self.text.translate(_SENTINEL_ESCAPE_TABLE) if has_reserved else self.text
         for phase in self._text_processing_phases():
             text = phase(text)
-        return self.split_into_segments(text)
+        segments = self.split_into_segments(text)
+        if has_reserved:
+            segments = [seg.translate(_SENTINEL_RESTORE_TABLE) for seg in segments]
+        return segments
 
     def _text_processing_phases(self):
         phases = [
@@ -155,11 +181,12 @@ class Processor:
                     resplit.extend(parts)
             return resplit
 
-        # CJK: Re-split at closing-quote boundaries
+        # CJK: Re-split at closing-quote boundaries (period terminals, then the
+        # narrower exclamation/question case).
         resplit = []
         for pps in postprocessed_sents:
-            parts = _CJK_QUOTE_RESPLIT_RE.split(pps)
-            resplit.extend(p for p in parts if p)
+            for part in _CJK_QUOTE_RESPLIT_RE.split(pps):
+                resplit.extend(p for p in _CJK_BANG_RESPLIT_RE.split(part) if p)
         return resplit
 
     def _merge_orphan_fragments(self, postprocessed_sents: list[str]) -> list[str]:
@@ -179,6 +206,12 @@ class Processor:
                     len(stripped) <= 10
                     and stripped.endswith(".")
                     and not stripped[0].isupper()
+                    # Only a single short token (e.g. "pp.", "cf.") is an orphan
+                    # abbreviation fragment. A fragment with internal whitespace
+                    # ("3 are red.", "go away.") or one starting with a closing
+                    # bracket (")", "]") is a real sentence, not an orphan.
+                    and stripped[0] not in ")]}"
+                    and " " not in stripped[:-1]
                     and any(c.isalnum() for c in stripped)
                 ):
                     is_orphan = True

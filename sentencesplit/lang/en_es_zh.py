@@ -15,6 +15,7 @@ from sentencesplit.lang.common.cjk import (
 from sentencesplit.lang.english import English
 from sentencesplit.lang.spanish import Spanish
 from sentencesplit.processor import (
+    _CJK_BANG_RESPLIT_RE,
     _CJK_QUOTE_RESPLIT_RE,
     _ELLIPSIS_RE,
     _ORPHAN_SINGLE_CHARS,
@@ -116,8 +117,8 @@ class EnglishSpanishChinese(CJKBoundaryProfile, Common, Standard):
                 for latin_part in latin_parts or [pps]:
                     if not latin_part:
                         continue
-                    parts = _CJK_QUOTE_RESPLIT_RE.split(latin_part)
-                    resplit.extend(part for part in parts if part)
+                    for part in _CJK_QUOTE_RESPLIT_RE.split(latin_part):
+                        resplit.extend(p for p in _CJK_BANG_RESPLIT_RE.split(part) if p)
             return self._merge_quote_continuations(resplit or postprocessed_sents)
 
         def _merge_quote_continuations(self, sentences: list[str]) -> list[str]:
