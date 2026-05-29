@@ -596,6 +596,46 @@ def test_trailing_zero_width_space_not_emitted_as_sentence(text, expected):
     assert [s.strip() for s in seg.segment(text)] == expected
 
 
+@pytest.mark.parametrize(
+    "text,expected",
+    [
+        # "и др." (etc.) and the inline language tags must not split.
+        (
+            "Чувашское книжное издательство -- республиканское государственное унитарное "
+            "предприятие, выпускающее художественную, детскую, учебно-педагогическую, "
+            "общественно-политическую и др. литературу на чуваш., рус., англ. языках.",
+            [
+                "Чувашское книжное издательство -- республиканское государственное унитарное "
+                "предприятие, выпускающее художественную, детскую, учебно-педагогическую, "
+                "общественно-политическую и др. литературу на чуваш., рус., англ. языках."
+            ],
+        ),
+        # "Ср." (cf.) at the start of a sentence must not split.
+        (
+            "Ср. с иконографией ``Муж скорбей&#39;&#39;, где ангелы придерживают израненное "
+            "тело Христа, но не умершего, а живого, так как это является не сценой "
+            "погребения, а аллегорическим изображением.",
+            [
+                "Ср. с иконографией ``Муж скорбей&#39;&#39;, где ангелы придерживают израненное "
+                "тело Христа, но не умершего, а живого, так как это является не сценой "
+                "погребения, а аллегорическим изображением."
+            ],
+        ),
+        # Language-tag abbreviations introducing a Latin-capital gloss must stay non-terminal.
+        (
+            "откуда в иностранных языках возникли названия типа англ. Moscow, нем. Moskau, фр. Moscou.",
+            ["откуда в иностранных языках возникли названия типа англ. Moscow, нем. Moskau, фр. Moscou."],
+        ),
+    ],
+)
+def test_russian_abbreviations_no_false_split(text, expected):
+    """Common Russian abbreviations (др., ср.) and inline language tags (англ., нем., фр.,
+    чуваш., рус.) must not be treated as sentence boundaries — even before a Latin-capital
+    gloss, which introduces a foreign-language name rather than ending a sentence."""
+    seg = sentencesplit.Segmenter(language="ru", clean=False)
+    assert [s.strip() for s in seg.segment(text)] == expected
+
+
 def test_trailing_zero_width_space_preserves_char_spans():
     """Dropping zero-width chars must keep char-span mapping non-destructive."""
     seg = sentencesplit.Segmenter(language="es", clean=False, char_span=True)
