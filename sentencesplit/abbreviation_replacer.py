@@ -153,6 +153,80 @@ class AbbreviationReplacer:
             AbbreviationReplacer._data_cache[abbr_class] = _AbbreviationData(lang.Abbreviation)
         self._data = AbbreviationReplacer._data_cache[abbr_class]
 
+    # Articles/determiners that mark a following initialism as a noun
+    # (e.g. "the S.A.T.", "un M.B.A."), not the initials of a personal name.
+    # Covers the common articles of the Latin-script languages so the chained
+    # initials name heuristic does not over-join acronym nouns before a new
+    # sentence.  Languages may extend this set.
+    _INITIALS_NAME_DETERMINERS = frozenset(
+        {
+            "the",
+            "a",
+            "an",  # en
+            "el",
+            "la",
+            "los",
+            "las",
+            "un",
+            "una",
+            "unos",
+            "unas",  # es
+            "de",
+            "het",
+            "een",  # nl
+            "le",
+            "les",
+            "une",
+            "des",  # fr
+            "der",
+            "die",
+            "das",
+            "ein",
+            "eine",  # de
+            "il",
+            "lo",
+            "gli",
+            "uno",
+            "una",  # it
+            "o",
+            "os",
+            "um",
+            "uma",
+            "uns",
+            "umas",  # pt
+        }
+    )
+
+    # Matches a run of single-letter initials protected as "X∯X∯…X∯", ending at
+    # the position of the final separator that the restore is examining.
+    _INITIALS_CHAIN_RE = re.compile(r"(?:[A-Za-z]∯)+[A-Za-z]\Z")
+
+    # First whitespace-delimited token after the initialism separator.
+    _FOLLOWER_WORD_RE = re.compile(r"\s+(\S+)")
+
+    def _is_initials_name(self, text: str, sep_index: int) -> bool:
+        """Return True if the initialism ending at *sep_index* is a personal name.
+
+        A run of single-letter initials (e.g. "F∯J∯G") followed by a single
+        capitalized surname is an "Initials + Surname" personal name, so its
+        trailing period must not be restored as a boundary.  Two cues mark the
+        initialism as a sentence-ending noun instead (and keep the boundary):
+        an article/determiner before it ("the S.A.T.") or a known sentence
+        starter after it ("from H.B.S. She ...").
+        """
+        chain = self._INITIALS_CHAIN_RE.search(text[:sep_index])
+        if chain is None:
+            return False
+        before = text[: chain.start()].rstrip()
+        prev_word = before.rsplit(None, 1)[-1] if before else ""
+        if prev_word.lower() in self._INITIALS_NAME_DETERMINERS:
+            return False
+        if self.SENTENCE_STARTERS:
+            follower = self._FOLLOWER_WORD_RE.match(text[sep_index + 1 :])
+            if follower and follower.group(1).rstrip(",.;:") in self.SENTENCE_STARTERS:
+                return False
+        return True
+
     def _is_likely_sentence_start(self, text: str) -> bool:
         """Check if the next non-space character in *text* looks like a sentence start.
 
@@ -187,9 +261,17 @@ class AbbreviationReplacer:
         def restore_uppercase_initialism_boundary(match):
             next_text = restore_source[match.end() :]
             char = _next_nonspace_char(next_text)
-            if char and char.isupper() and char.isascii():
-                return "."
-            return match.group()
+            if not (char and char.isupper() and char.isascii()):
+                return match.group()
+            # A run of single-letter initials (e.g. "F.J.G.", protected as
+            # "F∯J∯G∯") immediately followed by a single capitalized token is an
+            # "Initials + Surname" personal name, not a sentence end — keep the
+            # final separator non-terminal.  An initialism used as a noun
+            # ("the S.A.T."), where an article/determiner precedes it, is still
+            # treated as a possible boundary so a following capital can split.
+            if self._is_initials_name(restore_source, match.start()):
+                return match.group()
+            return "."
 
         self.text = re.sub(r"(?<=[A-Z]∯[A-Z]∯[A-Z])∯(?=\s)", restore_uppercase_initialism_boundary, self.text)
         self.text = apply_rules(self.text, *self.lang.AmPmRules.All)

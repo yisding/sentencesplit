@@ -723,3 +723,60 @@ def test_multi_char_terminator_protected_when_no_capital_follower(language, text
     (end of text, or followed by a lowercase continuation)."""
     seg = sentencesplit.Segmenter(language=language, clean=False)
     assert [s.strip() for s in seg.segment(text)] == expected
+
+
+@pytest.mark.parametrize(
+    "language,text,expected",
+    [
+        # NL: chained single-letter initials (Initials + Surname) must not split
+        # before the capitalized surname.
+        (
+            "nl",
+            "De onderzoeksvraag van forensisch psycholoog F.J.G. Buschman van het "
+            "psychiatrisch centrum Veldzicht in Balkbrug is subtieler: kun je met behulp "
+            "van de techniek zien of een zedendelinquent alweer bezig is te denken over "
+            "zijn volgende misdaad?",
+            [
+                "De onderzoeksvraag van forensisch psycholoog F.J.G. Buschman van het "
+                "psychiatrisch centrum Veldzicht in Balkbrug is subtieler: kun je met behulp "
+                "van de techniek zien of een zedendelinquent alweer bezig is te denken over "
+                "zijn volgende misdaad?"
+            ],
+        ),
+        (
+            "nl",
+            "forensisch psycholoog F.J.G. Buschman van het centrum",
+            ["forensisch psycholoog F.J.G. Buschman van het centrum"],
+        ),
+        # EN: same structure — initials followed by a single capitalized surname.
+        (
+            "en",
+            "A.S.E. Ackermann and team published the findings in 2007.",
+            ["A.S.E. Ackermann and team published the findings in 2007."],
+        ),
+    ],
+)
+def test_chained_initials_before_capital_surname_no_split(language, text, expected):
+    """A run of single-letter initials (e.g. F.J.G.) followed by a single
+    capitalized token is an Initials + Surname personal name, not a sentence
+    boundary, so the abbreviation-as-terminal restore must be suppressed."""
+    seg = sentencesplit.Segmenter(language=language, clean=False)
+    assert [s.strip() for s in seg.segment(text)] == expected
+
+
+@pytest.mark.parametrize(
+    "text,expected",
+    [
+        # An acronym used as a noun (preceded by an article) before a new
+        # sentence must still split — this is the boundary case the chained
+        # initials rule must not regress.
+        ("I studied for the S.A.T. Tomorrow is test day.", ["I studied for the S.A.T.", "Tomorrow is test day."]),
+        ("I studied for the S.A.T. Test is hard.", ["I studied for the S.A.T.", "Test is hard."]),
+    ],
+)
+def test_acronym_noun_before_new_sentence_still_splits(text, expected):
+    """Initials acting as a noun (e.g. 'the S.A.T.') must keep splitting before
+    a capitalized new sentence — guards against over-joining from the chained
+    initials name heuristic."""
+    seg = sentencesplit.Segmenter(language="en", clean=False)
+    assert [s.strip() for s in seg.segment(text)] == expected

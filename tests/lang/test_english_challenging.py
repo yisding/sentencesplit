@@ -514,13 +514,12 @@ CHALLENGING_EN_TEST_CASES = [
         "In early Dixieland, a.k.a. New Orleans jazz, musicians improvised freely.",
         ["In early Dixieland, a.k.a. New Orleans jazz, musicians improvised freely."],
     ),
-    # 119e) Name initials with three letters should not force a split
-    # xfail: all-uppercase initials are indistinguishable from acronyms at
-    # sentence boundaries; the broad restore regex treats them the same.
-    pytest.param(
+    # 119e) Name initials with three letters should not force a split.
+    # A run of single-letter initials followed by a single capitalized surname
+    # (not preceded by an article) is an "Initials + Surname" personal name.
+    (
         "A.S.E. Ackermann and team published the findings in 2007.",
         ["A.S.E. Ackermann and team published the findings in 2007."],
-        marks=pytest.mark.xfail,
     ),
     # 119f) No-space time token + dotted timezone should stay in one sentence
     (
