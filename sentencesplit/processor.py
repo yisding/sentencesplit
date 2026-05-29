@@ -33,6 +33,71 @@ _MULTI_TERMINATOR_RESPLIT_RE = re.compile(r"(?<=[!?]{2})\s+")
 # author tag "N.E.Br.," from being treated as terminal.
 _PERIOD_BEFORE_COMMA_RE = re.compile(r"\.(?=\s*,)")
 
+# The between-punctuation pass protects everything from an opening quote to its
+# closing quote as one unsplittable region, so a quotation that wraps several
+# complete sentences collapses into a single segment when the closing quote is
+# far away. _resplit_multi_sentence_quote re-splits such a segment, but only for
+# a self-contained, un-nested quotation: a single matched quote pair (one opener
+# near the start, the matching closer at the end) whose interior contains NO
+# other quote characters at all. That excludes dialogue with embedded attribution
+# or nested quotes (e.g. '"X," said Alice; "Y. Z. W."' or '"...\'William...\'"'),
+# which the existing gold keeps whole, while still catching a clean run such as
+# '“A. B. C.”' (case_0080).
+_QUOTE_PAIRS = (("“", "”"), ('"', '"'), ("«", "»"))
+_QUOTE_PAIR_BY_OPENER = {opener: closer for opener, closer in _QUOTE_PAIRS}
+_LEADING_QUOTE_RE = re.compile(r"\A[\s_]*([“\"«])")
+# Any quotation character — used to reject quotes with nested quotes/attribution.
+_ANY_QUOTE_CHARS = frozenset("“”\"«»‘’'")
+# Interior boundary inside a restored (already de-protected) quoted segment: a
+# single PERIOD, optional whitespace, then a Latin capital. Only periods count —
+# runs of '!'/'?' inside a quote are usually one emphatic speech act
+# ("Oh dear! Oh dear!" / "As if I would! ... again!"), not separate sentences.
+_QUOTE_INTERIOR_BOUNDARY_RE = re.compile(r"(?<=[.])\s+(?=[A-Z])")
+# A multi-sentence quotation must contain at least this many interior pieces
+# (i.e. at least two interior boundaries / three sentences) before the resplit
+# fires, and every piece must be at least _QUOTE_MIN_WORDS words long. Requiring
+# three keeps single-boundary quotes intact, where it is genuinely ambiguous
+# whether the second clause is a new sentence or a continuation of the same
+# speech act (e.g. the gold-kept "...at tea-time. Dinah, my dear, I wish...").
+_QUOTE_MIN_INTERIOR_SENTENCES = 3
+_QUOTE_MIN_WORDS = 5
+
+
+def _resplit_multi_sentence_quote(text: str) -> list[str] | None:
+    """Re-split a self-contained quotation at its interior period boundaries.
+
+    Returns the split pieces, or ``None`` when *text* should be left intact.
+    """
+    match = _LEADING_QUOTE_RE.match(text)
+    if match is None:
+        return None
+    closer = _QUOTE_PAIR_BY_OPENER[match.group(1)]
+    body = text.rstrip()
+    if not body.endswith(closer):
+        return None
+    # The interior must be a single, un-nested quotation: no embedded quote
+    # characters (attribution, nested quotes) that signal the multi-sentence run
+    # is not one clean quoted utterance.
+    inner = body[match.end() : -1]
+    if any(char in _ANY_QUOTE_CHARS for char in inner):
+        return None
+
+    spans = []
+    last = 0
+    for boundary in _QUOTE_INTERIOR_BOUNDARY_RE.finditer(text):
+        spans.append(text[last : boundary.start()])
+        last = boundary.end()
+    if len(spans) + 1 < _QUOTE_MIN_INTERIOR_SENTENCES:
+        return None
+    spans.append(text[last:])
+
+    if any(len(span.split()) < _QUOTE_MIN_WORDS for span in spans):
+        # Short interior pieces are dialogue beats, not standalone sentences —
+        # keep the quotation whole.
+        return None
+
+    return spans
+
 
 def _split_on_uppercase_boundary(text: str, whitespace_re: re.Pattern[str]) -> list[str] | None:
     parts = []
@@ -177,8 +242,10 @@ class Processor:
             # continuous-punctuation protection prevented from splitting earlier.
             resplit = []
             for pps in postprocessed_sents:
-                parts = _split_on_uppercase_boundary(pps, _LATIN_RESPLIT_RE) or _split_on_uppercase_boundary(
-                    pps, _MULTI_TERMINATOR_RESPLIT_RE
+                parts = (
+                    _split_on_uppercase_boundary(pps, _LATIN_RESPLIT_RE)
+                    or _split_on_uppercase_boundary(pps, _MULTI_TERMINATOR_RESPLIT_RE)
+                    or _resplit_multi_sentence_quote(pps)
                 )
                 if parts is None:
                     resplit.append(pps)

@@ -867,3 +867,139 @@ def test_dc_circuit_abbreviation_stays_joined():
     seg = sentencesplit.Segmenter(language="en", clean=False)
     text = "His involvement at the D.C. Circuit level and Anthony Kennedy joining the liberals."
     assert [s.strip() for s in seg.segment(text)] == [text]
+
+
+MULTI_SENTENCE_QUOTATION_DATA = [
+    # case_0080 — a single pair of curly quotes wraps four complete sentences;
+    # the closing quote only arrives at the end, so the interior terminal
+    # periods must still split (punkt/syntok do, sentencesplit used not to).
+    (
+        "case_0080",
+        "“Indeed, I should have thought a little more. Just a trifle more, I fancy, Watson. "
+        "And in practice again, I observe. You did not tell me that you intended to go into harness.”",
+        [
+            "“Indeed, I should have thought a little more.",
+            "Just a trifle more, I fancy, Watson.",
+            "And in practice again, I observe.",
+            "You did not tell me that you intended to go into harness.”",
+        ],
+    ),
+]
+
+
+@pytest.mark.parametrize("case_id, text, expected", MULTI_SENTENCE_QUOTATION_DATA)
+def test_multi_sentence_quotation_splits_interior_boundaries(case_id, text, expected):
+    """A self-contained multi-sentence quotation (a single un-nested quote pair
+    wrapping several complete sentences whose closing quote is far away) must
+    split at its interior period boundaries (cluster multi-sentence-quotation).
+    Previously the between-punctuation pass treated the whole quoted span as one
+    unsplittable region."""
+    seg = sentencesplit.Segmenter(language="en", clean=False)
+    assert [s.strip() for s in seg.segment(text)] == expected
+
+
+MULTI_SENTENCE_QUOTATION_KEEP_DATA = [
+    # case_0102 — GUARD: a short quoted speech act whose first clause is brief
+    # ("I see it, I deduce it.") stays as one unit (pysbd/pragmatic agree).
+    (
+        "case_0102",
+        "“I see it, I deduce it. How do I know that you have been getting yourself very wet lately, "
+        "and that you have a most clumsy and careless servant girl?”",
+        [
+            "“I see it, I deduce it. How do I know that you have been getting yourself very wet lately, "
+            "and that you have a most clumsy and careless servant girl?”",
+        ],
+    ),
+    # GUARD (case_0085 / test_english_clean): short embedded exclamations inside
+    # a quotation must stay together rather than fragment into "Oh dear!" etc.
+    (
+        "oh_dear",
+        "There was nothing so very remarkable in that, nor did Alice think it so very much out of "
+        'the way to hear the Rabbit say to itself, "Oh dear! Oh dear! I shall be too late!"',
+        [
+            "There was nothing so very remarkable in that, nor did Alice think it so very much out of "
+            'the way to hear the Rabbit say to itself, "Oh dear! Oh dear! I shall be too late!"',
+        ],
+    ),
+    # GUARD (Golden Rule): an interior period inside a quote followed by a
+    # lowercase attribution verb stays joined.
+    (
+        "gr_lowercase_attribution",
+        'She turned to him, "This is great." she said.',
+        ['She turned to him, "This is great." she said.'],
+    ),
+    # GUARD (case_0110): a quotation with a SINGLE interior boundary stays whole.
+    # Splitting it would regress the structurally identical gold "...at tea-time.
+    # Dinah, my dear, I wish..." below, so single-boundary quotes are left intact.
+    (
+        "case_0110",
+        "“When I hear you give your reasons,” I remarked, “the thing always appears to me to be "
+        "so ridiculously simple that I could easily do it myself, though at each successive instance "
+        "of your reasoning I am baffled until you explain your process. And yet I believe that my "
+        "eyes are as good as yours.”",
+        [
+            "“When I hear you give your reasons,” I remarked, “the thing always appears to me to be "
+            "so ridiculously simple that I could easily do it myself, though at each successive instance "
+            "of your reasoning I am baffled until you explain your process. And yet I believe that my "
+            "eyes are as good as yours.”",
+        ],
+    ),
+    # GUARD (test_english_clean): a single-boundary quote whose second clause is
+    # a vocative continuation of the same speech act must NOT be split.
+    (
+        "dinah",
+        '"I hope they\'ll remember her saucer of milk at tea-time. Dinah, my dear, I wish you were down here with me!"',
+        ['"I hope they\'ll remember her saucer of milk at tea-time. Dinah, my dear, I wish you were down here with me!"'],
+    ),
+    # GUARD (test_english_clean): a multi-sentence quote that contains embedded
+    # attribution ('," said Alice ...; "') is NOT a single self-contained
+    # quotation, so it is kept whole — the resplit only fires for an un-nested,
+    # un-attributed single quote pair.
+    (
+        "well_perhaps_not",
+        '"Well, perhaps not," said Alice in a soothing tone; "don\'t be angry about it. And yet I wish '
+        "I could show you our cat Dinah. I think you'd take a fancy to cats, if you could only see her. "
+        'She is such a dear, quiet thing."',
+        [
+            '"Well, perhaps not," said Alice in a soothing tone; "don\'t be angry about it. And yet I wish '
+            "I could show you our cat Dinah. I think you'd take a fancy to cats, if you could only see her. "
+            'She is such a dear, quiet thing."'
+        ],
+    ),
+    # GUARD (test_english_clean): a run of in-quote exclamations is one emphatic
+    # speech act, not separate sentences — only PERIOD boundaries split, so this
+    # stays whole.
+    (
+        "as_if_i_would",
+        '"As if _I_ would talk on such a subject! Our family always _hated_ cats--nasty, low, vulgar '
+        "things! Don't let me hear the name again!\"",
+        [
+            '"As if _I_ would talk on such a subject! Our family always _hated_ cats--nasty, low, vulgar '
+            "things! Don't let me hear the name again!\""
+        ],
+    ),
+    # GUARD (case_0106): a quotation broken by embedded attribution ('," said he;
+    # "') has more than one quote run, so the resplit leaves it intact even
+    # though it contains several interior periods.
+    (
+        "case_0106",
+        "“It is simplicity itself,” said he; “my eyes tell me that on the inside of your left "
+        "shoe, just where the firelight strikes it, the leather is scored by six almost parallel "
+        "cuts. Obviously they have been caused by someone who has very carelessly scraped round the "
+        "edges of the sole. Hence, you see, my double deduction.”",
+        [
+            "“It is simplicity itself,” said he; “my eyes tell me that on the inside of your left "
+            "shoe, just where the firelight strikes it, the leather is scored by six almost parallel "
+            "cuts. Obviously they have been caused by someone who has very carelessly scraped round the "
+            "edges of the sole. Hence, you see, my double deduction.”"
+        ],
+    ),
+]
+
+
+@pytest.mark.parametrize("case_id, text, expected", MULTI_SENTENCE_QUOTATION_KEEP_DATA)
+def test_multi_sentence_quotation_keeps_short_speech_acts(case_id, text, expected):
+    """GUARD: brief quoted utterances / embedded exclamations must NOT be
+    fragmented by the multi-sentence-quotation resplit."""
+    seg = sentencesplit.Segmenter(language="en", clean=False)
+    assert [s.strip() for s in seg.segment(text)] == expected
