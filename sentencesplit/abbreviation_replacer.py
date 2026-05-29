@@ -288,7 +288,11 @@ class AbbreviationReplacer:
                     continue
                 char = text[end + 2 : end + 3] if text[end : end + 2] == ". " else ""
                 occurrences.append((m.group(), char))
-            for am, char in occurrences:
+            # scan_for_replacements performs a *global* re.sub keyed only on (am,
+            # char), so identical occurrences yield identical, idempotent edits.
+            # Deduplicate them to keep work linear instead of O(occurrences × N)
+            # on long, repetitive, newline-free input.
+            for am, char in dict.fromkeys(occurrences):
                 text = self.scan_for_replacements(text, am, 0, (char,), stripped, escaped)
         return text
 

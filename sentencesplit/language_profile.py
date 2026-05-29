@@ -8,6 +8,10 @@ from sentencesplit.between_punctuation import BetweenPunctuation
 from sentencesplit.lists_item_replacer import ListItemReplacer
 from sentencesplit.utils import Rule, ensure_compiled
 
+# Resolved profiles keyed by language class. Language classes are effectively
+# immutable singletons, so a profile only needs to be built once per class.
+_PROFILE_CACHE: dict[type, "LanguageProfile"] = {}
+
 
 @dataclass(frozen=True)
 class LanguageProfile:
@@ -31,6 +35,18 @@ class LanguageProfile:
 
     @classmethod
     def from_language(cls, lang) -> LanguageProfile:
+        # A language's hooks are immutable class attributes, so the resolved
+        # profile is fully determined by the class — cache it to avoid rebuilding
+        # one (and re-running getattr/regex resolution) on every Segmenter call.
+        cached = _PROFILE_CACHE.get(lang)
+        if cached is not None:
+            return cached
+        profile = cls._build(lang)
+        _PROFILE_CACHE[lang] = profile
+        return profile
+
+    @classmethod
+    def _build(cls, lang) -> LanguageProfile:
         cjk_rules = tuple(getattr(getattr(lang, "CjkAbbreviationRules", None), "All", ()))
         clause_regex = getattr(lang, "CJK_REPORTING_CLAUSE_REGEX", None)
         return cls(
