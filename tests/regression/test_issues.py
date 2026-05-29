@@ -820,3 +820,50 @@ def test_glued_ellipsis_lowercase_runon_not_split(text, expected):
     seg = sentencesplit.Segmenter(language="en", clean=False)
     segments = [s.strip() for s in seg.segment(text)]
     assert segments == expected
+
+
+@pytest.mark.parametrize(
+    "text,expected",
+    [
+        # All-caps imprint/colophon: "CO." is a company abbreviation here, not a
+        # sentence end. The follower "TOOKS" is uppercase but lives in an all-caps
+        # run, so the period must stay joined.
+        (
+            "CHISWICK PRESS:--CHARLES WHITTINGHAM AND CO. TOOKS COURT, CHANCERY LANE, LONDON.",
+            ["CHISWICK PRESS:--CHARLES WHITTINGHAM AND CO. TOOKS COURT, CHANCERY LANE, LONDON."],
+        ),
+        # GUARD: mixed-case "Co." at a genuine boundary must still split
+        # (Golden Rule 9) — the follower "It" is not an all-caps imprint word.
+        (
+            "They closed the deal with Pitt, Briggs & Co. It closed yesterday.",
+            ["They closed the deal with Pitt, Briggs & Co.", "It closed yesterday."],
+        ),
+        # GUARD: mixed-case "Co." mid-sentence before lowercase stays joined
+        # (Golden Rule 7).
+        (
+            "They closed the deal with Pitt, Briggs & Co. at noon.",
+            ["They closed the deal with Pitt, Briggs & Co. at noon."],
+        ),
+        # GUARD: lowercase "co." as a genuine terminal still splits (Golden Rule 8).
+        (
+            "Let's ask Jane and co. They should know.",
+            ["Let's ask Jane and co.", "They should know."],
+        ),
+    ],
+)
+def test_allcaps_imprint_company_abbreviation_no_false_split(text, expected):
+    """A company abbreviation (CO.) inside an all-caps imprint/colophon run must
+    not be split from the following all-caps token, while mixed-case company
+    abbreviations keep their normal boundary behaviour."""
+    seg = sentencesplit.Segmenter(language="en", clean=False)
+    segments = [s.strip() for s in seg.segment(text)]
+    assert segments == expected
+
+
+def test_dc_circuit_abbreviation_stays_joined():
+    """GUARD: 'D.C. Circuit' must stay joined (case_0038) — protects the
+    abbreviation-as-terminal heuristic from over-splitting initialism nouns
+    followed by an ordinary capitalized continuation."""
+    seg = sentencesplit.Segmenter(language="en", clean=False)
+    text = "His involvement at the D.C. Circuit level and Anthony Kennedy joining the liberals."
+    assert [s.strip() for s in seg.segment(text)] == [text]

@@ -85,7 +85,15 @@ def _replace_with_escape(txt: str, escaped: str, suffix_pattern: str, replacemen
 class _AbbreviationData:
     """Pre-computed abbreviation data for a language, cached per Abbreviation class."""
 
-    __slots__ = ("abbreviations", "prepositive_set", "number_abbr_set", "automaton", "elision_chars", "boundary_class")
+    __slots__ = (
+        "abbreviations",
+        "abbr_set",
+        "prepositive_set",
+        "number_abbr_set",
+        "automaton",
+        "elision_chars",
+        "boundary_class",
+    )
 
     def __init__(self, lang_abbreviation_class):
         raw = lang_abbreviation_class.ABBREVIATIONS
@@ -120,6 +128,7 @@ class _AbbreviationData:
             )
             self.automaton.add_pattern(stripped_lower, idx)
         self.automaton.build()
+        self.abbr_set = frozenset(a.strip().lower() for a in raw)
         self.prepositive_set = frozenset(a.lower() for a in lang_abbreviation_class.PREPOSITIVE_ABBREVIATIONS)
         self.number_abbr_set = frozenset(a.lower() for a in lang_abbreviation_class.NUMBER_ABBREVIATIONS)
 
@@ -274,10 +283,37 @@ class AbbreviationReplacer:
             return "."
 
         self.text = re.sub(r"(?<=[A-Z]∯[A-Z]∯[A-Z])∯(?=\s)", restore_uppercase_initialism_boundary, self.text)
+        self.text = self.protect_allcaps_imprint_abbreviations()
         self.text = apply_rules(self.text, *self.lang.AmPmRules.All)
         self.text = self.restore_non_ascii_ampm_boundaries()
         self.text = self.replace_abbreviation_as_sentence_boundary()
         return self.text
+
+    # An all-caps word (2+ letters) immediately followed, across whitespace, by
+    # another all-caps word (2+ letters). Used to detect imprint/colophon runs
+    # like "CHARLES WHITTINGHAM AND CO. TOOKS COURT".
+    _ALLCAPS_IMPRINT_RE = re.compile(r"(?<![A-Za-z0-9])([A-Z]{2,})\.(?=\s+[A-Z]{2,}\b)")
+
+    def protect_allcaps_imprint_abbreviations(self) -> str:
+        """Keep a known abbreviation's period non-terminal inside an all-caps run.
+
+        In an all-caps imprint/colophon (e.g. "...AND CO. TOOKS COURT, LONDON.")
+        a company-style abbreviation such as "CO." is a name continuation, not a
+        sentence end, even though the following all-caps token would normally be
+        read as a sentence start. Only known multi-letter abbreviations flanked
+        by all-caps tokens are protected, so ordinary all-caps words that end a
+        sentence ("THE END. THE BEGINNING.") still split.
+        """
+        if not self.SENTENCE_STARTERS:
+            return self.text
+        abbr_set = self._data.abbr_set
+
+        def _protect(match):
+            if match.group(1).lower() not in abbr_set:
+                return match.group()
+            return match.group(1) + "∯"
+
+        return self._ALLCAPS_IMPRINT_RE.sub(_protect, self.text)
 
     @classmethod
     def _get_boundary_regex(cls) -> re.Pattern[str] | None:
