@@ -779,4 +779,44 @@ def test_acronym_noun_before_new_sentence_still_splits(text, expected):
     a capitalized new sentence — guards against over-joining from the chained
     initials name heuristic."""
     seg = sentencesplit.Segmenter(language="en", clean=False)
-    assert [s.strip() for s in seg.segment(text)] == expected
+    segments = [s.strip() for s in seg.segment(text)]
+    assert segments == expected
+
+
+@pytest.mark.parametrize(
+    "text,expected",
+    [
+        # A four-dot run glued (no whitespace) to a lowercase continuation is a
+        # typo/run-on, not a real boundary — keep it attached.
+        (
+            "You have to see these slides....they are amazing. This Fallujah operation my turn out to be the most "
+            "important operation done by the US Military since the end of the war.",
+            [
+                "You have to see these slides....they are amazing.",
+                "This Fallujah operation my turn out to be the most important operation done by the US Military "
+                "since the end of the war.",
+            ],
+        ),
+        (
+            "You have to see these slides....they are amazing.",
+            ["You have to see these slides....they are amazing."],
+        ),
+        # A three-dot run glued to a lowercase continuation is likewise a run-on.
+        (
+            "I love this place...it is wonderful.",
+            ["I love this place...it is wonderful."],
+        ),
+        # GUARD: a four-dot ellipsis followed by whitespace + a capital must
+        # still split into two sentences.
+        ("Wait.... The end.", ["Wait....", "The end."]),
+        # GUARD: a normal "... Capital" ellipsis boundary must still split.
+        ("I was thinking... Maybe later.", ["I was thinking...", "Maybe later."]),
+    ],
+)
+def test_glued_ellipsis_lowercase_runon_not_split(text, expected):
+    """A '...'/'....' run with no whitespace before a lowercase continuation is
+    an intra-word run-on and must not introduce a sentence boundary, while
+    normal spaced ellipsis boundaries before a capital still split."""
+    seg = sentencesplit.Segmenter(language="en", clean=False)
+    segments = [s.strip() for s in seg.segment(text)]
+    assert segments == expected

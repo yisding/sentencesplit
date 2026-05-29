@@ -355,6 +355,14 @@ class Standard:
         # Rubular: http://rubular.com/r/2VvZ8wRbd8
         FourSpaceRule = Rule(r"(?<=[a-z])(\.\s){3}\.($|\\n)", "♝♝♝♝♝♝♝")
 
+        # A run of 4+ periods glued (no whitespace) to a lowercase continuation
+        # is a typo / run-on (e.g. "slides....they"), not an ellipsis boundary.
+        # Protect every dot beyond the trailing three so no bare period is left
+        # behind to act as a terminal: the trailing "..." is then handled by
+        # OtherThreePeriodRule and the leading dots restore via SubOnePeriod.
+        # The lowercase lookahead keeps "Wait.... The" / "...They" splitting.
+        GluedLowercaseRunOnRule = Rule(r"(?<=\S)\.(?=\.{3,}[a-z])", "∮")
+
         OtherThreePeriodRule = Rule(r"\.\.\.", "ƪƪƪ")
 
         TwoConsecutiveRule = Rule(r"(?<=\w\s)\.\.(?=\s[a-z])", "☏☏")
@@ -364,6 +372,7 @@ class Standard:
             FourSpaceRule,
             FourConsecutiveRule,
             ThreeConsecutiveRule,
+            GluedLowercaseRunOnRule,
             OtherThreePeriodRule,
             TwoConsecutiveRule,
         ]
