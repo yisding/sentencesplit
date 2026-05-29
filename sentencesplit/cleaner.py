@@ -36,7 +36,10 @@ class CleanRules:
     InlineFormattingRule = Rule(r"{b\^&gt;\d*&lt;b\^}|{b\^>\d*<b\^}", "")
 
     # Rubular: http://rubular.com/r/8mc1ArOIGy
-    TableOfContentsRule = Rule(r"\.{4,}\s*\d+-*\d*", "\r")
+    # Anchor the page number to end-of-line (newlines are already "\r" at this
+    # stage) so a dot-leader TOC entry ("About Me....5") is split but ordinary
+    # prose with an ellipsis followed by a number ("wait.... 42 things") is not.
+    TableOfContentsRule = Rule(r"\.{4,}\s*\d+-*\d*(?=\s*(?:\r|\n|$))", "\r")
 
     # Rubular: http://rubular.com/r/DwNSuZrNtk
     ConsecutivePeriodsRule = Rule(r"\.{5,}", " ")
@@ -60,7 +63,7 @@ class CleanRules:
     NEWLINE_IN_MIDDLE_OF_SENTENCE_REGEX = re.compile(r"(?<=\s)\n(?=([a-z]|\())")
 
     # Rubular: http://rubular.com/r/Gn18aAnLdZ
-    NewLineFollowedByBulletRule = Rule(r"\n(?=•')", "\r")
+    NewLineFollowedByBulletRule = Rule(r"\n(?=•)", "\r")
 
     QuotationsFirstRule = Rule(r"''", '"')
     QuotationsSecondRule = Rule(r"``", '"')
@@ -71,15 +74,34 @@ cr = CleanRules
 
 class HTML:
     # Rubular: http://rubular.com/r/9d0OVOEJWj
-    HTMLTagRule = Rule(r"<\/?\w+((\s+\w+(\s*=\s*(?:\".*?\"|'.*?'|[\^'\">\s]+))?)+\s*|\s*)\/?>", "")
+    # Tag matcher: "<", optional "/", a tag name, then attribute content up to the
+    # closing ">", allowing ">" inside a quoted attribute value. Possessive
+    # quantifiers (\w++ / *+ — Python 3.11+) forbid the backtracking that made the
+    # earlier patterns ReDoS-vulnerable on untrusted clean=True input (an unclosed
+    # tag with a long run was quadratic). Still strips <em>, <p class="x">,
+    # <img src="y">, self-closing <br/>, and <a title="a>b">.
+    HTMLTagRule = Rule(r"""<\/?\w++(?:"[^"]*"|'[^']*'|[^>"'])*+>""", "")
 
     # Rubular: http://rubular.com/r/XZVqMPJhea
-    EscapedHTMLTagRule = Rule(r"&lt;\/?[^gt;]*gt;", "")
+    # Match an escaped tag &lt;tag ...&gt; — the inner content must start with a
+    # tag-name word char so escaped comparisons in prose ("x &lt; 5 and y &gt; 3")
+    # are left intact instead of being deleted between &lt; and a bare "gt;".
+    # The content alternation lets attribute values carry ordinary HTML entities
+    # (&amp;, &quot;, &#39;, …) without the run stopping at their leading "&",
+    # while &(?!lt;|gt;) bounds each run at the next tag delimiter. Combined with
+    # possessive quantifiers that keeps it linear (no ReDoS): an unclosed
+    # "&lt;..." — even one packed with entities — fails without backtracking.
+    EscapedHTMLTagRule = Rule(r"&lt;\/?\w++(?:[^&]++|&(?!lt;|gt;))*+&gt;", "")
 
     All = [HTMLTagRule, EscapedHTMLTagRule]
 
 
 class PDF:
+    # Join a word hyphenated across a line break ("hyphen-\nated" -> "hyphenated").
+    # Must run before the no-spaces rule below, which would otherwise turn the
+    # soft hyphen break into "hyphen- ated".
+    DeHyphenationRule = Rule(r"(?<=[a-z])-\n(?=[a-z])", "")
+
     # Rubular: http://rubular.com/r/UZAVcwqck8
     NewLineInMiddleOfSentenceRule = Rule(r"(?<=[^\n]\s)\n(?=\S)", "")
 
@@ -101,10 +123,13 @@ class Cleaner:
     def clean(self) -> str | None:
         if not self.text:
             return self.text
+        # Decode escaped newlines first so "\\n" (e.g. from JSON/PDF extraction)
+        # is materialized into a real newline and then collapsed/converted by the
+        # newline passes — otherwise escaped and real newlines segment differently.
+        self.replace_escaped_newlines()
         self.remove_all_newlines()
         self.replace_double_newlines()
         self.replace_newlines()
-        self.replace_escaped_newlines()
         self.text = apply_rules(self.text, *HTML.All)
         self.replace_punctuation_in_brackets()
         self.text = apply_rules(self.text, cr.InlineFormattingRule)
@@ -140,6 +165,7 @@ class Cleaner:
         self.text = apply_rules(
             self.text,
             cr.NewLineFollowedByBulletRule,
+            PDF.DeHyphenationRule,
             PDF.NewLineInMiddleOfSentenceRule,
             PDF.NewLineInMiddleOfSentenceNoSpacesRule,
         )

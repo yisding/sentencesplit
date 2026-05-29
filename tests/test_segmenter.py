@@ -224,6 +224,35 @@ def test_segment_with_lookahead_across_all_languages(language_code):
     assert mixed_result.should_wait_for_more is True
 
 
+@pytest.mark.parametrize("language_code", sorted(LANGUAGE_CODES))
+def test_segmentation_is_nondestructive_across_all_languages(language_code):
+    """clean=False segmentation must reproduce the original text exactly for a
+    script-appropriate sample in every registered language."""
+    token, punct = _lookahead_sample_for_language(language_code, LANGUAGE_CODES[language_code])
+    text = f"{token}{punct} {token}{punct}"
+
+    seg = sentencesplit.Segmenter(language=language_code, clean=False, char_span=False)
+    assert "".join(seg.segment(text)) == text
+
+
+@pytest.mark.parametrize("language_code", sorted(LANGUAGE_CODES))
+def test_char_spans_tile_original_text_across_all_languages(language_code):
+    """char_span output must contiguously tile the original text (no gaps,
+    overlaps, or dropped characters) for every registered language."""
+    token, punct = _lookahead_sample_for_language(language_code, LANGUAGE_CODES[language_code])
+    text = f"{token}{punct} {token}{punct}"
+
+    seg = sentencesplit.Segmenter(language=language_code, clean=False, char_span=True)
+    spans = seg.segment(text)
+    prev_end = 0
+    for span in spans:
+        assert span.start == prev_end
+        assert text[span.start : span.end] == span.sent
+        prev_end = span.end
+    assert prev_end == len(text)
+    assert "".join(s.sent for s in spans) == text
+
+
 @pytest.mark.parametrize(
     "text,expected",
     [

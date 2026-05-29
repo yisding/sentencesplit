@@ -12,6 +12,7 @@ from sentencesplit.utils import SegmentLookahead, TextSpan
 _DEFAULT_LOOKAHEAD_STEMS = ("a", "A")
 _LANGUAGE_LOOKAHEAD_STEMS = {
     "am": ("ሀ",),
+    "en_es_zh": ("a", "A", "甲"),
     "ar": ("ا",),
     "bg": ("А",),
     "el": ("Α",),
@@ -70,6 +71,8 @@ class Segmenter:
         if split_mode not in {"conservative", "aggressive"}:
             raise ValueError("split_mode must be either 'conservative' or 'aggressive'.")
         self.split_mode = split_mode
+        if doc_type not in (None, "pdf"):
+            raise ValueError("doc_type must be None or 'pdf'.")
         if self.clean and self.char_span:
             raise ValueError("char_span must be False if clean is True. Since `clean=True` will modify original text.")
         # when doctype is pdf then force user to clean the text
@@ -286,6 +289,13 @@ class Segmenter:
             prior_end = end_idx
 
     def segment(self, text: str | None) -> list[str] | list[TextSpan]:
+        """Segment ``text`` into sentences.
+
+        Returns a ``list[str]`` by default, or a ``list[TextSpan]`` (with
+        ``.sent``/``.start``/``.end``) when the Segmenter was constructed with
+        ``char_span=True``. Use :meth:`segment_spans` to always get spans
+        regardless of the ``char_span`` flag.
+        """
         _, segments, _ = self._segment_result(text)
         return segments
 

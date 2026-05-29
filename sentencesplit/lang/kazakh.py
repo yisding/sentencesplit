@@ -13,13 +13,10 @@ class Kazakh(Common, Standard):
     # Handling Cyrillic characters in re module
     # https://stackoverflow.com/a/10982308/5462100
     MULTI_PERIOD_ABBREVIATION_REGEX = re.compile(
-        r"\b[\u0400-\u0500]+(?:\.\s?[\u0400-\u0500])+[.]|b[a-z](?:\.[a-z])+[.]", re.IGNORECASE
+        r"\b[\u0400-\u0500]+(?:\.\s?[\u0400-\u0500])+[.]|\b[a-z](?:\.[a-z])+[.]", re.IGNORECASE
     )
 
     class Processor(Processor):
-        def __init__(self, text, lang, **kwargs):
-            super().__init__(text, lang, **kwargs)
-
         def between_punctuation(self, txt):
             txt = self.between_punctuation_processor(txt).replace()
             # Rubular: http://rubular.com/r/WRWy56Z5zp

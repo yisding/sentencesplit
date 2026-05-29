@@ -8,7 +8,6 @@ Core package code lives in `sentencesplit/`:
 - `spacy_component.py`: spaCy factory registered through `spacy_factories`.
 - `utils.py`: shared types such as `TextSpan` and `SegmentLookahead`.
 - `lang/`: language-specific rules plus `lang/common/` shared base profiles.
-- `clean/`: normalization rules.
 
 Tests are in `tests/`:
 - `tests/lang/test_<language>.py` for Golden Rules by language.

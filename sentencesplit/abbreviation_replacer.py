@@ -204,7 +204,7 @@ class AbbreviationReplacer:
             if not boundary_abbr:
                 cls._boundary_regex_cache[cls] = None
             elif cls.SENTENCE_STARTERS:
-                sent_starters = "|".join(r"(?=\s{}\s)".format(word) for word in cls.SENTENCE_STARTERS)
+                sent_starters = "|".join(r"(?=\s{}\s)".format(re.escape(word)) for word in cls.SENTENCE_STARTERS)
                 cls._boundary_regex_cache[cls] = re.compile(
                     r"(?<![A-Za-z0-9_∯])({})∯({})".format(boundary_abbr, sent_starters)
                 )
@@ -272,12 +272,28 @@ class AbbreviationReplacer:
         abbreviations = data.abbreviations
         for idx in sorted(found_indices):
             stripped, stripped_lower, escaped, match_re, next_word_re = abbreviations[idx]
-            abbrev_match = match_re.findall(text)
-            if not abbrev_match:
-                continue
-            char_array = next_word_re.findall(text)
-            for ind, match in enumerate(abbrev_match):
-                text = self.scan_for_replacements(text, match, ind, char_array, stripped, escaped)
+            # Capture each occurrence that is actually followed by a period
+            # together with its OWN following character (the char after
+            # "abbr. ", else ""). Computing both from the same match keeps them
+            # aligned — the previous code zipped two independent findall() lists
+            # of different lengths, so the case heuristic was read from the wrong
+            # occurrence. A period-less occurrence (e.g. a decoy "Cir held"
+            # before the real "Cir.") has no period to protect; processing it
+            # would run a broad global re.sub that wrongly mutates the period of
+            # a *different* occurrence, so it is skipped entirely.
+            occurrences = []
+            for m in match_re.finditer(text):
+                end = m.end()
+                if text[end : end + 1] != ".":
+                    continue
+                char = text[end + 2 : end + 3] if text[end : end + 2] == ". " else ""
+                occurrences.append((m.group(), char))
+            # scan_for_replacements performs a *global* re.sub keyed only on (am,
+            # char), so identical occurrences yield identical, idempotent edits.
+            # Deduplicate them to keep work linear instead of O(occurrences × N)
+            # on long, repetitive, newline-free input.
+            for am, char in dict.fromkeys(occurrences):
+                text = self.scan_for_replacements(text, am, 0, (char,), stripped, escaped)
         return text
 
     def _replace_number_abbr(self, txt: str, am_escaped: str, boundary: str, upper: bool) -> str:

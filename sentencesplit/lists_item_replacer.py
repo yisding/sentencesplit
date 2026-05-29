@@ -51,6 +51,11 @@ class ListItemReplacer:
     # Rubular: http://rubular.com/r/GcnmQt4a3I
     ROMAN_NUMERALS_IN_PARENTHESES = r"\(((?=[mdclxvi])m*(c[md]|d?c*)(x[cl]|l?x*)(i[xv]|v?i*))\)(?=\s[A-Z])"
 
+    # A false-positive guard for numbered lists, e.g. English "for 3. things"
+    # must not be treated as a numbered list item. This phrase is English; other
+    # languages may override it (or set it to None to disable the guard).
+    NUMBERED_LIST_FALSE_POSITIVE_REGEX = r"for\s\d{1,2}♨\s[a-z]"
+
     def __init__(self, text: str) -> None:
         self.text = text
 
@@ -124,10 +129,11 @@ class ListItemReplacer:
         self.text = re.sub(regex, partial(replace_item, val=each, strip=strip, repl=replacement), self.text)
 
     def add_line_breaks_for_numbered_list_with_periods(self):
+        false_positive = self.NUMBERED_LIST_FALSE_POSITIVE_REGEX
         if (
             ("♨" in self.text)
             and (not re.search("♨.+(\n|\r).+♨", self.text))
-            and (not re.search(r"for\s\d{1,2}♨\s[a-z]", self.text))
+            and (false_positive is None or not re.search(false_positive, self.text))
         ):
             self.text = apply_rules(
                 self.text,

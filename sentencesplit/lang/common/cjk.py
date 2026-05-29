@@ -5,11 +5,34 @@ import re
 
 from sentencesplit.processor import Processor
 from sentencesplit.punctuation_replacer import replace_punctuation
+from sentencesplit.utils import Rule
 
 _QUOTE_CLOSER_RE = re.compile(r"""["'”’」』》】]+$""")
 
 _CJK_SLANTED_QUOTE_END_RE = re.compile(r"(&ᓰ&|&ᓱ&|&ᓳ&|&ᓴ&|&ᓷ&|&ᓸ&)(?=[”’][^\s])")
 _CJK_REPORTING_CLAUSE_BOUNDARY = r"(?=$|[，,：:。．.!！?？…])"
+
+# Chinese reporting-clause regex, shared by zh and the en_es_zh combined profile
+# (Japanese uses its own verbs). A quote followed by "<subject>…<reporting verb>"
+# (他说 / 记者表示 / …) is a single reported sentence, so it is re-merged.
+CJK_REPORTING_CLAUSE_RE = re.compile(
+    rf"^(?:他|她|他们|她们|我|我们|记者|警方|老师|母亲|父亲|主持人|发言人).{{0,6}}(?:说|问|答|表示|回应|补充|解释){_CJK_REPORTING_CLAUSE_BOUNDARY}"
+)
+
+
+def make_cjk_abbreviation_rules(cjk_char_class: str) -> list[Rule]:
+    """Build the two CJK abbreviation-period rules for a given ideograph range.
+
+    Languages differ only in which CJK code points count as a "following CJK
+    char" (zh: BMP unified ideographs, ja: + kana, en_es_zh: + Extension A), so
+    the rule bodies are shared and only the char class varies.
+    """
+    return [
+        Rule(r"(?<=[A-Za-z])\.(?=[A-Za-z]\.)", "∯"),
+        Rule(rf"(?<=[A-Za-z]∯[A-Za-z])\.(?=[{cjk_char_class}])", "∯"),
+    ]
+
+
 _RESTORE_CJK_TERMINAL_PUNCT = {
     "&ᓰ&": "。",
     "&ᓱ&": "．",
@@ -64,7 +87,7 @@ class CJKProcessor(Processor):
         return self._merge_quote_continuations(super().split_into_segments(text))
 
     def _merge_quote_continuations(self, sentences: list[str]) -> list[str]:
-        clause_regex = getattr(self.lang, "CJK_REPORTING_CLAUSE_REGEX", None)
+        clause_regex = self.profile.cjk_reporting_clause_re
         if clause_regex is None:
             return sentences
 
