@@ -146,6 +146,35 @@ def test_escaped_html_rule_preserves_escaped_comparisons():
     assert "5 and y" in cleaned
 
 
+def test_escaped_html_rule_strips_tags_with_entities_in_attributes():
+    """Escaped tags whose attributes carry ordinary entities (&amp;, &quot;,
+    &#39;) must still be removed — the inner run must not stop at the first '&'."""
+    from sentencesplit.cleaner import Cleaner
+    from sentencesplit.languages import Language
+
+    en = Language.get_language_code("en")
+    assert Cleaner('&lt;a href="x&amp;y"&gt;link&lt;/a&gt;', en).clean() == "link"
+    assert Cleaner('&lt;img alt=&quot;a&amp;b&quot; src="x"&gt;Y', en).clean() == "Y"
+    assert Cleaner("&lt;p data-x=&#39;1&#39;&gt;Z&lt;/p&gt;", en).clean() == "Z"
+
+
+def test_escaped_html_rule_not_redos_on_entity_packed_unclosed_run():
+    """The entity-crossing alternation must stay linear: an unclosed escaped tag
+    packed with entities (many '&lt;' starts) would be quadratic if a run could
+    consume past the next delimiter, so guard the rule itself at large N."""
+    import time
+
+    from sentencesplit.cleaner import HTML
+    from sentencesplit.utils import apply_rules
+
+    # ~1M chars of "&lt;a&amp;" with no closing &gt;: linear ~tens of ms here,
+    # but seconds-to-minutes if the alternation regressed to quadratic.
+    evil = "&lt;a&amp;" * 100000
+    start = time.perf_counter()
+    assert apply_rules(evil, HTML.EscapedHTMLTagRule) == evil
+    assert time.perf_counter() - start < 1.0
+
+
 def test_table_of_contents_rule_does_not_eat_ellipsis_prose():
     from sentencesplit.cleaner import Cleaner
     from sentencesplit.languages import Language

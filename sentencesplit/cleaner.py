@@ -86,8 +86,12 @@ class HTML:
     # Match an escaped tag &lt;tag ...&gt; — the inner content must start with a
     # tag-name word char so escaped comparisons in prose ("x &lt; 5 and y &gt; 3")
     # are left intact instead of being deleted between &lt; and a bare "gt;".
-    # Possessive quantifiers keep it linear (no ReDoS on a long unclosed "&lt;...").
-    EscapedHTMLTagRule = Rule(r"&lt;\/?\w++[^&]*+&gt;", "")
+    # The content alternation lets attribute values carry ordinary HTML entities
+    # (&amp;, &quot;, &#39;, …) without the run stopping at their leading "&",
+    # while &(?!lt;|gt;) bounds each run at the next tag delimiter. Combined with
+    # possessive quantifiers that keeps it linear (no ReDoS): an unclosed
+    # "&lt;..." — even one packed with entities — fails without backtracking.
+    EscapedHTMLTagRule = Rule(r"&lt;\/?\w++(?:[^&]++|&(?!lt;|gt;))*+&gt;", "")
 
     All = [HTMLTagRule, EscapedHTMLTagRule]
 
