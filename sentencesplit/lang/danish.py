@@ -1,6 +1,4 @@
 # -*- coding: utf-8 -*-
-import re
-
 from sentencesplit.abbreviation_replacer import AbbreviationReplacer
 from sentencesplit.lang.common import Common, Standard
 from sentencesplit.utils import Rule
@@ -36,15 +34,10 @@ class Danish(Common, Standard):
             "At De Dem Den Der Det Du En Et For Få Gjorde Han Hun Hvad Hvem"
             " Hvilke Hvor Hvordan Hvorfor Hvorledes Hvornår I Jeg Mange Vi Være"
         ).split(" ")
-
-        def __init__(self, text, lang, **kwargs):
-            super().__init__(text, lang, **kwargs)
-
-        def replace_abbreviation_as_sentence_boundary(self):
-            sent_starters = "|".join((r"(?=\s{}\s)".format(word) for word in self.SENTENCE_STARTERS))
-            regex = r"(U∯S|U\.S|U∯K|E∯U|E\.U|U∯S∯A|U\.S\.A|I|i.v|s.u|s.U)∯({})".format(sent_starters)
-            self.text = re.sub(regex, "\\1.", self.text)
-            return self.text
+        # Consumed by the cached base _get_boundary_regex(), which escapes the
+        # dots correctly. Replaces a hand-rolled override that rebuilt the regex
+        # on every call with unescaped dots (i.v / s.u / s.U).
+        SENTENCE_BOUNDARY_ABBREVIATIONS = ["U∯S", "U.S", "U∯K", "E∯U", "E.U", "U∯S∯A", "U.S.A", "I", "i.v", "s.u", "s.U"]
 
     class Abbreviation(Standard.Abbreviation):
         ABBREVIATIONS = [
@@ -249,7 +242,6 @@ class Danish(Common, Standard):
             "lab",
             "lat",
             "lb",
-            "lb.",
             "lb.nr",
             "lejl",
             "lgd",

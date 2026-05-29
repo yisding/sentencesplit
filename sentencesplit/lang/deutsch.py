@@ -28,9 +28,6 @@ class Deutsch(Common, Standard):
         All = Common.Numbers.All + [NumberPeriodSpaceRule, NegativeNumberPeriodSpaceRule]
 
     class Processor(Processor):
-        def __init__(self, text, lang, **kwargs):
-            super().__init__(text, lang, **kwargs)
-
         def replace_numbers(self, text: str) -> str:
             text = apply_rules(text, *self.lang.Numbers.All)
             return self.replace_period_in_deutsch_dates(text)
@@ -57,7 +54,6 @@ class Deutsch(Common, Standard):
 
     class Abbreviation(Standard.Abbreviation):
         ABBREVIATIONS = [
-            "Ä",
             "ä",
             "adj",
             "adm",
@@ -90,10 +86,10 @@ class Deutsch(Common, Standard):
             "dergl",
             "dgl",
             "dkr",
-            "dr ",
+            "dr",
             "ens",
             "etc",
-            "ev ",
+            "ev",
             "evtl",
             "ff",
             "g.g.a",
@@ -112,7 +108,7 @@ class Deutsch(Common, Standard):
             "ix",
             "jun",
             "k.o",
-            "kath ",
+            "kath",
             "lfd",
             "lt",
             "ltd",
@@ -158,10 +154,10 @@ class Deutsch(Common, Standard):
             "sr",
             "st",
             "std",
-            "str  ",
+            "str",
             "supt",
             "surg",
-            "u.a  ",
+            "u.a",
             "u.e",
             "u.s.w",
             "u.u",
@@ -213,9 +209,6 @@ class Deutsch(Common, Standard):
             "Am Auch Auf Bei Da Das Der Die Ein Eine Es Für Heute Ich Im In "
             "Ist Jetzt Mein Mit Nach So Und Warum Was Wenn Wer Wie Wir"
         ).split(" ")
-
-        def __init__(self, text, lang, **kwargs):
-            super().__init__(text, lang, **kwargs)
 
         def replace(self):
             # Rubular: http://rubular.com/r/B4X33QKIL8

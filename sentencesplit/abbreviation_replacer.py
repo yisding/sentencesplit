@@ -204,7 +204,7 @@ class AbbreviationReplacer:
             if not boundary_abbr:
                 cls._boundary_regex_cache[cls] = None
             elif cls.SENTENCE_STARTERS:
-                sent_starters = "|".join(r"(?=\s{}\s)".format(word) for word in cls.SENTENCE_STARTERS)
+                sent_starters = "|".join(r"(?=\s{}\s)".format(re.escape(word)) for word in cls.SENTENCE_STARTERS)
                 cls._boundary_regex_cache[cls] = re.compile(
                     r"(?<![A-Za-z0-9_∯])({})∯({})".format(boundary_abbr, sent_starters)
                 )

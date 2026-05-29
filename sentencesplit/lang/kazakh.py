@@ -17,9 +17,6 @@ class Kazakh(Common, Standard):
     )
 
     class Processor(Processor):
-        def __init__(self, text, lang, **kwargs):
-            super().__init__(text, lang, **kwargs)
-
         def between_punctuation(self, txt):
             txt = self.between_punctuation_processor(txt).replace()
             # Rubular: http://rubular.com/r/WRWy56Z5zp
