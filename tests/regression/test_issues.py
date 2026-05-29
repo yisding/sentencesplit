@@ -260,6 +260,26 @@ def test_hyphen_prefixed_numbered_period_paren_list_items_split():
     assert segments == ["-1.) The first item", "-2.) The second item"]
 
 
+def test_german_consecutive_ordinals_not_treated_as_numbered_list():
+    """Two nearby ascending ordinals embedded in prose ('19. ... 20. Jahrhunderts')
+    must not be promoted to a numbered list. A real list item begins with an
+    uppercase word; an ordinal followed by a lowercase word ('19. und') is prose."""
+    seg = sentencesplit.Segmenter(language="de", clean=False)
+    text = "Im Laufe des 19. und frühen 20. Jahrhunderts entwickelte sich Berlin zur weltweit drittgrößten Stadt."
+    segments = [s.strip() for s in seg.segment(text)]
+    assert segments == [text]
+
+
+def test_consecutive_ordinals_followed_by_lowercase_not_a_list():
+    """Embedded ordinals followed by lowercase words are not list markers, so
+    no line break ('\\r') is inserted to split them into list items. The ordinal
+    periods are still protected (replaced with the placeholder), which keeps the
+    text from splitting downstream."""
+    text = "Im Laufe des 19. und frühen 20. Jahrhunderts entwickelte sich Berlin."
+    result = ListItemReplacer(text).add_line_break()
+    assert "\r" not in result and "\n" not in result
+
+
 def test_common_abbreviations_no_false_split():
     """Common abbreviations like govt., approx., misc. should not cause false splits."""
     seg = sentencesplit.Segmenter(language="en", clean=False)
