@@ -22,6 +22,11 @@ _CJK_QUOTE_RESPLIT_RE = re.compile(
     r"(?<=[。．][\]\"')”’」』】）》])(?=[\u4e00-\u9fff\u3040-\u30ff\u31f0-\u31ffA-Za-z0-9「『【（《])"
 )
 _LATIN_RESPLIT_RE = re.compile(r"(?<=[a-zA-Z]{2}\.\))\s+")
+# A period immediately followed (after optional spaces) by a comma can never be
+# a sentence boundary, since no sentence starts with a comma. This protects the
+# final period of unlisted multi-period abbreviations such as the botanical
+# author tag "N.E.Br.," from being treated as terminal.
+_PERIOD_BEFORE_COMMA_RE = re.compile(r"\.(?=\s*,)")
 
 
 def _split_on_uppercase_boundary(text: str, whitespace_re: re.Pattern[str]) -> list[str] | None:
@@ -312,6 +317,8 @@ class Processor:
         return txt
 
     def sentence_boundary_punctuation(self, txt: str) -> list[str]:
+        # A period followed by a comma is never a sentence boundary.
+        txt = _PERIOD_BEFORE_COMMA_RE.sub("∯", txt)
         if self.profile.colon_rule is not None:
             txt = apply_rules(txt, self.profile.colon_rule)
         if self.profile.comma_rule is not None:

@@ -215,6 +215,20 @@ def test_spanish_sta_sto_prepositive():
     assert segments == ["Fue a Sto. Domingo y Sta. Rosa."]
 
 
+def test_period_before_comma_is_not_a_sentence_boundary():
+    """A period immediately followed by a comma must not split a sentence.
+
+    The multi-period botanical author abbreviation 'N.E.Br.' is not in any
+    abbreviation list, so its final period was left as a boundary candidate
+    and fired even though the next non-space character is a comma. A comma can
+    never start a new sentence, so the period must stay inside the sentence.
+    """
+    seg = sentencesplit.Segmenter(language="es", clean=False)
+    text = "Su única especie: Didymaotus lapidiformis (Marloth) N.E.Br., es originaria de Sudáfrica."
+    segments = [s.strip() for s in seg.segment(text)]
+    assert segments == ["Su única especie: Didymaotus lapidiformis (Marloth) N.E.Br., es originaria de Sudáfrica."]
+
+
 def test_versus_abbreviation_not_treated_as_list_item():
     """v. in case names like 'Marbury v. Madison' should not be split as a list item."""
     seg = sentencesplit.Segmenter(language="en", clean=False)
