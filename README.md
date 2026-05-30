@@ -74,6 +74,37 @@ result.should_wait_for_more  # False -- clearly a complete sentence
 
 `should_wait_for_more()` works by appending tiny probe suffixes and re-running segmentation. If the final boundary changes, it returns `True`. This handles abbreviations, numeric decimals, and language-specific ambiguities without any special configuration.
 
+#### Streaming segmentation
+
+`StreamSegmenter` wraps the lookahead primitives in a stateful, feed-as-you-go API. You push text deltas (LLM tokens, ASR partials, chat chunks) and it emits completed sentences only once their boundary is stable, buffering the ambiguous tail so a downstream consumer (e.g. a TTS engine) never speaks a half-formed sentence:
+
+```python
+from sentencesplit import StreamSegmenter
+
+stream = StreamSegmenter(language="en")  # buffering_mode="conservative" by default
+
+for token in ["I spoke with Dr", ".", " Smith", " yesterday", ". ", "Goodbye", "."]:
+    stream.feed(token)
+    for sentence in stream.get_completed_sentences():
+        speak(sentence)  # 'I spoke with Dr. Smith yesterday. ' (held until "Dr." resolved)
+
+# At end of stream, flush the buffered tail.
+for sentence in stream.flush():
+    speak(sentence)  # 'Goodbye.'
+```
+
+The cornerstone contract is **streaming == non-streaming**: feeding the full text and concatenating `get_completed_sentences()` + `flush()` yields exactly what `Segmenter.segment()` returns for that text.
+
+```python
+stream = StreamSegmenter(language="en")
+stream.feed(full_text)
+assert stream.get_completed_sentences() + stream.flush() == Segmenter(language="en").segment(full_text)
+```
+
+`StreamSegmenter` accepts the same `language` / `clean` / `char_span` / `split_mode` params as `Segmenter`, plus a streaming-specific `buffering_mode` (`"conservative"` (default) / `"balanced"` / `"aggressive"`) and an optional `max_buffer_size` guard against an unbounded tail.
+
+See [examples/streaming_to_tts_recipe.py](examples/streaming_to_tts_recipe.py) for a runnable LLM-to-TTS recipe.
+
 ### CJK languages
 
 ```python
@@ -197,7 +228,7 @@ seg.segment("My name is Jonas E. Smith. Please turn to p. 55.")
 
 `Segmenter(language=..., clean=..., char_span=...)`, `segment()`, and the `TextSpan` fields (`.sent`, `.start`, `.end`) all behave as they do in pySBD, and the English [Golden Rules](https://github.com/diasks2/pragmatic_segmenter#the-golden-rules) pass identically. What you gain on top:
 
-- **Streaming/lookahead** — `segment_with_lookahead()` / `should_wait_for_more()` for incremental input.
+- **Streaming/lookahead** — `segment_with_lookahead()` / `should_wait_for_more()` for incremental input, plus the higher-level [`StreamSegmenter`](#streaming-segmentation) feed/flush wrapper for token-by-token sources (LLM output, ASR partials).
 - **`split_mode`** — a `"conservative"` / `"balanced"` / `"aggressive"` bias for ambiguous boundaries (`"balanced"` is the default and matches the historically tuned output).
 - **Discovery** — `list_languages()`, and active maintenance on Python 3.11+.
 
