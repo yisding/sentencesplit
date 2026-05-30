@@ -19,23 +19,71 @@ from sentencesplit.utils import TextSpan
 # Script-appropriate (token, terminal-punctuation) samples, mirroring the
 # helpers in tests/test_segmenter.py so the per-language streaming tests run on
 # input every language's boundary regex actually recognizes.
+#
+# Languages that segment on the Latin period must exercise that native '.'
+# terminal (and its lookahead probe), not collapse onto the CJK full stop just
+# because '。' also appears in their Punctuations list. So script-token
+# languages (CJK / non-Latin scripts where a Latin '.' is not a real boundary)
+# keep a native-terminal preference, while every other (Latin-script) language
+# is steered to a real '.'-terminated word sample.
 _LOOKAHEAD_TEST_TOKENS = {
     "ar": "ا",
     "hy": "Ա",
     "ja": "あ",
     "zh": "甲",
 }
-_LOOKAHEAD_TEST_PUNCTUATION = ("។", "。", "؟", "։", "՜", "?", "!", "？", "！", ".")
+# Latin period first: Latin-script languages should exercise the native '.'
+# boundary; the CJK / script terminals are only fallbacks for languages that
+# do not segment on a Latin period.
+_LATIN_FIRST_PUNCTUATION = (".", "？", "！", "。", "។", "؟", "։", "՜", "?", "!")
+# Native-terminal preference for the script-token languages above, where a
+# Latin '.' between native-script tokens is not a sentence boundary.
+_SCRIPT_TERMINAL_PUNCTUATION = ("។", "。", "？", "！", "؟", "։", "՜", "?", "!", ".")
+# Distinct multi-letter words so the sample splits on its terminal rather than
+# being swallowed by the single-initial abbreviation heuristic ("A." -> initial).
+_LATIN_SAMPLE_WORDS = ("Foo", "Bar", "Baz")
 
 
 def _sample_for_language(code):
+    """Return ``(token, punct)`` for a language.
+
+    ``token`` is ``None`` for Latin-script languages (build the sample from
+    distinct words via :func:`_three_sentence_sample`); otherwise it is the
+    native-script repeat token. ``punct`` is a terminal the language's boundary
+    regex actually recognizes, preferring the native Latin '.' for Latin scripts
+    so streaming exercises that real terminal + lookahead path.
+    """
     language_module = LANGUAGE_CODES[code]
-    token = _LOOKAHEAD_TEST_TOKENS.get(code, "A")
+    token = _LOOKAHEAD_TEST_TOKENS.get(code)
+    if token is None:
+        punct = next(
+            (p for p in _LATIN_FIRST_PUNCTUATION if p in language_module.Punctuations),
+            language_module.Punctuations[0],
+        )
+        return None, punct
     punct = next(
-        (p for p in _LOOKAHEAD_TEST_PUNCTUATION if p in language_module.Punctuations),
+        (p for p in _SCRIPT_TERMINAL_PUNCTUATION if p in language_module.Punctuations),
         language_module.Punctuations[0],
     )
     return token, punct
+
+
+def _two_sentence_sample(code):
+    """Two terminal-separated sentences plus an unterminated tail token."""
+    token, punct = _sample_for_language(code)
+    if token is None:
+        a, b, _ = _LATIN_SAMPLE_WORDS
+        return f"{a}{punct} {b}{punct}"
+    return f"{token}{token}{punct} {token}{token}{punct}"
+
+
+def _three_sentence_sample(code):
+    """Three sentences: two terminal-separated, then an unterminated tail."""
+    token, punct = _sample_for_language(code)
+    if token is None:
+        a, b, c = _LATIN_SAMPLE_WORDS
+        return f"{a}{punct} {b}{punct} {c}"
+    return f"{token}{token}{punct} {token}{token}{punct} {token}{token}"
 
 
 def _feed_char_by_char(stream, text):
@@ -93,9 +141,17 @@ def test_streaming_preserves_text_no_duplication_no_loss():
     text = "First sentence. Second sentence. Third one trails off"
     stream = StreamSegmenter(language="en")
     collected = []
+    pre_flush_emissions = 0
     for chunk in ["First sen", "tence. Sec", "ond sentence. Thi", "rd one trails off"]:
         stream.feed(chunk)
-        collected.extend(stream.get_completed_sentences())
+        newly = stream.get_completed_sentences()
+        pre_flush_emissions += len(newly)
+        collected.extend(newly)
+    # Streaming property: completed sentences are emitted incrementally as their
+    # boundaries become stable, BEFORE end-of-stream — a buffer-everything-until-
+    # flush implementation would emit zero here and still pass the join check.
+    assert pre_flush_emissions >= 2
+    assert collected == ["First sentence. ", "Second sentence. "]
     collected.extend(stream.flush())
     # No duplication, no dropped text: concatenation reproduces the source.
     assert "".join(collected) == text
@@ -312,8 +368,7 @@ def test_feed_returns_none_when_no_max_buffer_size():
 
 @pytest.mark.parametrize("language_code", sorted(LANGUAGE_CODES))
 def test_streaming_equals_non_streaming_across_all_languages(language_code):
-    token, punct = _sample_for_language(language_code)
-    text = f"{token}{punct} {token}{punct} {token}"
+    text = _three_sentence_sample(language_code)
     stream = StreamSegmenter(language=language_code)
     stream.feed(text)
     streamed = stream.get_completed_sentences() + stream.flush()
@@ -322,8 +377,7 @@ def test_streaming_equals_non_streaming_across_all_languages(language_code):
 
 @pytest.mark.parametrize("language_code", sorted(LANGUAGE_CODES))
 def test_streaming_char_by_char_across_all_languages(language_code):
-    token, punct = _sample_for_language(language_code)
-    text = f"{token}{punct} {token}{punct}"
+    text = _two_sentence_sample(language_code)
     stream = StreamSegmenter(language=language_code)
     collected = []
     _feed_char_by_char(stream, text)
@@ -334,8 +388,7 @@ def test_streaming_char_by_char_across_all_languages(language_code):
 
 @pytest.mark.parametrize("language_code", sorted(LANGUAGE_CODES))
 def test_streaming_is_nondestructive_across_all_languages(language_code):
-    token, punct = _sample_for_language(language_code)
-    text = f"{token}{punct} {token}{punct}"
+    text = _two_sentence_sample(language_code)
     stream = StreamSegmenter(language=language_code, char_span=True)
     stream.feed(text)
     spans = stream.get_completed_sentences() + stream.flush()
@@ -348,6 +401,34 @@ def test_streaming_is_nondestructive_across_all_languages(language_code):
     assert "".join(s.sent for s in spans) == text
 
 
+# A representative set of Latin-script languages that segment on the native
+# period. The per-language samples for these MUST split on a real '.' terminal
+# (not collapse onto the CJK full stop), so streaming exercises the native
+# Latin '.' boundary + lookahead probe rather than only the CJK path.
+_LATIN_PERIOD_LANGUAGES = ("en", "de", "es", "fr", "nl", "ru", "it")
+
+
+@pytest.mark.parametrize("language_code", _LATIN_PERIOD_LANGUAGES)
+def test_latin_languages_stream_on_native_period(language_code):
+    token, punct = _sample_for_language(language_code)
+    # Regression guard for the historical bug where '。' (also present in these
+    # languages' Punctuations) was chosen ahead of '.', so the sample never
+    # reached the native period terminal.
+    assert token is None
+    assert punct == "."
+    text = _three_sentence_sample(language_code)
+    assert "。" not in text and "." in text
+    stream = StreamSegmenter(language=language_code)
+    stream.feed(text)
+    completed = stream.get_completed_sentences()
+    # The two '.'-terminated leading sentences are confirmed (interior)
+    # boundaries and must stream out before flush; the unterminated tail waits.
+    assert completed, f"{language_code} streamed nothing before flush on a native '.' sample"
+    assert all(s.rstrip().endswith(".") for s in completed)
+    streamed = completed + stream.flush()
+    assert streamed == sentencesplit.Segmenter(language=language_code).segment(text)
+
+
 # --------------------------------------------------------------------------- #
 # Constructor / config
 # --------------------------------------------------------------------------- #
@@ -358,10 +439,34 @@ def test_invalid_buffering_mode_raises():
         StreamSegmenter(language="en", buffering_mode="nonsense")
 
 
-def test_split_mode_threaded_through():
+def test_invalid_split_mode_raises():
     # Same constraint surface as Segmenter: invalid split_mode rejected.
     with pytest.raises(ValueError):
         StreamSegmenter(language="en", split_mode="nonsense")
+
+
+def test_split_mode_changes_streamed_output():
+    # A valid split_mode must actually reach Segmenter and change the streamed
+    # result, not merely be validated. "Hello... World." is an ambiguous
+    # ellipsis boundary: conservative keeps it as one sentence, aggressive
+    # splits after the ellipsis. The two modes must diverge end-to-end.
+    text = "Hello... World."
+
+    conservative = StreamSegmenter(language="en", split_mode="conservative")
+    conservative.feed(text)
+    conservative_out = conservative.get_completed_sentences() + conservative.flush()
+
+    aggressive = StreamSegmenter(language="en", split_mode="aggressive")
+    aggressive.feed(text)
+    aggressive_out = aggressive.get_completed_sentences() + aggressive.flush()
+
+    assert conservative_out == ["Hello... World."]
+    assert aggressive_out == ["Hello... ", "World."]
+    assert conservative_out != aggressive_out
+    # And each still matches its own non-streaming Segmenter (contract holds per
+    # mode, so the divergence is the segmenter's, not a streaming artifact).
+    assert conservative_out == sentencesplit.Segmenter(language="en", split_mode="conservative").segment(text)
+    assert aggressive_out == sentencesplit.Segmenter(language="en", split_mode="aggressive").segment(text)
 
 
 def test_exported_from_package():
