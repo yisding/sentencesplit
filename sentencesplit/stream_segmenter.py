@@ -44,8 +44,6 @@ holds regardless of mode.
 
 from __future__ import annotations
 
-import warnings
-
 from sentencesplit.segmenter import Segmenter
 from sentencesplit.utils import TextSpan
 
@@ -78,25 +76,14 @@ class StreamSegmenter:
         # so StreamSegmenter inherits exactly the same guardrails (e.g.
         # clean=True forbids char_span).
         #
-        # Segmenter also emits the char_span DeprecationWarning, but from inside
-        # its own __init__ the warning would point at this wrapper rather than
-        # the caller. Suppress that inner emission and re-warn here with a
-        # stacklevel that names the user's StreamSegmenter(...) call site, so the
-        # forwarded flag still warns exactly once.
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", DeprecationWarning)
-            self._segmenter = Segmenter(
-                language=language,
-                clean=clean,
-                char_span=char_span,
-                split_mode=split_mode,
-            )
-        if char_span:
-            warnings.warn(
-                "char_span is deprecated; use segment_spans()",
-                DeprecationWarning,
-                stacklevel=2,
-            )
+        # The wrapped Segmenter emits the one-time char_span DeprecationWarning
+        # itself (once per process), so the wrapper does not re-warn.
+        self._segmenter = Segmenter(
+            language=language,
+            clean=clean,
+            char_span=char_span,
+            split_mode=split_mode,
+        )
         self.language = language
         self.clean = clean
         self.char_span = char_span
@@ -139,6 +126,11 @@ class StreamSegmenter:
         overflowing tail is force-emitted and the force-flushed sentences are
         returned (so the caller can react to the overflow rather than silently
         growing memory).
+
+        Overflow force-emission is a hard boundary: it may cut mid-sentence and
+        the spans/text after it continue a fresh logical run. ``max_buffer_size``
+        trades boundary precision for bounded memory; leave it ``None`` (the
+        default) for fully boundary-faithful streaming.
         """
         if delta:
             self._buffer += delta

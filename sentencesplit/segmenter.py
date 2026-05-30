@@ -61,6 +61,24 @@ def _strip_zero_width(text: str) -> str:
     return lead + text[start:end] + trail
 
 
+# ``char_span`` is soft-deprecated in favour of ``segment_spans()`` but retained
+# indefinitely as a convenience alias (no removal planned). The DeprecationWarning
+# fires only once per process — a gentle nudge, not per-construction noise.
+_CHAR_SPAN_DEPRECATION_WARNED = False
+
+
+def _warn_char_span_deprecated(stacklevel: int = 2) -> None:
+    global _CHAR_SPAN_DEPRECATION_WARNED
+    if _CHAR_SPAN_DEPRECATION_WARNED:
+        return
+    _CHAR_SPAN_DEPRECATION_WARNED = True
+    warnings.warn(
+        "char_span is deprecated; use segment_spans()",
+        DeprecationWarning,
+        stacklevel=stacklevel,
+    )
+
+
 class Segmenter:
     def __init__(
         self,
@@ -90,9 +108,10 @@ class Segmenter:
             .. deprecated:: 0.0.5
                Prefer :meth:`segment_spans`, the canonical spans API, which
                always returns ``list[TextSpan]`` regardless of this flag and
-               guarantees a byte-for-byte round-trip with the source. The
-               ``char_span`` flag is retained for backward compatibility but
-               may be removed in a future release.
+               guarantees a byte-for-byte round-trip with the source.
+               ``char_span`` is retained indefinitely as a convenience alias
+               (no removal is planned) and emits a one-time
+               :class:`DeprecationWarning` on first use.
         split_mode : str, optional
             Global split-bias for ambiguous boundaries, by default
             "balanced". One of:
@@ -115,11 +134,7 @@ class Segmenter:
         self.doc_type = doc_type
         self.char_span = char_span
         if char_span:
-            warnings.warn(
-                "char_span is deprecated; use segment_spans()",
-                DeprecationWarning,
-                stacklevel=2,
-            )
+            _warn_char_span_deprecated(stacklevel=3)
         if split_mode not in SPLIT_MODES:
             raise ValueError("split_mode must be one of {}.".format(", ".join(repr(m) for m in SPLIT_MODES)))
         self.split_mode = split_mode
