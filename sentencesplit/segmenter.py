@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import re
+import warnings
 
 from sentencesplit.cleaner import Cleaner
 from sentencesplit.languages import Language
@@ -86,7 +87,7 @@ class Segmenter:
             Get start & end character offsets of each sentence within
             the original text, by default False.
 
-            .. deprecated::
+            .. deprecated:: 0.0.5
                Prefer :meth:`segment_spans`, the canonical spans API, which
                always returns ``list[TextSpan]`` regardless of this flag and
                guarantees a byte-for-byte round-trip with the source. The
@@ -113,6 +114,12 @@ class Segmenter:
         self.clean = clean
         self.doc_type = doc_type
         self.char_span = char_span
+        if char_span:
+            warnings.warn(
+                "char_span is deprecated; use segment_spans()",
+                DeprecationWarning,
+                stacklevel=2,
+            )
         if split_mode not in SPLIT_MODES:
             raise ValueError("split_mode must be one of {}.".format(", ".join(repr(m) for m in SPLIT_MODES)))
         self.split_mode = split_mode
