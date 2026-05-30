@@ -122,6 +122,19 @@ class Segmenter:
         self._cleaner_cls = getattr(self.language_module, "Cleaner", Cleaner)
         self._processor_cls = getattr(self.language_module, "Processor", Processor)
 
+    @staticmethod
+    def list_languages() -> list[str]:
+        """Return the supported ISO 639-1 language codes, sorted.
+
+        Includes the built-in languages plus the ``en_es_zh`` and ``en_legal``
+        profiles, and reflects any languages registered at runtime. Cheap to
+        call: no language module is imported just to enumerate the codes. See
+        :func:`sentencesplit.languages.list_languages`.
+        """
+        from sentencesplit.languages import list_languages
+
+        return list_languages()
+
     def cleaner(self, text: str):
         return self._cleaner_cls(text, self.language_module, doc_type=self.doc_type)
 

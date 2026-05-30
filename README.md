@@ -153,6 +153,17 @@ seg.segment(ocr_text)
 
 ## Supported languages
 
+List the supported codes at runtime — cheap to call, imports no language modules:
+
+```python
+import sentencesplit
+
+sentencesplit.list_languages()
+# ['am', 'ar', 'bg', 'da', 'de', 'el', 'en', 'en_es_zh', 'en_legal', 'es', 'fa',
+#  'fr', 'hi', 'hy', 'it', 'ja', 'kk', 'mr', 'my', 'nl', 'pl', 'ru', 'sk', 'tl',
+#  'ur', 'zh']
+```
+
 24 languages with ISO 639-1 codes, plus 2 specialized profiles:
 
 | Code | Language | Code | Language | Code | Language |
@@ -167,6 +178,28 @@ seg.segment(ocr_text)
 | `kk` | Kazakh | `zh` | Chinese | `ur` | Urdu |
 
 **Specialized profiles:** `en_es_zh` (combined English/Spanish/Chinese), `en_legal` (English legal text).
+
+## Coming from pysbd
+
+sentencesplit is derived from [pySBD](https://github.com/nipunsadvilkar/pySBD) and keeps the same core API, so migration is usually a rename:
+
+```python
+# Before
+import pysbd
+seg = pysbd.Segmenter(language="en", clean=False)
+seg.segment("My name is Jonas E. Smith. Please turn to p. 55.")
+
+# After
+import sentencesplit
+seg = sentencesplit.Segmenter(language="en", clean=False)
+seg.segment("My name is Jonas E. Smith. Please turn to p. 55.")
+```
+
+`Segmenter(language=..., clean=..., char_span=...)`, `segment()`, and the `TextSpan` fields (`.sent`, `.start`, `.end`) all behave as they do in pySBD, and the English [Golden Rules](https://github.com/diasks2/pragmatic_segmenter#the-golden-rules) pass identically. What you gain on top:
+
+- **Streaming/lookahead** — `segment_with_lookahead()` / `should_wait_for_more()` for incremental input.
+- **`split_mode`** — a `"conservative"` / `"balanced"` / `"aggressive"` bias for ambiguous boundaries (`"balanced"` is the default and matches the historically tuned output).
+- **Discovery** — `list_languages()`, and active maintenance on Python 3.11+.
 
 ## Multi-language segmentation
 

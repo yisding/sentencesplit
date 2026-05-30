@@ -14,8 +14,21 @@ authors = [
   { name = "Nipun Sadvilkar", email = "nipunsadvilkar@gmail.com" },
   { name = "Yi Ding", email = "yi.s.ding@gmail.com" },
 ]
-keywords = ["natural-language-processing", "nlp"]
+keywords = [
+  "natural-language-processing",
+  "nlp",
+  "sentence-boundary-detection",
+  "sentence-segmentation",
+  "sentence-tokenizer",
+  "sentence-splitter",
+  "tokenization",
+  "pysbd",
+  "rag",
+  "chunking",
+  "streaming",
+]
 classifiers = [
+  "Development Status :: 4 - Beta",
   "Intended Audience :: Developers",
   "Intended Audience :: Science/Research",
   "Topic :: Scientific/Engineering",
@@ -30,6 +43,7 @@ classifiers = [
   "Programming Language :: Python :: 3.12",
   "Programming Language :: Python :: 3.13",
   "Programming Language :: Python :: 3.14",
+  "Typing :: Typed",
 ]
 dependencies = []
 

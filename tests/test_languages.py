@@ -2,7 +2,7 @@ from collections import Counter
 
 import pytest
 
-from sentencesplit.languages import LANGUAGE_CODES, Language
+from sentencesplit.languages import LANGUAGE_CODES, Language, list_languages
 
 
 class _Stub:
@@ -22,6 +22,23 @@ def test_lang_code2instance_mapping():
 def test_registered_language_iso_codes_match_registry_keys():
     for code, language_module in LANGUAGE_CODES.items():
         assert language_module.iso_code == code
+
+
+def test_list_languages_returns_sorted_registry_codes():
+    codes = list_languages()
+    assert codes == sorted(LANGUAGE_CODES.keys())
+    # Sorted, with no duplicates.
+    assert codes == sorted(set(codes))
+    # Built-ins and the special profiles are all discoverable.
+    for expected in ("en", "es", "zh", "ja", "en_es_zh", "en_legal"):
+        assert expected in codes
+
+
+def test_list_languages_reflects_runtime_registration(restore_language_codes):
+    LANGUAGE_CODES["zz"] = _Stub
+    assert "zz" in list_languages()
+    del LANGUAGE_CODES["en"]
+    assert "en" not in list_languages()
 
 
 @pytest.mark.parametrize("code", DEDUPED_ABBREVIATION_LANGUAGE_CODES)

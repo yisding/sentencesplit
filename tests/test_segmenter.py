@@ -14,6 +14,18 @@ _LOOKAHEAD_TEST_TOKENS = {
 _LOOKAHEAD_TEST_PUNCTUATION = ("។", "。", "؟", "։", "՜", "?", "!", "？", "！", ".")
 
 
+def test_list_languages_matches_module_level_function():
+    from sentencesplit.languages import list_languages
+
+    codes = sentencesplit.Segmenter.list_languages()
+    assert codes == list_languages()
+    # Callable on an instance too, and every listed code is constructible.
+    seg = sentencesplit.Segmenter(language="en")
+    assert seg.list_languages() == codes
+    for expected in ("en", "zh", "en_es_zh", "en_legal"):
+        assert expected in codes
+
+
 def test_no_input(default_en_no_clean_no_span_fixture, text=""):
     segments = default_en_no_clean_no_span_fixture.segment(text)
     assert segments == []
