@@ -30,6 +30,34 @@ _LANGUAGE_LOOKAHEAD_STEMS = {
 _DIGIT_LOOKAHEAD_STEM = "1"
 _PERIOD_END_PUNCTUATION = frozenset({".", "．"})
 _TRAILING_SENTENCE_CLOSERS = frozenset("\"')]}»”’）】》」』")
+# Zero-width / format characters that str.isspace() does not flag. A lone one
+# (e.g. a Wikipedia U+200B reference marker) at a boundary survives str.strip()
+# and is otherwise emitted as a phantom sentence or folded into the next one.
+_ZERO_WIDTH_CHARS = frozenset("​‌‍﻿")
+_ZERO_WIDTH_TRANSLATION = {ord(c): None for c in _ZERO_WIDTH_CHARS}
+
+
+def _strip_zero_width(text: str) -> str:
+    """Drop boundary zero-width/format characters from a (plain, non-span) segment.
+
+    Only the leading/trailing run of whitespace-or-zero-width is cleaned, and
+    even there whitespace is kept — just the stray zero-width artifact (e.g. a
+    lone U+200B Wikipedia reference marker) is removed. Interior zero-width
+    joiners are preserved, so emoji sequences (👩‍💻) and scripts that use
+    U+200C/U+200D within a word (e.g. Hindi, Persian) are not corrupted.
+    """
+
+    def _is_boundary_trim(ch: str) -> bool:
+        return ch.isspace() or ch in _ZERO_WIDTH_CHARS
+
+    start, end = 0, len(text)
+    while start < end and _is_boundary_trim(text[start]):
+        start += 1
+    while end > start and _is_boundary_trim(text[end - 1]):
+        end -= 1
+    lead = text[:start].translate(_ZERO_WIDTH_TRANSLATION)
+    trail = text[end:].translate(_ZERO_WIDTH_TRANSLATION)
+    return lead + text[start:end] + trail
 
 
 class Segmenter:
@@ -184,9 +212,15 @@ class Segmenter:
         matched_spans = list(self._match_spans(processed_sents, original_text))
         comparison_segments = [s for s, _, _ in matched_spans]
         if self.char_span:
+            # Spans stay exact slices of the original text (non-destructive); a
+            # trailing zero-width char is absorbed into its preceding span by
+            # _match_spans so it is not folded into the next sentence.
             spans = [TextSpan(s, start, end) for s, start, end in matched_spans]
             return analysis_text, spans, comparison_segments
-        return analysis_text, comparison_segments, comparison_segments
+        # Plain segments drop zero-width/format chars that str.strip() leaves
+        # behind, so a lone U+200B reference marker is not emitted as text.
+        plain_segments = [seg for seg in (_strip_zero_width(s) for s in comparison_segments) if seg.strip()]
+        return analysis_text, plain_segments, comparison_segments
 
     def _wait_for_last_segment(self, analysis_text: str, comparison_segments: list[str]) -> bool:
         if not comparison_segments:
@@ -283,7 +317,9 @@ class Segmenter:
             start_idx, end_idx = match_span
             if start_idx > prior_end:
                 start_idx = prior_end
-            while end_idx < len(original_text) and original_text[end_idx].isspace():
+            while end_idx < len(original_text) and (
+                original_text[end_idx].isspace() or original_text[end_idx] in _ZERO_WIDTH_CHARS
+            ):
                 end_idx += 1
             yield original_text[start_idx:end_idx], start_idx, end_idx
             prior_end = end_idx

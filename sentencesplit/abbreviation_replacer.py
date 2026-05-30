@@ -85,7 +85,15 @@ def _replace_with_escape(txt: str, escaped: str, suffix_pattern: str, replacemen
 class _AbbreviationData:
     """Pre-computed abbreviation data for a language, cached per Abbreviation class."""
 
-    __slots__ = ("abbreviations", "prepositive_set", "number_abbr_set", "automaton", "elision_chars", "boundary_class")
+    __slots__ = (
+        "abbreviations",
+        "abbr_set",
+        "prepositive_set",
+        "number_abbr_set",
+        "automaton",
+        "elision_chars",
+        "boundary_class",
+    )
 
     def __init__(self, lang_abbreviation_class):
         raw = lang_abbreviation_class.ABBREVIATIONS
@@ -120,6 +128,7 @@ class _AbbreviationData:
             )
             self.automaton.add_pattern(stripped_lower, idx)
         self.automaton.build()
+        self.abbr_set = frozenset(a.strip().lower() for a in raw)
         self.prepositive_set = frozenset(a.lower() for a in lang_abbreviation_class.PREPOSITIVE_ABBREVIATIONS)
         self.number_abbr_set = frozenset(a.lower() for a in lang_abbreviation_class.NUMBER_ABBREVIATIONS)
 
@@ -152,6 +161,80 @@ class AbbreviationReplacer:
         if abbr_class not in AbbreviationReplacer._data_cache:
             AbbreviationReplacer._data_cache[abbr_class] = _AbbreviationData(lang.Abbreviation)
         self._data = AbbreviationReplacer._data_cache[abbr_class]
+
+    # Articles/determiners that mark a following initialism as a noun
+    # (e.g. "the S.A.T.", "un M.B.A."), not the initials of a personal name.
+    # Covers the common articles of the Latin-script languages so the chained
+    # initials name heuristic does not over-join acronym nouns before a new
+    # sentence.  Languages may extend this set.
+    _INITIALS_NAME_DETERMINERS = frozenset(
+        {
+            "the",
+            "a",
+            "an",  # en
+            "el",
+            "la",
+            "los",
+            "las",
+            "un",
+            "una",
+            "unos",
+            "unas",  # es
+            "de",
+            "het",
+            "een",  # nl
+            "le",
+            "les",
+            "une",
+            "des",  # fr
+            "der",
+            "die",
+            "das",
+            "ein",
+            "eine",  # de
+            "il",
+            "lo",
+            "gli",
+            "uno",
+            "una",  # it
+            "o",
+            "os",
+            "um",
+            "uma",
+            "uns",
+            "umas",  # pt
+        }
+    )
+
+    # Matches a run of single-letter initials protected as "X∯X∯…X∯", ending at
+    # the position of the final separator that the restore is examining.
+    _INITIALS_CHAIN_RE = re.compile(r"(?:[A-Za-z]∯)+[A-Za-z]\Z")
+
+    # First whitespace-delimited token after the initialism separator.
+    _FOLLOWER_WORD_RE = re.compile(r"\s+(\S+)")
+
+    def _is_initials_name(self, text: str, sep_index: int) -> bool:
+        """Return True if the initialism ending at *sep_index* is a personal name.
+
+        A run of single-letter initials (e.g. "F∯J∯G") followed by a single
+        capitalized surname is an "Initials + Surname" personal name, so its
+        trailing period must not be restored as a boundary.  Two cues mark the
+        initialism as a sentence-ending noun instead (and keep the boundary):
+        an article/determiner before it ("the S.A.T.") or a known sentence
+        starter after it ("from H.B.S. She ...").
+        """
+        chain = self._INITIALS_CHAIN_RE.search(text[:sep_index])
+        if chain is None:
+            return False
+        before = text[: chain.start()].rstrip()
+        prev_word = before.rsplit(None, 1)[-1] if before else ""
+        if prev_word.lower() in self._INITIALS_NAME_DETERMINERS:
+            return False
+        if self.SENTENCE_STARTERS:
+            follower = self._FOLLOWER_WORD_RE.match(text[sep_index + 1 :])
+            if follower and follower.group(1).rstrip(",.;:") in self.SENTENCE_STARTERS:
+                return False
+        return True
 
     def _is_likely_sentence_start(self, text: str) -> bool:
         """Check if the next non-space character in *text* looks like a sentence start.
@@ -187,15 +270,50 @@ class AbbreviationReplacer:
         def restore_uppercase_initialism_boundary(match):
             next_text = restore_source[match.end() :]
             char = _next_nonspace_char(next_text)
-            if char and char.isupper() and char.isascii():
-                return "."
-            return match.group()
+            if not (char and char.isupper() and char.isascii()):
+                return match.group()
+            # A run of single-letter initials (e.g. "F.J.G.", protected as
+            # "F∯J∯G∯") immediately followed by a single capitalized token is an
+            # "Initials + Surname" personal name, not a sentence end — keep the
+            # final separator non-terminal.  An initialism used as a noun
+            # ("the S.A.T."), where an article/determiner precedes it, is still
+            # treated as a possible boundary so a following capital can split.
+            if self._is_initials_name(restore_source, match.start()):
+                return match.group()
+            return "."
 
         self.text = re.sub(r"(?<=[A-Z]∯[A-Z]∯[A-Z])∯(?=\s)", restore_uppercase_initialism_boundary, self.text)
+        self.text = self.protect_allcaps_imprint_abbreviations()
         self.text = apply_rules(self.text, *self.lang.AmPmRules.All)
         self.text = self.restore_non_ascii_ampm_boundaries()
         self.text = self.replace_abbreviation_as_sentence_boundary()
         return self.text
+
+    # An all-caps word (2+ letters) immediately followed, across whitespace, by
+    # another all-caps word (2+ letters). Used to detect imprint/colophon runs
+    # like "CHARLES WHITTINGHAM AND CO. TOOKS COURT".
+    _ALLCAPS_IMPRINT_RE = re.compile(r"(?<![A-Za-z0-9])([A-Z]{2,})\.(?=\s+[A-Z]{2,}\b)")
+
+    def protect_allcaps_imprint_abbreviations(self) -> str:
+        """Keep a known abbreviation's period non-terminal inside an all-caps run.
+
+        In an all-caps imprint/colophon (e.g. "...AND CO. TOOKS COURT, LONDON.")
+        a company-style abbreviation such as "CO." is a name continuation, not a
+        sentence end, even though the following all-caps token would normally be
+        read as a sentence start. Only known multi-letter abbreviations flanked
+        by all-caps tokens are protected, so ordinary all-caps words that end a
+        sentence ("THE END. THE BEGINNING.") still split.
+        """
+        if not self.SENTENCE_STARTERS:
+            return self.text
+        abbr_set = self._data.abbr_set
+
+        def _protect(match):
+            if match.group(1).lower() not in abbr_set:
+                return match.group()
+            return match.group(1) + "∯"
+
+        return self._ALLCAPS_IMPRINT_RE.sub(_protect, self.text)
 
     @classmethod
     def _get_boundary_regex(cls) -> re.Pattern[str] | None:

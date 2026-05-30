@@ -14,6 +14,10 @@ _TRAILING_EXCL_RE = re.compile(r"&ᓴ&$")
 _PAREN_SPACE_BEFORE_RE = re.compile(r"\s(?=\()")
 _PAREN_SPACE_AFTER_RE = re.compile(r"(?<=\))\s")
 _ORPHAN_SINGLE_CHARS = frozenset("'\")\u2019\u201d")
+# Zero-width / format characters that str.strip() does not remove. Wikipedia
+# reference markers leave a lone U+200B at a sentence boundary, which otherwise
+# survives as a phantom empty sentence or is folded into the next sentence.
+_ZERO_WIDTH_CHARS = "\u200b\u200c\u200d\ufeff"
 _CJK_QUOTE_RESPLIT_RE = re.compile(
     r"(?<=[。．][\]\"')”’」』】）》])(?=[\u4e00-\u9fff\u3040-\u30ff\u31f0-\u31ffA-Za-z0-9「『【（《])"
 )
@@ -28,6 +32,84 @@ _CJK_BANG_RESPLIT_RE = re.compile(
     r"(?<=[！？][\]\"')”’」』）])(?![とっ])(?=[\u4e00-\u9fff\u3040-\u30ff\u31f0-\u31ffA-Za-z0-9「『【（《])"
 )
 _LATIN_RESPLIT_RE = re.compile(r"(?<=[a-zA-Z]{2}\.\))\s+")
+# A run of 2+ '!'/'?' (restored from the continuous-punctuation placeholders) that
+# ends a sentence: the boundary check itself is delegated to
+# _next_nonspace_char_starts_sentence so accented Latin capitals (Ä/Ö/Ü, É, …) count.
+# The cluster is left intact; only the whitespace after it becomes a split point.
+_MULTI_TERMINATOR_RESPLIT_RE = re.compile(r"(?<=[!?]{2})\s+")
+# A period immediately followed (after optional spaces) by a *single* comma can
+# never be a sentence boundary, since no sentence starts with a comma. This
+# protects the final period of unlisted multi-period abbreviations such as the
+# botanical author tag "N.E.Br.," from being treated as terminal. The negative
+# lookahead excludes a doubled comma (",,"), which in Dutch typography is an
+# *opening* quotation mark beginning a new sentence (e.g. "...einde. ,,Nieuwe...").
+_PERIOD_BEFORE_COMMA_RE = re.compile(r"\.(?=\s*,(?!,))")
+
+# The between-punctuation pass protects everything from an opening quote to its
+# closing quote as one unsplittable region, so a quotation that wraps several
+# complete sentences collapses into a single segment when the closing quote is
+# far away. _resplit_multi_sentence_quote re-splits such a segment, but only for
+# a self-contained, un-nested quotation: a single matched quote pair (one opener
+# near the start, the matching closer at the end) whose interior contains NO
+# other quote characters at all. That excludes dialogue with embedded attribution
+# or nested quotes (e.g. '"X," said Alice; "Y. Z. W."' or '"...\'William...\'"'),
+# which the existing gold keeps whole, while still catching a clean run such as
+# '“A. B. C.”' (case_0080).
+_QUOTE_PAIRS = (("“", "”"), ('"', '"'), ("«", "»"))
+_QUOTE_PAIR_BY_OPENER = {opener: closer for opener, closer in _QUOTE_PAIRS}
+_LEADING_QUOTE_RE = re.compile(r"\A[\s_]*([“\"«])")
+# Any quotation character — used to reject quotes with nested quotes/attribution.
+_ANY_QUOTE_CHARS = frozenset("“”\"«»‘’'")
+# Interior boundary inside a restored (already de-protected) quoted segment: a
+# single PERIOD, optional whitespace, then a Latin capital. Only periods count —
+# runs of '!'/'?' inside a quote are usually one emphatic speech act
+# ("Oh dear! Oh dear!" / "As if I would! ... again!"), not separate sentences.
+_QUOTE_INTERIOR_BOUNDARY_RE = re.compile(r"(?<=[.])\s+(?=[A-Z])")
+# A multi-sentence quotation must contain at least this many interior pieces
+# (i.e. at least two interior boundaries / three sentences) before the resplit
+# fires, and every piece must be at least _QUOTE_MIN_WORDS words long. Requiring
+# three keeps single-boundary quotes intact, where it is genuinely ambiguous
+# whether the second clause is a new sentence or a continuation of the same
+# speech act (e.g. the gold-kept "...at tea-time. Dinah, my dear, I wish...").
+_QUOTE_MIN_INTERIOR_SENTENCES = 3
+_QUOTE_MIN_WORDS = 5
+
+
+def _resplit_multi_sentence_quote(text: str) -> list[str] | None:
+    """Re-split a self-contained quotation at its interior period boundaries.
+
+    Returns the split pieces, or ``None`` when *text* should be left intact.
+    """
+    match = _LEADING_QUOTE_RE.match(text)
+    if match is None:
+        return None
+    closer = _QUOTE_PAIR_BY_OPENER[match.group(1)]
+    body = text.rstrip()
+    if not body.endswith(closer):
+        return None
+    # The interior must be a single, un-nested quotation: no embedded quote
+    # characters (attribution, nested quotes) that signal the multi-sentence run
+    # is not one clean quoted utterance.
+    inner = body[match.end() : -1]
+    if any(char in _ANY_QUOTE_CHARS for char in inner):
+        return None
+
+    spans = []
+    last = 0
+    for boundary in _QUOTE_INTERIOR_BOUNDARY_RE.finditer(text):
+        spans.append(text[last : boundary.start()])
+        last = boundary.end()
+    if len(spans) + 1 < _QUOTE_MIN_INTERIOR_SENTENCES:
+        return None
+    spans.append(text[last:])
+
+    if any(len(span.split()) < _QUOTE_MIN_WORDS for span in spans):
+        # Short interior pieces are dialogue beats, not standalone sentences —
+        # keep the quotation whole.
+        return None
+
+    return spans
+
 
 # Internal placeholder ("sentinel") characters the pipeline uses to protect
 # punctuation from splitting. They are ordinary printable codepoints, so if a
@@ -177,7 +259,20 @@ class Processor:
         postprocessed_sents = self._restore_and_postprocess_segments(sents)
         postprocessed_sents = [apply_rules(ns, self.lang.SubSingleQuoteRule) for ns in postprocessed_sents]
         postprocessed_sents = self._resplit_segments(postprocessed_sents)
-        return self._merge_orphan_fragments(postprocessed_sents)
+        postprocessed_sents = self._merge_orphan_fragments(postprocessed_sents)
+        return self._strip_zero_width_chars(postprocessed_sents)
+
+    def _strip_zero_width_chars(self, postprocessed_sents: list[str]) -> list[str]:
+        # str.strip() does not remove zero-width / format characters, so a lone
+        # U+200B (e.g. a Wikipedia reference marker) survives as a phantom empty
+        # sentence and a leading one is folded into the next sentence. Strip them
+        # from the segment edges and drop segments that become empty.
+        cleaned = []
+        for sent in postprocessed_sents:
+            stripped = sent.strip(_ZERO_WIDTH_CHARS).strip()
+            if stripped:
+                cleaned.append(stripped)
+        return cleaned
 
     def _apply_single_newline_and_ellipsis_rules(self, text: str) -> str:
         return apply_rules(text, self.lang.SingleNewLineRule, *self.lang.EllipsisRules.All)
@@ -194,9 +289,15 @@ class Processor:
     def _resplit_segments(self, postprocessed_sents: list[str]) -> list[str]:
         if self.profile.latin_uppercase_resplit:
             # Re-split at ".) Capital" boundaries (period inside closing paren before new sentence)
+            # and at multi-character terminators ("Top!!! Der") whose cluster the
+            # continuous-punctuation protection prevented from splitting earlier.
             resplit = []
             for pps in postprocessed_sents:
-                parts = _split_on_uppercase_boundary(pps, _LATIN_RESPLIT_RE)
+                parts = (
+                    _split_on_uppercase_boundary(pps, _LATIN_RESPLIT_RE)
+                    or _split_on_uppercase_boundary(pps, _MULTI_TERMINATOR_RESPLIT_RE)
+                    or _resplit_multi_sentence_quote(pps)
+                )
                 if parts is None:
                     resplit.append(pps)
                 else:
@@ -350,6 +451,8 @@ class Processor:
         return txt
 
     def sentence_boundary_punctuation(self, txt: str) -> list[str]:
+        # A period followed by a comma is never a sentence boundary.
+        txt = _PERIOD_BEFORE_COMMA_RE.sub("∯", txt)
         if self.profile.colon_rule is not None:
             txt = apply_rules(txt, self.profile.colon_rule)
         if self.profile.comma_rule is not None:

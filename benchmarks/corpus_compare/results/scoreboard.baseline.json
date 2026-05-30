@@ -1,0 +1,712 @@
+{
+  "segmenters": [
+    {
+      "name": "sentencesplit",
+      "kind": "rule-based",
+      "description": "This library (pySBD-derived, rule-based).",
+      "available": true,
+      "unavailable_reason": "",
+      "languages": "any"
+    },
+    {
+      "name": "pysbd",
+      "kind": "rule-based",
+      "description": "Python Sentence Boundary Disambiguation (port of pragmatic_segmenter).",
+      "available": true,
+      "unavailable_reason": "",
+      "languages": [
+        "am",
+        "ar",
+        "bg",
+        "da",
+        "de",
+        "el",
+        "en",
+        "es",
+        "fa",
+        "fr",
+        "hi",
+        "hy",
+        "it",
+        "ja",
+        "kk",
+        "mr",
+        "my",
+        "nl",
+        "pl",
+        "ru",
+        "sk",
+        "ur",
+        "zh"
+      ]
+    },
+    {
+      "name": "pragmatic_segmenter",
+      "kind": "rule-based",
+      "description": "Original Ruby pragmatic_segmenter (reference implementation).",
+      "available": true,
+      "unavailable_reason": "",
+      "languages": [
+        "am",
+        "ar",
+        "bg",
+        "da",
+        "de",
+        "el",
+        "en",
+        "es",
+        "fa",
+        "fr",
+        "hi",
+        "hy",
+        "it",
+        "ja",
+        "kk",
+        "mr",
+        "my",
+        "nl",
+        "pl",
+        "ru",
+        "sk",
+        "ur",
+        "zh"
+      ]
+    },
+    {
+      "name": "punkt",
+      "kind": "statistical",
+      "description": "NLTK Punkt unsupervised sentence tokenizer.",
+      "available": true,
+      "unavailable_reason": "",
+      "languages": [
+        "da",
+        "de",
+        "el",
+        "en",
+        "es",
+        "fr",
+        "it",
+        "nl",
+        "pl",
+        "ru"
+      ]
+    },
+    {
+      "name": "syntok",
+      "kind": "rule-based",
+      "description": "syntok segmenter (tokenizer-driven).",
+      "available": true,
+      "unavailable_reason": "",
+      "languages": [
+        "da",
+        "de",
+        "en",
+        "es",
+        "fr",
+        "it",
+        "nl",
+        "pl"
+      ]
+    },
+    {
+      "name": "blingfire",
+      "kind": "neural",
+      "description": "BlingFire.",
+      "available": false,
+      "unavailable_reason": "import blingfire failed (exit 1): OSError: /home/yi/Code/sentencesplit/.venv/lib/python3.13/site-packages/blingfire/libblingfiretokdll.so: cannot open shared object file: No ",
+      "languages": "any"
+    },
+    {
+      "name": "spacy_sentencizer",
+      "kind": "rule-based",
+      "description": "spaCy sentencizer.",
+      "available": false,
+      "unavailable_reason": "crashed importing spacy (signal 4; native/ARM incompatibility)",
+      "languages": "any"
+    },
+    {
+      "name": "stanza",
+      "kind": "neural",
+      "description": "Stanza.",
+      "available": false,
+      "unavailable_reason": "crashed importing stanza (signal 4; native/ARM incompatibility)",
+      "languages": "any"
+    }
+  ],
+  "gold_scores": {
+    "overall": {
+      "sentencesplit": {
+        "exact_match": 74.4,
+        "boundary_f1": 93.7,
+        "n": 348
+      },
+      "pysbd": {
+        "exact_match": 73.3,
+        "boundary_f1": 93.5,
+        "n": 348
+      },
+      "pragmatic_segmenter": {
+        "exact_match": 73.0,
+        "boundary_f1": 93.5,
+        "n": 348
+      },
+      "punkt": {
+        "exact_match": 70.4,
+        "boundary_f1": 90.4,
+        "n": 318
+      },
+      "syntok": {
+        "exact_match": 64.3,
+        "boundary_f1": 90.7,
+        "n": 258
+      }
+    },
+    "by_corpus": {
+      "golden_rules": {
+        "sentencesplit": {
+          "exact_match": 97.9,
+          "boundary_f1": 99.6,
+          "n": 48
+        },
+        "pysbd": {
+          "exact_match": 97.9,
+          "boundary_f1": 99.6,
+          "n": 48
+        },
+        "pragmatic_segmenter": {
+          "exact_match": 97.9,
+          "boundary_f1": 99.6,
+          "n": 48
+        },
+        "punkt": {
+          "exact_match": 56.2,
+          "boundary_f1": 72.7,
+          "n": 48
+        },
+        "syntok": {
+          "exact_match": 70.8,
+          "boundary_f1": 87.9,
+          "n": 48
+        }
+      },
+      "ud_en_ewt": {
+        "sentencesplit": {
+          "exact_match": 66.7,
+          "boundary_f1": 93.6,
+          "n": 30
+        },
+        "pysbd": {
+          "exact_match": 70.0,
+          "boundary_f1": 94.3,
+          "n": 30
+        },
+        "pragmatic_segmenter": {
+          "exact_match": 66.7,
+          "boundary_f1": 93.9,
+          "n": 30
+        },
+        "punkt": {
+          "exact_match": 73.3,
+          "boundary_f1": 96.1,
+          "n": 30
+        },
+        "syntok": {
+          "exact_match": 63.3,
+          "boundary_f1": 96.9,
+          "n": 30
+        }
+      },
+      "ud_en_gum": {
+        "sentencesplit": {
+          "exact_match": 73.3,
+          "boundary_f1": 91.7,
+          "n": 30
+        },
+        "pysbd": {
+          "exact_match": 73.3,
+          "boundary_f1": 91.7,
+          "n": 30
+        },
+        "pragmatic_segmenter": {
+          "exact_match": 73.3,
+          "boundary_f1": 91.7,
+          "n": 30
+        },
+        "punkt": {
+          "exact_match": 60.0,
+          "boundary_f1": 89.1,
+          "n": 30
+        },
+        "syntok": {
+          "exact_match": 66.7,
+          "boundary_f1": 87.4,
+          "n": 30
+        }
+      },
+      "ud_de_gsd": {
+        "sentencesplit": {
+          "exact_match": 63.3,
+          "boundary_f1": 92.1,
+          "n": 30
+        },
+        "pysbd": {
+          "exact_match": 63.3,
+          "boundary_f1": 92.1,
+          "n": 30
+        },
+        "pragmatic_segmenter": {
+          "exact_match": 63.3,
+          "boundary_f1": 91.7,
+          "n": 30
+        },
+        "punkt": {
+          "exact_match": 73.3,
+          "boundary_f1": 94.6,
+          "n": 30
+        },
+        "syntok": {
+          "exact_match": 66.7,
+          "boundary_f1": 92.9,
+          "n": 30
+        }
+      },
+      "ud_fr_gsd": {
+        "sentencesplit": {
+          "exact_match": 86.7,
+          "boundary_f1": 97.7,
+          "n": 30
+        },
+        "pysbd": {
+          "exact_match": 86.7,
+          "boundary_f1": 97.7,
+          "n": 30
+        },
+        "pragmatic_segmenter": {
+          "exact_match": 86.7,
+          "boundary_f1": 97.7,
+          "n": 30
+        },
+        "punkt": {
+          "exact_match": 90.0,
+          "boundary_f1": 98.6,
+          "n": 30
+        },
+        "syntok": {
+          "exact_match": 70.0,
+          "boundary_f1": 94.2,
+          "n": 30
+        }
+      },
+      "ud_es_gsd": {
+        "sentencesplit": {
+          "exact_match": 73.3,
+          "boundary_f1": 95.8,
+          "n": 30
+        },
+        "pysbd": {
+          "exact_match": 63.3,
+          "boundary_f1": 93.9,
+          "n": 30
+        },
+        "pragmatic_segmenter": {
+          "exact_match": 63.3,
+          "boundary_f1": 93.9,
+          "n": 30
+        },
+        "punkt": {
+          "exact_match": 70.0,
+          "boundary_f1": 95.1,
+          "n": 30
+        },
+        "syntok": {
+          "exact_match": 80.0,
+          "boundary_f1": 97.5,
+          "n": 30
+        }
+      },
+      "ud_it_isdt": {
+        "sentencesplit": {
+          "exact_match": 50.0,
+          "boundary_f1": 81.5,
+          "n": 30
+        },
+        "pysbd": {
+          "exact_match": 50.0,
+          "boundary_f1": 83.0,
+          "n": 30
+        },
+        "pragmatic_segmenter": {
+          "exact_match": 50.0,
+          "boundary_f1": 83.0,
+          "n": 30
+        },
+        "punkt": {
+          "exact_match": 56.7,
+          "boundary_f1": 89.9,
+          "n": 30
+        },
+        "syntok": {
+          "exact_match": 33.3,
+          "boundary_f1": 83.3,
+          "n": 30
+        }
+      },
+      "ud_nl_alpino": {
+        "sentencesplit": {
+          "exact_match": 63.3,
+          "boundary_f1": 91.4,
+          "n": 30
+        },
+        "pysbd": {
+          "exact_match": 66.7,
+          "boundary_f1": 91.8,
+          "n": 30
+        },
+        "pragmatic_segmenter": {
+          "exact_match": 66.7,
+          "boundary_f1": 91.8,
+          "n": 30
+        },
+        "punkt": {
+          "exact_match": 90.0,
+          "boundary_f1": 98.9,
+          "n": 30
+        },
+        "syntok": {
+          "exact_match": 60.0,
+          "boundary_f1": 88.9,
+          "n": 30
+        }
+      },
+      "ud_ru_gsd": {
+        "sentencesplit": {
+          "exact_match": 70.0,
+          "boundary_f1": 95.3,
+          "n": 30
+        },
+        "pysbd": {
+          "exact_match": 70.0,
+          "boundary_f1": 94.6,
+          "n": 30
+        },
+        "pragmatic_segmenter": {
+          "exact_match": 70.0,
+          "boundary_f1": 94.6,
+          "n": 30
+        },
+        "punkt": {
+          "exact_match": 80.0,
+          "boundary_f1": 97.2,
+          "n": 30
+        }
+      },
+      "ud_el_gdt": {
+        "sentencesplit": {
+          "exact_match": 63.3,
+          "boundary_f1": 88.6,
+          "n": 30
+        },
+        "pysbd": {
+          "exact_match": 63.3,
+          "boundary_f1": 88.6,
+          "n": 30
+        },
+        "pragmatic_segmenter": {
+          "exact_match": 63.3,
+          "boundary_f1": 88.6,
+          "n": 30
+        },
+        "punkt": {
+          "exact_match": 63.3,
+          "boundary_f1": 81.9,
+          "n": 30
+        }
+      },
+      "ud_zh_gsd": {
+        "sentencesplit": {
+          "exact_match": 96.7,
+          "boundary_f1": 99.5,
+          "n": 30
+        },
+        "pysbd": {
+          "exact_match": 86.7,
+          "boundary_f1": 98.1,
+          "n": 30
+        },
+        "pragmatic_segmenter": {
+          "exact_match": 86.7,
+          "boundary_f1": 98.1,
+          "n": 30
+        }
+      }
+    },
+    "by_language": {
+      "en": {
+        "sentencesplit": {
+          "exact_match": 82.4,
+          "boundary_f1": 95.7,
+          "n": 108
+        },
+        "pysbd": {
+          "exact_match": 83.3,
+          "boundary_f1": 95.9,
+          "n": 108
+        },
+        "pragmatic_segmenter": {
+          "exact_match": 82.4,
+          "boundary_f1": 95.9,
+          "n": 108
+        },
+        "punkt": {
+          "exact_match": 62.0,
+          "boundary_f1": 83.8,
+          "n": 108
+        },
+        "syntok": {
+          "exact_match": 67.6,
+          "boundary_f1": 89.8,
+          "n": 108
+        }
+      },
+      "de": {
+        "sentencesplit": {
+          "exact_match": 63.3,
+          "boundary_f1": 92.1,
+          "n": 30
+        },
+        "pysbd": {
+          "exact_match": 63.3,
+          "boundary_f1": 92.1,
+          "n": 30
+        },
+        "pragmatic_segmenter": {
+          "exact_match": 63.3,
+          "boundary_f1": 91.7,
+          "n": 30
+        },
+        "punkt": {
+          "exact_match": 73.3,
+          "boundary_f1": 94.6,
+          "n": 30
+        },
+        "syntok": {
+          "exact_match": 66.7,
+          "boundary_f1": 92.9,
+          "n": 30
+        }
+      },
+      "fr": {
+        "sentencesplit": {
+          "exact_match": 86.7,
+          "boundary_f1": 97.7,
+          "n": 30
+        },
+        "pysbd": {
+          "exact_match": 86.7,
+          "boundary_f1": 97.7,
+          "n": 30
+        },
+        "pragmatic_segmenter": {
+          "exact_match": 86.7,
+          "boundary_f1": 97.7,
+          "n": 30
+        },
+        "punkt": {
+          "exact_match": 90.0,
+          "boundary_f1": 98.6,
+          "n": 30
+        },
+        "syntok": {
+          "exact_match": 70.0,
+          "boundary_f1": 94.2,
+          "n": 30
+        }
+      },
+      "es": {
+        "sentencesplit": {
+          "exact_match": 73.3,
+          "boundary_f1": 95.8,
+          "n": 30
+        },
+        "pysbd": {
+          "exact_match": 63.3,
+          "boundary_f1": 93.9,
+          "n": 30
+        },
+        "pragmatic_segmenter": {
+          "exact_match": 63.3,
+          "boundary_f1": 93.9,
+          "n": 30
+        },
+        "punkt": {
+          "exact_match": 70.0,
+          "boundary_f1": 95.1,
+          "n": 30
+        },
+        "syntok": {
+          "exact_match": 80.0,
+          "boundary_f1": 97.5,
+          "n": 30
+        }
+      },
+      "it": {
+        "sentencesplit": {
+          "exact_match": 50.0,
+          "boundary_f1": 81.5,
+          "n": 30
+        },
+        "pysbd": {
+          "exact_match": 50.0,
+          "boundary_f1": 83.0,
+          "n": 30
+        },
+        "pragmatic_segmenter": {
+          "exact_match": 50.0,
+          "boundary_f1": 83.0,
+          "n": 30
+        },
+        "punkt": {
+          "exact_match": 56.7,
+          "boundary_f1": 89.9,
+          "n": 30
+        },
+        "syntok": {
+          "exact_match": 33.3,
+          "boundary_f1": 83.3,
+          "n": 30
+        }
+      },
+      "nl": {
+        "sentencesplit": {
+          "exact_match": 63.3,
+          "boundary_f1": 91.4,
+          "n": 30
+        },
+        "pysbd": {
+          "exact_match": 66.7,
+          "boundary_f1": 91.8,
+          "n": 30
+        },
+        "pragmatic_segmenter": {
+          "exact_match": 66.7,
+          "boundary_f1": 91.8,
+          "n": 30
+        },
+        "punkt": {
+          "exact_match": 90.0,
+          "boundary_f1": 98.9,
+          "n": 30
+        },
+        "syntok": {
+          "exact_match": 60.0,
+          "boundary_f1": 88.9,
+          "n": 30
+        }
+      },
+      "ru": {
+        "sentencesplit": {
+          "exact_match": 70.0,
+          "boundary_f1": 95.3,
+          "n": 30
+        },
+        "pysbd": {
+          "exact_match": 70.0,
+          "boundary_f1": 94.6,
+          "n": 30
+        },
+        "pragmatic_segmenter": {
+          "exact_match": 70.0,
+          "boundary_f1": 94.6,
+          "n": 30
+        },
+        "punkt": {
+          "exact_match": 80.0,
+          "boundary_f1": 97.2,
+          "n": 30
+        }
+      },
+      "el": {
+        "sentencesplit": {
+          "exact_match": 63.3,
+          "boundary_f1": 88.6,
+          "n": 30
+        },
+        "pysbd": {
+          "exact_match": 63.3,
+          "boundary_f1": 88.6,
+          "n": 30
+        },
+        "pragmatic_segmenter": {
+          "exact_match": 63.3,
+          "boundary_f1": 88.6,
+          "n": 30
+        },
+        "punkt": {
+          "exact_match": 63.3,
+          "boundary_f1": 81.9,
+          "n": 30
+        }
+      },
+      "zh": {
+        "sentencesplit": {
+          "exact_match": 96.7,
+          "boundary_f1": 99.5,
+          "n": 30
+        },
+        "pysbd": {
+          "exact_match": 86.7,
+          "boundary_f1": 98.1,
+          "n": 30
+        },
+        "pragmatic_segmenter": {
+          "exact_match": 86.7,
+          "boundary_f1": 98.1,
+          "n": 30
+        }
+      }
+    },
+    "altered_text_units": {
+      "syntok": 9,
+      "pragmatic_segmenter": 2
+    }
+  },
+  "agreement": {
+    "total_units": 596,
+    "divergent_units": 218,
+    "agreement_rate_pct": 63.4,
+    "divergences_by_corpus": {
+      "golden_rules": 24,
+      "ud_en_ewt": 16,
+      "ud_en_gum": 7,
+      "ud_de_gsd": 12,
+      "ud_fr_gsd": 9,
+      "ud_es_gsd": 11,
+      "ud_it_isdt": 18,
+      "ud_nl_alpino": 15,
+      "ud_ru_gsd": 6,
+      "ud_el_gdt": 9,
+      "ud_zh_gsd": 3,
+      "wikipedia_en": 12,
+      "wikipedia_de": 7,
+      "wikipedia_fr": 2,
+      "wikipedia_es": 10,
+      "wikipedia_it": 1,
+      "wikipedia_nl": 1,
+      "wikipedia_ru": 2,
+      "gutenberg": 17,
+      "legal": 36
+    },
+    "divergences_by_language": {
+      "en": 112,
+      "de": 19,
+      "fr": 11,
+      "es": 21,
+      "it": 19,
+      "nl": 16,
+      "ru": 8,
+      "el": 9,
+      "zh": 3
+    }
+  },
+  "metric_notes": "exact_match: predicted sentence list == gold list (strict). boundary_f1: F1 over whitespace-insensitive boundary positions; units where a tool altered the underlying characters are excluded and counted in altered_text_units. UD gold paragraphs are reconstructed by space-joining gold sentences (no-space for zh)."
+}

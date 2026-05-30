@@ -215,6 +215,37 @@ def test_spanish_sta_sto_prepositive():
     assert segments == ["Fue a Sto. Domingo y Sta. Rosa."]
 
 
+def test_period_before_comma_is_not_a_sentence_boundary():
+    """A period immediately followed by a comma must not split a sentence.
+
+    The multi-period botanical author abbreviation 'N.E.Br.' is not in any
+    abbreviation list, so its final period was left as a boundary candidate
+    and fired even though the next non-space character is a comma. A comma can
+    never start a new sentence, so the period must stay inside the sentence.
+    """
+    seg = sentencesplit.Segmenter(language="es", clean=False)
+    text = "Su única especie: Didymaotus lapidiformis (Marloth) N.E.Br., es originaria de Sudáfrica."
+    segments = [s.strip() for s in seg.segment(text)]
+    assert segments == ["Su única especie: Didymaotus lapidiformis (Marloth) N.E.Br., es originaria de Sudáfrica."]
+
+
+def test_period_before_dutch_opening_quote_still_splits():
+    """The period-before-comma protection must NOT swallow a Dutch opening quote.
+
+    Dutch typography uses a doubled comma (",,") as an *opening* quotation mark,
+    so a period before ",," ends a real sentence. The period-before-comma rule
+    therefore excludes a doubled comma; only a single comma protects the period.
+    """
+    seg = sentencesplit.Segmenter(language="nl", clean=False)
+    text = "Dat was het einde. ,,Een nieuwe zin begint hier. En nog een zin."
+    segments = [s.strip() for s in seg.segment(text)]
+    assert segments == [
+        "Dat was het einde.",
+        ",,Een nieuwe zin begint hier.",
+        "En nog een zin.",
+    ]
+
+
 def test_versus_abbreviation_not_treated_as_list_item():
     """v. in case names like 'Marbury v. Madison' should not be split as a list item."""
     seg = sentencesplit.Segmenter(language="en", clean=False)
@@ -244,6 +275,26 @@ def test_hyphen_prefixed_numbered_period_paren_list_items_split():
     seg = sentencesplit.Segmenter(language="en", clean=False)
     segments = [s.strip() for s in seg.segment("-1.) The first item -2.) The second item")]
     assert segments == ["-1.) The first item", "-2.) The second item"]
+
+
+def test_german_consecutive_ordinals_not_treated_as_numbered_list():
+    """Two nearby ascending ordinals embedded in prose ('19. ... 20. Jahrhunderts')
+    must not be promoted to a numbered list. A real list item begins with an
+    uppercase word; an ordinal followed by a lowercase word ('19. und') is prose."""
+    seg = sentencesplit.Segmenter(language="de", clean=False)
+    text = "Im Laufe des 19. und frühen 20. Jahrhunderts entwickelte sich Berlin zur weltweit drittgrößten Stadt."
+    segments = [s.strip() for s in seg.segment(text)]
+    assert segments == [text]
+
+
+def test_consecutive_ordinals_followed_by_lowercase_not_a_list():
+    """Embedded ordinals followed by lowercase words are not list markers, so
+    no line break ('\\r') is inserted to split them into list items. The ordinal
+    periods are still protected (replaced with the placeholder), which keeps the
+    text from splitting downstream."""
+    text = "Im Laufe des 19. und frühen 20. Jahrhunderts entwickelte sich Berlin."
+    result = ListItemReplacer(text).add_line_break()
+    assert "\r" not in result and "\n" not in result
 
 
 def test_common_abbreviations_no_false_split():
@@ -541,4 +592,449 @@ def test_latin_quote_resplit_not_triggered_by_cjk(language, text, expected):
 def test_en_es_zh_abbreviation_protection_for_non_latin1_letters(text, expected):
     """en_es_zh abbreviation protection must cover non-Latin-1 letters like č and Δ."""
     seg = sentencesplit.Segmenter(language="en_es_zh", clean=False, char_span=False)
+    assert [s.strip() for s in seg.segment(text)] == expected
+
+
+@pytest.mark.parametrize(
+    "text,expected",
+    [
+        # Lone trailing U+200B (Wikipedia reference marker) must not survive as a phantom sentence.
+        ("Texto.​", ["Texto."]),
+        (
+            "siendo la 1.ª área metropolitana española en actividad económica −19 % del PIB.​",
+            ["siendo la 1.ª área metropolitana española en actividad económica −19 % del PIB."],
+        ),
+        # Mid-text U+200B must not be folded into the FOLLOWING sentence as a leading char.
+        (
+            "Frase uno.​ Frase dos.​",
+            ["Frase uno.", "Frase dos."],
+        ),
+        (
+            "En sus Novelas ejemplares, Cervantes dice ser tartamudo. "
+            "Para José Manuel Lucía Megías, se trataría de una figura retórica "
+            "para describirse a sí mismo como falto de elocuencia verbal.​ "
+            "Krzysztof Sliwa, por el contrario, cree que Cervantes padecía una verdadera "
+            "alteración del lenguaje, citando similares comentarios del manchego en tres de "
+            "sus escritos además de las Novelas.​",
+            [
+                "En sus Novelas ejemplares, Cervantes dice ser tartamudo.",
+                "Para José Manuel Lucía Megías, se trataría de una figura retórica "
+                "para describirse a sí mismo como falto de elocuencia verbal.",
+                "Krzysztof Sliwa, por el contrario, cree que Cervantes padecía una verdadera "
+                "alteración del lenguaje, citando similares comentarios del manchego en tres de "
+                "sus escritos además de las Novelas.",
+            ],
+        ),
+    ],
+)
+def test_trailing_zero_width_space_not_emitted_as_sentence(text, expected):
+    """Wikipedia U+200B reference markers must not produce phantom/leading-char sentences."""
+    seg = sentencesplit.Segmenter(language="es", clean=False, char_span=False)
+    assert [s.strip() for s in seg.segment(text)] == expected
+
+
+@pytest.mark.parametrize(
+    "text,expected",
+    [
+        # "и др." (etc.) and the inline language tags must not split.
+        (
+            "Чувашское книжное издательство -- республиканское государственное унитарное "
+            "предприятие, выпускающее художественную, детскую, учебно-педагогическую, "
+            "общественно-политическую и др. литературу на чуваш., рус., англ. языках.",
+            [
+                "Чувашское книжное издательство -- республиканское государственное унитарное "
+                "предприятие, выпускающее художественную, детскую, учебно-педагогическую, "
+                "общественно-политическую и др. литературу на чуваш., рус., англ. языках."
+            ],
+        ),
+        # "Ср." (cf.) at the start of a sentence must not split.
+        (
+            "Ср. с иконографией ``Муж скорбей&#39;&#39;, где ангелы придерживают израненное "
+            "тело Христа, но не умершего, а живого, так как это является не сценой "
+            "погребения, а аллегорическим изображением.",
+            [
+                "Ср. с иконографией ``Муж скорбей&#39;&#39;, где ангелы придерживают израненное "
+                "тело Христа, но не умершего, а живого, так как это является не сценой "
+                "погребения, а аллегорическим изображением."
+            ],
+        ),
+        # Language-tag abbreviations introducing a Latin-capital gloss must stay non-terminal.
+        (
+            "откуда в иностранных языках возникли названия типа англ. Moscow, нем. Moskau, фр. Moscou.",
+            ["откуда в иностранных языках возникли названия типа англ. Moscow, нем. Moskau, фр. Moscou."],
+        ),
+    ],
+)
+def test_russian_abbreviations_no_false_split(text, expected):
+    """Common Russian abbreviations (др., ср.) and inline language tags (англ., нем., фр.,
+    чуваш., рус.) must not be treated as sentence boundaries — even before a Latin-capital
+    gloss, which introduces a foreign-language name rather than ending a sentence."""
+    seg = sentencesplit.Segmenter(language="ru", clean=False)
+    assert [s.strip() for s in seg.segment(text)] == expected
+
+
+def test_trailing_zero_width_space_preserves_char_spans():
+    """Dropping zero-width chars must keep char-span mapping non-destructive."""
+    seg = sentencesplit.Segmenter(language="es", clean=False, char_span=True)
+    text = "Frase uno.​ Frase dos.​"
+    spans = seg.segment(text)
+    # Each returned span's text must be an exact slice of the original text.
+    for span in spans:
+        assert text[span.start : span.end] == span.sent
+
+
+@pytest.mark.parametrize(
+    "text,expected",
+    [
+        # U+200D inside an emoji ZWJ sequence is meaningful, not a boundary artifact.
+        ("👩‍💻 works here.", ["👩‍💻 works here."]),
+        # U+200C (ZWNJ) inside a Persian word must survive segmentation.
+        ("او می‌گوید سلام.", ["او می‌گوید سلام."]),
+        # Interior ZWNJ is preserved even while a trailing U+200B artifact is dropped.
+        ("می‌گوید.​", ["می‌گوید."]),
+    ],
+)
+def test_interior_zero_width_joiner_preserved(text, expected):
+    """Only boundary zero-width artifacts are dropped; joiners inside a word or
+    emoji sequence must be preserved (not globally deleted)."""
+    seg = sentencesplit.Segmenter(language="es", clean=False)
+    assert [s.strip() for s in seg.segment(text)] == expected
+
+
+@pytest.mark.parametrize(
+    "language,text,expected",
+    [
+        # Multi-character terminator (!!!) before a capitalized word ends a sentence.
+        (
+            "de",
+            "Der Betrieb AF Wintergarten ist einfach Top!!! Der Fisch ist immer frisch und der Wein ist sehr gut.",
+            [
+                "Der Betrieb AF Wintergarten ist einfach Top!!!",
+                "Der Fisch ist immer frisch und der Wein ist sehr gut.",
+            ],
+        ),
+        (
+            "de",
+            "Bei Kontaktanfragen wird man bei Problemen wochenlang ignoriert!!! "
+            "Bei Rechtsanwalt Lansky sind wir seit 2002 Mandanten.",
+            [
+                "Bei Kontaktanfragen wird man bei Problemen wochenlang ignoriert!!!",
+                "Bei Rechtsanwalt Lansky sind wir seit 2002 Mandanten.",
+            ],
+        ),
+        # Accented German capital after the cluster still counts as a boundary.
+        (
+            "de",
+            "Das ist Top!!! Über alles begeistert.",
+            ["Das ist Top!!!", "Über alles begeistert."],
+        ),
+        # English behaves the same.
+        (
+            "en",
+            "This place is amazing!!! Go there now.",
+            ["This place is amazing!!!", "Go there now."],
+        ),
+    ],
+)
+def test_multi_char_terminator_before_capital_splits(language, text, expected):
+    """A run of '!'/'?' (3+) that ends a sentence must split before a capitalized
+    next word, while the cluster itself is kept intact."""
+    seg = sentencesplit.Segmenter(language=language, clean=False)
+    assert [s.strip() for s in seg.segment(text)] == expected
+
+
+@pytest.mark.parametrize(
+    "language,text,expected",
+    [
+        # End-of-text cluster must stay attached, not become its own fragment.
+        ("en", "This place is 5 stars!!!", ["This place is 5 stars!!!"]),
+        # A cluster mid-clause followed by a lowercase word must not split.
+        ("en", "wow!!! amazing place", ["wow!!! amazing place"]),
+        ("de", "einfach Top!!! aber teuer", ["einfach Top!!! aber teuer"]),
+    ],
+)
+def test_multi_char_terminator_protected_when_no_capital_follower(language, text, expected):
+    """Protect the cluster from splitting when it does not end a sentence
+    (end of text, or followed by a lowercase continuation)."""
+    seg = sentencesplit.Segmenter(language=language, clean=False)
+    assert [s.strip() for s in seg.segment(text)] == expected
+
+
+@pytest.mark.parametrize(
+    "language,text,expected",
+    [
+        # NL: chained single-letter initials (Initials + Surname) must not split
+        # before the capitalized surname.
+        (
+            "nl",
+            "De onderzoeksvraag van forensisch psycholoog F.J.G. Buschman van het "
+            "psychiatrisch centrum Veldzicht in Balkbrug is subtieler: kun je met behulp "
+            "van de techniek zien of een zedendelinquent alweer bezig is te denken over "
+            "zijn volgende misdaad?",
+            [
+                "De onderzoeksvraag van forensisch psycholoog F.J.G. Buschman van het "
+                "psychiatrisch centrum Veldzicht in Balkbrug is subtieler: kun je met behulp "
+                "van de techniek zien of een zedendelinquent alweer bezig is te denken over "
+                "zijn volgende misdaad?"
+            ],
+        ),
+        (
+            "nl",
+            "forensisch psycholoog F.J.G. Buschman van het centrum",
+            ["forensisch psycholoog F.J.G. Buschman van het centrum"],
+        ),
+        # EN: same structure — initials followed by a single capitalized surname.
+        (
+            "en",
+            "A.S.E. Ackermann and team published the findings in 2007.",
+            ["A.S.E. Ackermann and team published the findings in 2007."],
+        ),
+    ],
+)
+def test_chained_initials_before_capital_surname_no_split(language, text, expected):
+    """A run of single-letter initials (e.g. F.J.G.) followed by a single
+    capitalized token is an Initials + Surname personal name, not a sentence
+    boundary, so the abbreviation-as-terminal restore must be suppressed."""
+    seg = sentencesplit.Segmenter(language=language, clean=False)
+    assert [s.strip() for s in seg.segment(text)] == expected
+
+
+@pytest.mark.parametrize(
+    "text,expected",
+    [
+        # An acronym used as a noun (preceded by an article) before a new
+        # sentence must still split — this is the boundary case the chained
+        # initials rule must not regress.
+        ("I studied for the S.A.T. Tomorrow is test day.", ["I studied for the S.A.T.", "Tomorrow is test day."]),
+        ("I studied for the S.A.T. Test is hard.", ["I studied for the S.A.T.", "Test is hard."]),
+    ],
+)
+def test_acronym_noun_before_new_sentence_still_splits(text, expected):
+    """Initials acting as a noun (e.g. 'the S.A.T.') must keep splitting before
+    a capitalized new sentence — guards against over-joining from the chained
+    initials name heuristic."""
+    seg = sentencesplit.Segmenter(language="en", clean=False)
+    segments = [s.strip() for s in seg.segment(text)]
+    assert segments == expected
+
+
+@pytest.mark.parametrize(
+    "text,expected",
+    [
+        # A four-dot run glued (no whitespace) to a lowercase continuation is a
+        # typo/run-on, not a real boundary — keep it attached.
+        (
+            "You have to see these slides....they are amazing. This Fallujah operation my turn out to be the most "
+            "important operation done by the US Military since the end of the war.",
+            [
+                "You have to see these slides....they are amazing.",
+                "This Fallujah operation my turn out to be the most important operation done by the US Military "
+                "since the end of the war.",
+            ],
+        ),
+        (
+            "You have to see these slides....they are amazing.",
+            ["You have to see these slides....they are amazing."],
+        ),
+        # A three-dot run glued to a lowercase continuation is likewise a run-on.
+        (
+            "I love this place...it is wonderful.",
+            ["I love this place...it is wonderful."],
+        ),
+        # GUARD: a four-dot ellipsis followed by whitespace + a capital must
+        # still split into two sentences.
+        ("Wait.... The end.", ["Wait....", "The end."]),
+        # GUARD: a normal "... Capital" ellipsis boundary must still split.
+        ("I was thinking... Maybe later.", ["I was thinking...", "Maybe later."]),
+    ],
+)
+def test_glued_ellipsis_lowercase_runon_not_split(text, expected):
+    """A '...'/'....' run with no whitespace before a lowercase continuation is
+    an intra-word run-on and must not introduce a sentence boundary, while
+    normal spaced ellipsis boundaries before a capital still split."""
+    seg = sentencesplit.Segmenter(language="en", clean=False)
+    segments = [s.strip() for s in seg.segment(text)]
+    assert segments == expected
+
+
+@pytest.mark.parametrize(
+    "text,expected",
+    [
+        # All-caps imprint/colophon: "CO." is a company abbreviation here, not a
+        # sentence end. The follower "TOOKS" is uppercase but lives in an all-caps
+        # run, so the period must stay joined.
+        (
+            "CHISWICK PRESS:--CHARLES WHITTINGHAM AND CO. TOOKS COURT, CHANCERY LANE, LONDON.",
+            ["CHISWICK PRESS:--CHARLES WHITTINGHAM AND CO. TOOKS COURT, CHANCERY LANE, LONDON."],
+        ),
+        # GUARD: mixed-case "Co." at a genuine boundary must still split
+        # (Golden Rule 9) — the follower "It" is not an all-caps imprint word.
+        (
+            "They closed the deal with Pitt, Briggs & Co. It closed yesterday.",
+            ["They closed the deal with Pitt, Briggs & Co.", "It closed yesterday."],
+        ),
+        # GUARD: mixed-case "Co." mid-sentence before lowercase stays joined
+        # (Golden Rule 7).
+        (
+            "They closed the deal with Pitt, Briggs & Co. at noon.",
+            ["They closed the deal with Pitt, Briggs & Co. at noon."],
+        ),
+        # GUARD: lowercase "co." as a genuine terminal still splits (Golden Rule 8).
+        (
+            "Let's ask Jane and co. They should know.",
+            ["Let's ask Jane and co.", "They should know."],
+        ),
+    ],
+)
+def test_allcaps_imprint_company_abbreviation_no_false_split(text, expected):
+    """A company abbreviation (CO.) inside an all-caps imprint/colophon run must
+    not be split from the following all-caps token, while mixed-case company
+    abbreviations keep their normal boundary behaviour."""
+    seg = sentencesplit.Segmenter(language="en", clean=False)
+    segments = [s.strip() for s in seg.segment(text)]
+    assert segments == expected
+
+
+def test_dc_circuit_abbreviation_stays_joined():
+    """GUARD: 'D.C. Circuit' must stay joined (case_0038) — protects the
+    abbreviation-as-terminal heuristic from over-splitting initialism nouns
+    followed by an ordinary capitalized continuation."""
+    seg = sentencesplit.Segmenter(language="en", clean=False)
+    text = "His involvement at the D.C. Circuit level and Anthony Kennedy joining the liberals."
+    assert [s.strip() for s in seg.segment(text)] == [text]
+
+
+MULTI_SENTENCE_QUOTATION_DATA = [
+    # case_0080 — a single pair of curly quotes wraps four complete sentences;
+    # the closing quote only arrives at the end, so the interior terminal
+    # periods must still split (punkt/syntok do, sentencesplit used not to).
+    (
+        "case_0080",
+        "“Indeed, I should have thought a little more. Just a trifle more, I fancy, Watson. "
+        "And in practice again, I observe. You did not tell me that you intended to go into harness.”",
+        [
+            "“Indeed, I should have thought a little more.",
+            "Just a trifle more, I fancy, Watson.",
+            "And in practice again, I observe.",
+            "You did not tell me that you intended to go into harness.”",
+        ],
+    ),
+]
+
+
+@pytest.mark.parametrize("case_id, text, expected", MULTI_SENTENCE_QUOTATION_DATA)
+def test_multi_sentence_quotation_splits_interior_boundaries(case_id, text, expected):
+    """A self-contained multi-sentence quotation (a single un-nested quote pair
+    wrapping several complete sentences whose closing quote is far away) must
+    split at its interior period boundaries (cluster multi-sentence-quotation).
+    Previously the between-punctuation pass treated the whole quoted span as one
+    unsplittable region."""
+    seg = sentencesplit.Segmenter(language="en", clean=False)
+    assert [s.strip() for s in seg.segment(text)] == expected
+
+
+MULTI_SENTENCE_QUOTATION_KEEP_DATA = [
+    # case_0102 — GUARD: a short quoted speech act whose first clause is brief
+    # ("I see it, I deduce it.") stays as one unit (pysbd/pragmatic agree).
+    (
+        "case_0102",
+        "“I see it, I deduce it. How do I know that you have been getting yourself very wet lately, "
+        "and that you have a most clumsy and careless servant girl?”",
+        [
+            "“I see it, I deduce it. How do I know that you have been getting yourself very wet lately, "
+            "and that you have a most clumsy and careless servant girl?”",
+        ],
+    ),
+    # GUARD (case_0085 / test_english_clean): short embedded exclamations inside
+    # a quotation must stay together rather than fragment into "Oh dear!" etc.
+    (
+        "oh_dear",
+        "There was nothing so very remarkable in that, nor did Alice think it so very much out of "
+        'the way to hear the Rabbit say to itself, "Oh dear! Oh dear! I shall be too late!"',
+        [
+            "There was nothing so very remarkable in that, nor did Alice think it so very much out of "
+            'the way to hear the Rabbit say to itself, "Oh dear! Oh dear! I shall be too late!"',
+        ],
+    ),
+    # GUARD (Golden Rule): an interior period inside a quote followed by a
+    # lowercase attribution verb stays joined.
+    (
+        "gr_lowercase_attribution",
+        'She turned to him, "This is great." she said.',
+        ['She turned to him, "This is great." she said.'],
+    ),
+    # GUARD (case_0110): a quotation with a SINGLE interior boundary stays whole.
+    # Splitting it would regress the structurally identical gold "...at tea-time.
+    # Dinah, my dear, I wish..." below, so single-boundary quotes are left intact.
+    (
+        "case_0110",
+        "“When I hear you give your reasons,” I remarked, “the thing always appears to me to be "
+        "so ridiculously simple that I could easily do it myself, though at each successive instance "
+        "of your reasoning I am baffled until you explain your process. And yet I believe that my "
+        "eyes are as good as yours.”",
+        [
+            "“When I hear you give your reasons,” I remarked, “the thing always appears to me to be "
+            "so ridiculously simple that I could easily do it myself, though at each successive instance "
+            "of your reasoning I am baffled until you explain your process. And yet I believe that my "
+            "eyes are as good as yours.”",
+        ],
+    ),
+    # GUARD (test_english_clean): a single-boundary quote whose second clause is
+    # a vocative continuation of the same speech act must NOT be split.
+    (
+        "dinah",
+        '"I hope they\'ll remember her saucer of milk at tea-time. Dinah, my dear, I wish you were down here with me!"',
+        ['"I hope they\'ll remember her saucer of milk at tea-time. Dinah, my dear, I wish you were down here with me!"'],
+    ),
+    # GUARD (test_english_clean): a multi-sentence quote that contains embedded
+    # attribution ('," said Alice ...; "') is NOT a single self-contained
+    # quotation, so it is kept whole — the resplit only fires for an un-nested,
+    # un-attributed single quote pair.
+    (
+        "well_perhaps_not",
+        '"Well, perhaps not," said Alice in a soothing tone; "don\'t be angry about it. And yet I wish '
+        "I could show you our cat Dinah. I think you'd take a fancy to cats, if you could only see her. "
+        'She is such a dear, quiet thing."',
+        [
+            '"Well, perhaps not," said Alice in a soothing tone; "don\'t be angry about it. And yet I wish '
+            "I could show you our cat Dinah. I think you'd take a fancy to cats, if you could only see her. "
+            'She is such a dear, quiet thing."'
+        ],
+    ),
+    # GUARD (test_english_clean): a run of in-quote exclamations is one emphatic
+    # speech act, not separate sentences — only PERIOD boundaries split, so this
+    # stays whole.
+    (
+        "as_if_i_would",
+        '"As if _I_ would talk on such a subject! Our family always _hated_ cats--nasty, low, vulgar '
+        "things! Don't let me hear the name again!\"",
+        [
+            '"As if _I_ would talk on such a subject! Our family always _hated_ cats--nasty, low, vulgar '
+            "things! Don't let me hear the name again!\""
+        ],
+    ),
+    # GUARD (case_0106): a quotation broken by embedded attribution ('," said he;
+    # "') has more than one quote run, so the resplit leaves it intact even
+    # though it contains several interior periods.
+    (
+        "case_0106",
+        "“It is simplicity itself,” said he; “my eyes tell me that on the inside of your left "
+        "shoe, just where the firelight strikes it, the leather is scored by six almost parallel "
+        "cuts. Obviously they have been caused by someone who has very carelessly scraped round the "
+        "edges of the sole. Hence, you see, my double deduction.”",
+        [
+            "“It is simplicity itself,” said he; “my eyes tell me that on the inside of your left "
+            "shoe, just where the firelight strikes it, the leather is scored by six almost parallel "
+            "cuts. Obviously they have been caused by someone who has very carelessly scraped round the "
+            "edges of the sole. Hence, you see, my double deduction.”"
+        ],
+    ),
+]
+
+
+@pytest.mark.parametrize("case_id, text, expected", MULTI_SENTENCE_QUOTATION_KEEP_DATA)
+def test_multi_sentence_quotation_keeps_short_speech_acts(case_id, text, expected):
+    """GUARD: brief quoted utterances / embedded exclamations must NOT be
+    fragmented by the multi-sentence-quotation resplit."""
+    seg = sentencesplit.Segmenter(language="en", clean=False)
     assert [s.strip() for s in seg.segment(text)] == expected

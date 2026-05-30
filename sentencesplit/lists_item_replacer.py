@@ -51,10 +51,15 @@ class ListItemReplacer:
     # Rubular: http://rubular.com/r/GcnmQt4a3I
     ROMAN_NUMERALS_IN_PARENTHESES = r"\(((?=[mdclxvi])m*(c[md]|d?c*)(x[cl]|l?x*)(i[xv]|v?i*))\)(?=\s[A-Z])"
 
-    # A false-positive guard for numbered lists, e.g. English "for 3. things"
-    # must not be treated as a numbered list item. This phrase is English; other
-    # languages may override it (or set it to None to disable the guard).
-    NUMBERED_LIST_FALSE_POSITIVE_REGEX = r"for\s\d{1,2}♨\s[a-z]"
+    # A false-positive guard for numbered lists. A genuine numbered-list item
+    # introduces text beginning with an uppercase letter or a digit; a marker
+    # followed by a lowercase word is an ordinal embedded in running prose
+    # (e.g. English "for 1. above ... 2. above" or German "des 19. und ...
+    # 20. Jahrhunderts"), not a list, so no line breaks should be inserted. The
+    # marker periods are still protected by the '♨'→placeholder substitution the
+    # caller applies afterwards. Languages may override this (or set it to None
+    # to disable the guard).
+    NUMBERED_LIST_FALSE_POSITIVE_REGEX = r"\d{1,2}♨\s+[a-zà-öø-ÿ]"
 
     def __init__(self, text: str) -> None:
         self.text = text
