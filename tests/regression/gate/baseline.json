@@ -1,0 +1,78 @@
+{
+  "_about": "Committed baseline for the hermetic CI regression gate (tests/regression/test_regression_gate.py). Per-corpus exact-match and boundary-F1 for sentencesplit over the vendored gold. The gate FAILS a PR if any corpus drops below its score here by more than the per-language tolerance in gate_scoring.TOLERANCES. Update only via the reviewed `# baseline-update` flow documented in GOVERNANCE.md.",
+  "updated": "2026-05-30",
+  "rationale": "Initial gate baseline: captures current sentencesplit behavior on feat/regression-gate (post split-mode-bias merge).",
+  "overall": {
+    "exact_match": 76.1,
+    "boundary_f1": 94.1,
+    "n": 348
+  },
+  "by_corpus": {
+    "golden_rules": {
+      "language": "en",
+      "exact_match": 97.9,
+      "boundary_f1": 99.6,
+      "n": 48
+    },
+    "ud_en_ewt": {
+      "language": "en",
+      "exact_match": 70.0,
+      "boundary_f1": 94.7,
+      "n": 30
+    },
+    "ud_en_gum": {
+      "language": "en",
+      "exact_match": 73.3,
+      "boundary_f1": 91.7,
+      "n": 30
+    },
+    "ud_de_gsd": {
+      "language": "de",
+      "exact_match": 70.0,
+      "boundary_f1": 94.0,
+      "n": 30
+    },
+    "ud_fr_gsd": {
+      "language": "fr",
+      "exact_match": 86.7,
+      "boundary_f1": 97.7,
+      "n": 30
+    },
+    "ud_es_gsd": {
+      "language": "es",
+      "exact_match": 70.0,
+      "boundary_f1": 95.4,
+      "n": 30
+    },
+    "ud_it_isdt": {
+      "language": "it",
+      "exact_match": 50.0,
+      "boundary_f1": 81.5,
+      "n": 30
+    },
+    "ud_nl_alpino": {
+      "language": "nl",
+      "exact_match": 66.7,
+      "boundary_f1": 91.8,
+      "n": 30
+    },
+    "ud_ru_gsd": {
+      "language": "ru",
+      "exact_match": 76.7,
+      "boundary_f1": 96.0,
+      "n": 30
+    },
+    "ud_el_gdt": {
+      "language": "el",
+      "exact_match": 66.7,
+      "boundary_f1": 89.9,
+      "n": 30
+    },
+    "ud_zh_gsd": {
+      "language": "zh",
+      "exact_match": 96.7,
+      "boundary_f1": 99.5,
+      "n": 30
+    }
+  }
+}
