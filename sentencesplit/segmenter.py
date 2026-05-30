@@ -6,7 +6,7 @@ import re
 from sentencesplit.cleaner import Cleaner
 from sentencesplit.languages import Language
 from sentencesplit.processor import Processor
-from sentencesplit.utils import SegmentLookahead, TextSpan
+from sentencesplit.utils import SPLIT_MODES, SegmentLookahead, TextSpan
 
 # Simple, common characters per script that won't trigger abbreviation rules.
 _DEFAULT_LOOKAHEAD_STEMS = ("a", "A")
@@ -67,7 +67,7 @@ class Segmenter:
         clean: bool = False,
         doc_type: str | None = None,
         char_span: bool = False,
-        split_mode: str = "conservative",
+        split_mode: str = "balanced",
     ) -> None:
         """Segments a text into a list of sentences
         with or without character offsets from original text
@@ -86,18 +86,28 @@ class Segmenter:
             Get start & end character offsets of each sentences
             within original text, by default False
         split_mode : str, optional
-            Controls abbreviation ambiguity behavior. Use
-            "conservative" (default) to preserve current behavior
-            for ambiguous abbreviations (e.g. "St."), or
-            "aggressive" to allow more sentence splits.
+            Global split-bias for ambiguous boundaries, by default
+            "balanced". One of:
+              - "conservative": lean every tunable ambiguity toward
+                keeping text joined (fewer false splits, more missed
+                boundaries / under-split).
+              - "balanced" (default): the library's historically tuned
+                behavior; output is unchanged from previous releases.
+              - "aggressive": lean tunable ambiguities toward splitting
+                (catches more real boundaries at the cost of some false
+                splits / over-split), e.g. allowing "st." or an
+                initialism before a capital to end a sentence.
+            Only genuinely ambiguous decisions move with this knob;
+            structural rules (decimals, period-before-comma, known
+            abbreviations) are unaffected.
         """
         self.language = language
         self.language_module = Language.get_language_code(language)
         self.clean = clean
         self.doc_type = doc_type
         self.char_span = char_span
-        if split_mode not in {"conservative", "aggressive"}:
-            raise ValueError("split_mode must be either 'conservative' or 'aggressive'.")
+        if split_mode not in SPLIT_MODES:
+            raise ValueError("split_mode must be one of {}.".format(", ".join(repr(m) for m in SPLIT_MODES)))
         self.split_mode = split_mode
         if doc_type not in (None, "pdf"):
             raise ValueError("doc_type must be None or 'pdf'.")

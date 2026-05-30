@@ -5,7 +5,7 @@ import re
 
 from sentencesplit.exclamation_words import ExclamationWords
 from sentencesplit.language_profile import LanguageProfile
-from sentencesplit.utils import _next_nonspace_char_starts_sentence, apply_rules
+from sentencesplit.utils import _next_nonspace_char_starts_sentence, apply_rules, split_mode_rank
 
 # Pre-compiled patterns used on the hot path
 _ALPHA_ONLY_RE = re.compile(r"\A[a-zA-Z]*\Z")
@@ -75,10 +75,16 @@ _QUOTE_MIN_INTERIOR_SENTENCES = 3
 _QUOTE_MIN_WORDS = 5
 
 
-def _resplit_multi_sentence_quote(text: str) -> list[str] | None:
+def _resplit_multi_sentence_quote(
+    text: str,
+    min_interior_sentences: int = _QUOTE_MIN_INTERIOR_SENTENCES,
+    min_words: int = _QUOTE_MIN_WORDS,
+) -> list[str] | None:
     """Re-split a self-contained quotation at its interior period boundaries.
 
-    Returns the split pieces, or ``None`` when *text* should be left intact.
+    *min_interior_sentences* / *min_words* are the split-bias thresholds (lower =
+    more eager to split). Returns the split pieces, or ``None`` when *text*
+    should be left intact.
     """
     match = _LEADING_QUOTE_RE.match(text)
     if match is None:
@@ -99,11 +105,11 @@ def _resplit_multi_sentence_quote(text: str) -> list[str] | None:
     for boundary in _QUOTE_INTERIOR_BOUNDARY_RE.finditer(text):
         spans.append(text[last : boundary.start()])
         last = boundary.end()
-    if len(spans) + 1 < _QUOTE_MIN_INTERIOR_SENTENCES:
+    if len(spans) + 1 < min_interior_sentences:
         return None
     spans.append(text[last:])
 
-    if any(len(span.split()) < _QUOTE_MIN_WORDS for span in spans):
+    if any(len(span.split()) < min_words for span in spans):
         # Short interior pieces are dialogue beats, not standalone sentences —
         # keep the quotation whole.
         return None
@@ -165,7 +171,7 @@ def _sub_symbols_fast(text: str, lang) -> str:
 
 
 class Processor:
-    def __init__(self, text: str | None, lang, split_mode: str = "conservative") -> None:
+    def __init__(self, text: str | None, lang, split_mode: str = "balanced") -> None:
         self.text = text
         self.lang = lang
         self.split_mode = split_mode
@@ -218,7 +224,7 @@ class Processor:
         return text.replace("\n", "\r")
 
     def _mark_list_item_boundaries(self, text: str) -> str:
-        return self.profile.list_item_replacer_cls(text).add_line_break()
+        return self.profile.list_item_replacer_cls(text, self.split_mode).add_line_break()
 
     def _apply_cjk_abbreviation_rules(self, text: str) -> str:
         return apply_rules(text, *self.profile.cjk_abbreviation_rules)
@@ -275,7 +281,14 @@ class Processor:
         return cleaned
 
     def _apply_single_newline_and_ellipsis_rules(self, text: str) -> str:
-        return apply_rules(text, self.lang.SingleNewLineRule, *self.lang.EllipsisRules.All)
+        ellipsis_rules = self.lang.EllipsisRules.All
+        if split_mode_rank(self.split_mode) <= 0:
+            # conservative: drop ThreeConsecutiveRule so "..." before a capital
+            # ("Wait... She left.") is treated as a trailing-thought ellipsis
+            # (joined) rather than a sentence boundary. The remaining rules then
+            # protect all three dots via OtherThreePeriodRule.
+            ellipsis_rules = [r for r in ellipsis_rules if r is not self.lang.EllipsisRules.ThreeConsecutiveRule]
+        return apply_rules(text, self.lang.SingleNewLineRule, *ellipsis_rules)
 
     def _restore_and_postprocess_segments(self, sentences: list[str]) -> list[str]:
         postprocessed_sents = []
@@ -286,17 +299,33 @@ class Processor:
                     postprocessed_sents.append(pps)
         return postprocessed_sents
 
+    def _quote_resplit_thresholds(self) -> tuple[int, int] | None:
+        """(min_interior_sentences, min_words) for quotation resplit, or None to disable.
+
+        conservative never resplits a quotation; balanced uses the historically
+        tuned 3-sentence / 5-word thresholds; aggressive lowers them so even a
+        two-sentence quotation splits.
+        """
+        rank = split_mode_rank(self.split_mode)
+        if rank <= 0:  # conservative
+            return None
+        if rank >= 2:  # aggressive
+            return (2, 3)
+        return (_QUOTE_MIN_INTERIOR_SENTENCES, _QUOTE_MIN_WORDS)
+
     def _resplit_segments(self, postprocessed_sents: list[str]) -> list[str]:
         if self.profile.latin_uppercase_resplit:
             # Re-split at ".) Capital" boundaries (period inside closing paren before new sentence)
             # and at multi-character terminators ("Top!!! Der") whose cluster the
             # continuous-punctuation protection prevented from splitting earlier.
+            quote_thresholds = self._quote_resplit_thresholds()
             resplit = []
             for pps in postprocessed_sents:
                 parts = (
                     _split_on_uppercase_boundary(pps, _LATIN_RESPLIT_RE)
                     or _split_on_uppercase_boundary(pps, _MULTI_TERMINATOR_RESPLIT_RE)
-                    or _resplit_multi_sentence_quote(pps)
+                    or (quote_thresholds is not None and _resplit_multi_sentence_quote(pps, *quote_thresholds))
+                    or None
                 )
                 if parts is None:
                     resplit.append(pps)
@@ -429,10 +458,18 @@ class Processor:
         return text
 
     def _apply_quotation_punctuation_rules(self, text: str) -> str:
-        return apply_rules(text, self.lang.QuestionMarkInQuotationRule, *self.lang.ExclamationPointRules.All)
+        exclamation_rules = self.lang.ExclamationPointRules.All
+        if split_mode_rank(self.split_mode) >= 2:
+            # aggressive: stop protecting "!" before a lowercase continuation
+            # ("Wow! amazing.") so it ends the sentence. InQuotationRule is
+            # structural ("!" before a closing quote) and kept in every mode.
+            rules = self.lang.ExclamationPointRules
+            drop = {id(rules.MidSentenceRule), id(rules.BeforeCommaMidSentenceRule)}
+            exclamation_rules = [r for r in exclamation_rules if id(r) not in drop]
+        return apply_rules(text, self.lang.QuestionMarkInQuotationRule, *exclamation_rules)
 
     def _replace_list_parens(self, text: str) -> str:
-        return self.profile.list_item_replacer_cls(text).replace_parens()
+        return self.profile.list_item_replacer_cls(text, self.split_mode).replace_parens()
 
     def replace_numbers(self, text: str) -> str:
         return apply_rules(text, *self.lang.Numbers.All)
