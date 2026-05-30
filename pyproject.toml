@@ -82,6 +82,7 @@ mccabe.max-complexity = 10
 "analysis/analyze_disagreements_v2.py" = ["C901"]
 "analysis/compare_pysbd_vs_punkt.py" = ["C901"]
 "analysis/assign_verdicts.py" = ["C901"]
+"benchmarks/corpus_compare/run_compare.py" = ["C901"]
 "examples/test_timing_script.py" = ["E501", "E402"]
 
 [tool.pytest.ini_options]

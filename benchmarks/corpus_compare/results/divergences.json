@@ -1,0 +1,24 @@
+{
+  "cap": 1,
+  "total_divergences": 220,
+  "emitted_cases": 1,
+  "dropped": 219,
+  "available_segmenters": [
+    "sentencesplit",
+    "pysbd",
+    "pragmatic_segmenter",
+    "punkt",
+    "syntok"
+  ],
+  "cases": [
+    {
+      "id": "case_0001",
+      "path": "results/cases/case_0001.json",
+      "corpus": "golden_rules",
+      "language": "en",
+      "n_distinct": 2,
+      "sentencesplit_is_odd_one_out": false,
+      "has_gold": true
+    }
+  ]
+}
