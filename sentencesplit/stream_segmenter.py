@@ -113,6 +113,12 @@ class StreamSegmenter:
         self._last_should_wait: bool = False
         # Completed sentences awaiting collection via get_completed_sentences().
         self._completed: list[str | TextSpan] = []
+        # Inter-sentence whitespace that grew onto an already-emitted sentence
+        # (its trailing space arrived after we eagerly emitted the sentence). It
+        # is carried here and prepended to the NEXT emitted sentence rather than
+        # surfaced as a standalone whitespace fragment (preserves full-sentence
+        # granularity and byte-faithfulness for incremental consumers).
+        self._pending_lead: str = ""
 
     # ------------------------------------------------------------------ #
     # Public API
@@ -183,6 +189,9 @@ class StreamSegmenter:
             if end <= self._emitted_chars:
                 continue
             self._emit(segment, start, end)
+        # Fold any trailing carried whitespace onto the last item (or surface it)
+        # so no source bytes are dropped at end-of-stream.
+        self._flush_pending_lead()
         out = self._completed
         self._completed = []
         # flush() is an explicit end-of-stream synchronization point: the next
@@ -192,6 +201,7 @@ class StreamSegmenter:
         self._emitted_chars = 0
         self._base_offset = 0
         self._last_should_wait = False
+        self._pending_lead = ""
         return out
 
     def reset(self) -> None:
@@ -201,6 +211,7 @@ class StreamSegmenter:
         self._base_offset = 0
         self._last_should_wait = False
         self._completed = []
+        self._pending_lead = ""
 
     # ------------------------------------------------------------------ #
     # Internals
@@ -272,22 +283,64 @@ class StreamSegmenter:
         """
         watermark = self._emitted_chars
         if start >= watermark:
-            # Whole segment is new. Rebase a TextSpan's offsets to stream-
-            # relative; a plain string segment is emitted verbatim (it may have
-            # had zero-width chars stripped, so it is not a raw buffer slice).
+            # Whole segment is new. Prepend any inter-sentence whitespace carried
+            # from a prior grown emission (see the whitespace-only branch below)
+            # so it rides on this sentence instead of surfacing on its own.
+            # Rebase a TextSpan's offsets to stream-relative; a plain string
+            # segment is emitted verbatim (it may have had zero-width chars
+            # stripped, so it is not a raw buffer slice).
+            lead = self._pending_lead
+            self._pending_lead = ""
             if isinstance(segment, TextSpan):
-                self._completed.append(TextSpan(segment.sent, self._base_offset + start, self._base_offset + end))
+                self._completed.append(
+                    TextSpan(lead + segment.sent, self._base_offset + start - len(lead), self._base_offset + end)
+                )
             else:
-                self._completed.append(segment)
+                self._completed.append(lead + segment)
         else:
-            # A prior emission of this (final) segment grew; emit only the new
-            # tail bytes so nothing is duplicated.
+            # A prior emission of this segment grew; only [watermark, end) is new.
             delta = self._buffer[watermark:end]
-            if isinstance(segment, TextSpan):
-                self._completed.append(TextSpan(delta, self._base_offset + watermark, self._base_offset + end))
+            if delta and not delta.strip():
+                # Pure inter-sentence whitespace absorbed onto an already-emitted
+                # sentence (its trailing space arrived in a later delta). Do NOT
+                # surface it as a standalone fragment — carry it and prepend it to
+                # the next emitted sentence. Bytes are preserved either way.
+                self._pending_lead += delta
             else:
-                self._completed.append(delta)
+                # Non-whitespace growth (e.g. an aggressive-mode emission whose
+                # boundary turned out to continue). Emit the delta to preserve
+                # bytes, with any carried whitespace prepended.
+                lead = self._pending_lead
+                self._pending_lead = ""
+                if isinstance(segment, TextSpan):
+                    self._completed.append(
+                        TextSpan(lead + delta, self._base_offset + watermark - len(lead), self._base_offset + end)
+                    )
+                else:
+                    self._completed.append(lead + delta)
         self._emitted_chars = end
+
+    def _flush_pending_lead(self) -> None:
+        """Attach any carried inter-sentence whitespace at an end-of-stream point.
+
+        Called from :meth:`flush` and the ``max_buffer_size`` force-flush. If a
+        trailing whitespace run was carried but no following sentence arrived to
+        prepend it to, fold it onto the last emitted item (or surface it as a
+        trailing item if nothing was emitted this drain) so no source bytes are
+        lost.
+        """
+        if not self._pending_lead:
+            return
+        lead = self._pending_lead
+        self._pending_lead = ""
+        if self._completed:
+            last = self._completed[-1]
+            if isinstance(last, TextSpan):
+                self._completed[-1] = TextSpan(last.sent + lead, last.start, last.end + len(lead))
+            else:
+                self._completed[-1] = last + lead
+        else:
+            self._completed.append(lead)
 
     def _detect_completed(self) -> None:
         """Move any newly-stable leading sentences into the completed queue.
@@ -362,6 +415,7 @@ class StreamSegmenter:
             if end <= self._emitted_chars:
                 continue
             self._emit(segment, start, end)
+        self._flush_pending_lead()
         forced = self._completed
         self._completed = []
         # Unlike flush(), preserve _base_offset so subsequent spans stay
