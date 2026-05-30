@@ -226,7 +226,9 @@ class Deutsch(Common, Standard):
 
             self.text = self.search_for_abbreviations_in_string(self.text)
             self.replace_multi_period_abbreviations()
-            self.text = apply_rules(self.text, *self.lang.AmPmRules.All)
+            # German never restored non-ASCII a.m./p.m. boundaries; keep that
+            # while honoring the conservative split-bias dial.
+            self.apply_ampm_boundary_rules(restore_non_ascii=False)
             self.text = self.replace_abbreviation_as_sentence_boundary()
             return self.text
 

@@ -10,6 +10,7 @@ from sentencesplit.utils import (
     _next_nonspace_char_is_upper,
     apply_rules,
     ensure_compiled,
+    split_mode_rank,
 )
 
 
@@ -153,7 +154,7 @@ class AbbreviationReplacer:
     # Only effective when SENTENCE_STARTERS is non-empty.
     STARTER_AWARE_PREPOSITIVE: frozenset[str] = frozenset()
 
-    def __init__(self, text: str, lang, split_mode: str = "conservative") -> None:
+    def __init__(self, text: str, lang, split_mode: str = "balanced") -> None:
         self.text = text
         self.lang = lang
         abbr_class = lang.Abbreviation
@@ -161,6 +162,16 @@ class AbbreviationReplacer:
         if abbr_class not in AbbreviationReplacer._data_cache:
             AbbreviationReplacer._data_cache[abbr_class] = _AbbreviationData(lang.Abbreviation)
         self._data = AbbreviationReplacer._data_cache[abbr_class]
+
+    @property
+    def _leans_split(self) -> bool:
+        """True in 'aggressive' mode: resolve ambiguous abbreviations toward a split."""
+        return split_mode_rank(self.split_mode) >= 2
+
+    @property
+    def _leans_join(self) -> bool:
+        """True in 'conservative' mode: resolve ambiguous abbreviations toward joining."""
+        return split_mode_rank(self.split_mode) <= 0
 
     # Articles/determiners that mark a following initialism as a noun
     # (e.g. "the S.A.T.", "un M.B.A."), not the initials of a personal name.
@@ -278,16 +289,40 @@ class AbbreviationReplacer:
             # final separator non-terminal.  An initialism used as a noun
             # ("the S.A.T."), where an article/determiner precedes it, is still
             # treated as a possible boundary so a following capital can split.
+            #
+            # The surname reading and a genuine sentence boundary
+            # ("…H.B.S. Applications are due.") are structurally identical, so
+            # 'aggressive' mode resolves the ambiguity toward splitting (at the
+            # cost of splitting real "Initials + Surname" names too).
+            if self._leans_split:
+                return "."
             if self._is_initials_name(restore_source, match.start()):
                 return match.group()
             return "."
 
         self.text = re.sub(r"(?<=[A-Z]∯[A-Z]∯[A-Z])∯(?=\s)", restore_uppercase_initialism_boundary, self.text)
         self.text = self.protect_allcaps_imprint_abbreviations()
-        self.text = apply_rules(self.text, *self.lang.AmPmRules.All)
-        self.text = self.restore_non_ascii_ampm_boundaries()
+        self.apply_ampm_boundary_rules()
         self.text = self.replace_abbreviation_as_sentence_boundary()
         return self.text
+
+    def apply_ampm_boundary_rules(self, restore_non_ascii: bool = True) -> None:
+        """Apply a.m./p.m. handling to ``self.text``, honoring the split-bias.
+
+        In 'conservative' mode the a.m./p.m. periods stay protected before a
+        capital ("3 p.m. Please …" stays joined) — only the structural spacing
+        normalizer runs. Otherwise the boundary-restore rules fire. Subclasses
+        that override ``replace`` should call this instead of applying
+        ``AmPmRules.All`` directly, so the dial works for every language.
+        *restore_non_ascii* is opt-out for profiles that never restored
+        non-ASCII a.m./p.m. boundaries (e.g. German).
+        """
+        if self._leans_join:
+            self.text = apply_rules(self.text, self.lang.AmPmRules.SpacedAmPmRule)
+            return
+        self.text = apply_rules(self.text, *self.lang.AmPmRules.All)
+        if restore_non_ascii:
+            self.text = self.restore_non_ascii_ampm_boundaries()
 
     # An all-caps word (2+ letters) immediately followed, across whitespace, by
     # another all-caps word (2+ letters). Used to detect imprint/colophon runs
@@ -347,7 +382,21 @@ class AbbreviationReplacer:
             # Keep sentence-final boundaries for mixed abbreviations like Ph.D.
             # when a likely new sentence starts next, but continue protecting
             # pure initialisms like A.I. before uppercase nouns.
-            if self._is_likely_sentence_start(next_text) and any(len(part) > 1 for part in parts):
+            #
+            # Split-bias: 'conservative' never treats the final period as a
+            # boundary (so "Ph.D. Smith" stays joined); 'aggressive' splits
+            # before any likely sentence start, including pure initialisms
+            # ("A.I. Systems …").
+            likely_start = self._is_likely_sentence_start(next_text)
+            # a.m./p.m. own their boundary decision later (with timezone
+            # awareness), so the aggressive pure-initialism split skips them to
+            # avoid breaking a "p.m. EST" time+zone unit.
+            is_ampm = matched[:-1].lower().replace(".", "") in {"am", "pm"}
+            if self._leans_join:
+                protect_final_period = True
+            elif self._leans_split and not is_ampm:
+                protect_final_period = not likely_start
+            elif likely_start and any(len(part) > 1 for part in parts):
                 protect_final_period = False
 
             body = matched[:-1].replace(".", "∯")
@@ -417,14 +466,26 @@ class AbbreviationReplacer:
     def _replace_number_abbr(self, txt: str, am_escaped: str, boundary: str, upper: bool) -> str:
         """Protect period after number abbreviations before digits and Roman numerals."""
         if upper:
-            # Next word starts uppercase — protect only before Roman numerals.
+            if self._leans_join:
+                # conservative: a capitalized follower ("Fig. Several") is read
+                # as a continuation, not a new sentence — protect (join).
+                return _replace_with_escape(txt, am_escaped, r"\.(?=\s[^\W\d_])", "∯", boundary)
+            # balanced/aggressive: protect only before Roman numerals (Vol. IV).
             # Exclude lone "I" to avoid false joins with the pronoun "I".
             return _replace_with_escape(txt, am_escaped, r"\.(?=\s(?:[IVXLCDM]{2,}|[VXLCDM])\b)", "∯", boundary)
         return _replace_with_escape(txt, am_escaped, r"\.(?=(\s\d|\s+\(|\s[IVXLCDM]+\b))", "∯", boundary)
 
     def _prepositive_suffix(self, am_lower: str, upper: bool, char: str) -> str:
         """Return the regex suffix pattern for protecting a prepositive abbreviation."""
-        if self.SENTENCE_STARTERS and am_lower in self.STARTER_AWARE_PREPOSITIVE:
+        # Court/tribunal-style prepositives (en_legal's STARTER_AWARE set) can
+        # also legitimately end a sentence. Split-bias governs how eagerly:
+        #   conservative — protect like any prepositive (always join);
+        #   balanced     — split only before a *known* sentence starter;
+        #   aggressive   — split before any capitalized follower (e.g.
+        #                  "Bankr. Court" becomes a boundary).
+        if self.SENTENCE_STARTERS and am_lower in self.STARTER_AWARE_PREPOSITIVE and not self._leans_join:
+            if self._leans_split:
+                return r"\.(?=(\s(?![A-Z])|:\d+))"
             # Exclude single-char starters like "A" and "I" — they
             # often appear as identifiers after prepositive
             # abbreviations (e.g. "Sched. A", "Amend. I").
@@ -459,9 +520,7 @@ class AbbreviationReplacer:
         if not upper or am_lower in self._data.prepositive_set or am_lower in self._data.number_abbr_set:
             am_escaped = re.escape(am_stripped)
             if am_lower in self._data.prepositive_set:
-                should_protect = not (
-                    self.split_mode == "aggressive" and am_lower in self.AGGRESSIVE_PREPOSITIVE_BOUNDARY_BLOCKLIST
-                )
+                should_protect = not (self._leans_split and am_lower in self.AGGRESSIVE_PREPOSITIVE_BOUNDARY_BLOCKLIST)
                 if should_protect:
                     suffix = self._prepositive_suffix(am_lower, upper, char)
                     txt = _replace_with_escape(txt, am_escaped, suffix, "∯", boundary)

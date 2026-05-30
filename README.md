@@ -98,15 +98,28 @@ You can build your own combined profile by merging abbreviation lists from any l
 
 ### Split mode
 
-Controls how aggressively abbreviation-period ambiguity is resolved:
+A global split-bias for genuinely *ambiguous* boundaries — initialisms before a
+capital (`H.B.S. Applications`), `Ph.D. Smith`, `st.`, trailing-thought ellipses,
+multi-sentence quotations, mid-sentence `!`, `a.m./p.m.` before a capital, and
+inline ordinals vs. numbered lists. Structural rules (decimals,
+period-before-comma, known abbreviations) are never affected.
 
 ```python
-# Default: conservative -- fewer splits, preserves abbreviation boundaries
+# balanced (default) -- the historically tuned behavior; output is unchanged
+# from earlier releases.
+seg = sentencesplit.Segmenter(language="en", split_mode="balanced")
+
+# conservative -- lean every ambiguous case toward keeping text joined
+# (fewer false splits, more missed boundaries / under-split).
 seg = sentencesplit.Segmenter(language="en", split_mode="conservative")
 
-# Aggressive: more splits at ambiguous abbreviation periods (e.g. "St.")
+# aggressive -- lean ambiguous cases toward splitting (catches more real
+# boundaries at the cost of some false splits / over-split).
 seg = sentencesplit.Segmenter(language="en", split_mode="aggressive")
 ```
+
+For example, `"We discussed H.B.S. Applications are due."` stays one sentence in
+`balanced`/`conservative` (the surname reading) but splits in `aggressive`.
 
 ### spaCy integration
 

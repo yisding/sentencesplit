@@ -5,7 +5,7 @@ import re
 import string
 from functools import partial
 
-from sentencesplit.utils import Rule, apply_rules
+from sentencesplit.utils import Rule, apply_rules, split_mode_rank
 
 
 class ListItemReplacer:
@@ -61,8 +61,9 @@ class ListItemReplacer:
     # to disable the guard).
     NUMBERED_LIST_FALSE_POSITIVE_REGEX = r"\d{1,2}♨\s+[a-zà-öø-ÿ]"
 
-    def __init__(self, text: str) -> None:
+    def __init__(self, text: str, split_mode: str = "balanced") -> None:
         self.text = text
+        self.split_mode = split_mode
 
     def add_line_break(self):
         self.format_alphabetical_lists()
@@ -135,6 +136,11 @@ class ListItemReplacer:
 
     def add_line_breaks_for_numbered_list_with_periods(self):
         false_positive = self.NUMBERED_LIST_FALSE_POSITIVE_REGEX
+        if split_mode_rank(self.split_mode) >= 2:
+            # aggressive: disable the prose-ordinal guard, so a single-line run
+            # of ordinals before lowercase words ("des 19. und 20. …") is split
+            # as a numbered list rather than kept as prose.
+            false_positive = None
         if (
             ("♨" in self.text)
             and (not re.search("♨.+(\n|\r).+♨", self.text))
