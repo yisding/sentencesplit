@@ -18,6 +18,23 @@ class Rule:
         return '<{} pattern="{}" and replacement="{}">'.format(self.__class__.__name__, self.pattern, self.replacement)
 
 
+# Split-bias modes, ordered from most join-leaning (under-split) to most
+# split-leaning (over-split). "balanced" is the default and reproduces the
+# library's historically tuned behaviour; "conservative" leans every tunable
+# ambiguity toward keeping text joined, "aggressive" toward splitting it.
+SPLIT_MODES = ("conservative", "balanced", "aggressive")
+_SPLIT_MODE_RANK = {mode: rank for rank, mode in enumerate(SPLIT_MODES)}
+
+
+def split_mode_rank(mode: str) -> int:
+    """Return the bias rank of *mode*: 0 = conservative, 1 = balanced, 2 = aggressive.
+
+    Tunable decision points compare against this rank instead of hard-coding a
+    single lean, e.g. ``leans_split = split_mode_rank(mode) >= 2``.
+    """
+    return _SPLIT_MODE_RANK[mode]
+
+
 def ensure_compiled(pattern: str | re.Pattern[str], flags: int = 0) -> re.Pattern[str]:
     """Return a compiled regex, compiling if *pattern* is a string."""
     if isinstance(pattern, re.Pattern):
