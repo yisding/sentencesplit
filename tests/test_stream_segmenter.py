@@ -362,6 +362,142 @@ def test_feed_returns_none_when_no_max_buffer_size():
 
 
 # --------------------------------------------------------------------------- #
+# Buffer compaction: persistent base offset (regression for the overflow span
+# corruption + the O(n^2) re-segmentation cost)
+# --------------------------------------------------------------------------- #
+
+
+def test_char_span_offsets_survive_max_buffer_overflow():
+    # Regression: on max_buffer_size overflow the buffer was reset to "" and the
+    # base offset to 0, so spans emitted *after* an overflow restarted at 0,
+    # producing back-jumping/overlapping offsets where full[start:end] != sent.
+    # A persistent base offset must keep every span a faithful, monotonic slice
+    # of the whole stream.
+    stream = StreamSegmenter(language="en", char_span=True, max_buffer_size=15)
+    full = ""
+    emitted = []
+    for chunk in ["aaaaaaaaaaaaaaaaaaaaa", "Hi. ", "Bye. "]:
+        full += chunk
+        forced = stream.feed(chunk)
+        if forced:
+            emitted.extend(forced)
+        emitted.extend(stream.get_completed_sentences())
+    emitted.extend(stream.flush())
+    assert all(isinstance(s, TextSpan) for s in emitted)
+    prev_end = 0
+    for span in emitted:
+        # Byte-faithful: the slice equals the reported text.
+        assert full[span.start : span.end] == span.sent
+        # Monotonic, no overlap and no back-jump.
+        assert span.start >= prev_end
+        prev_end = span.end
+    # Spans tile the whole stream contiguously and reassemble it verbatim.
+    assert emitted[0].start == 0
+    assert prev_end == len(full)
+    assert "".join(s.sent for s in emitted) == full
+
+
+def test_overflow_does_not_drop_or_duplicate_text():
+    # The compaction overflow path must still surface every previously-completed
+    # sentence plus the forced tail, losing and duplicating nothing.
+    stream = StreamSegmenter(language="en", max_buffer_size=15)
+    full = ""
+    collected = []
+    for chunk in ["Short one. ", "now a very long unterminated tail keeps coming and coming"]:
+        full += chunk
+        forced = stream.feed(chunk)
+        if forced:
+            collected.extend(forced)
+        collected.extend(stream.get_completed_sentences())
+    collected.extend(stream.flush())
+    assert "".join(collected) == full
+
+
+def test_per_token_cost_is_flat_not_quadratic():
+    # Regression: feed() re-segmented the entire growing buffer every call, so
+    # per-token cost doubled as the stream doubled (O(n^2) total). Compaction
+    # bounds re-segmentation to the unstable tail, so per-token cost stays flat.
+    import time
+
+    def per_token_cost(n_tokens):
+        stream = StreamSegmenter(language="en")
+        tokens = [f"Word{i} thing here. " for i in range(n_tokens)]
+        start = time.perf_counter()
+        for token in tokens:
+            stream.feed(token)
+            stream.get_completed_sentences()
+            stream.is_complete()  # the natural poll loop must not re-segment
+        return (time.perf_counter() - start) / n_tokens
+
+    small = per_token_cost(200)
+    large = per_token_cost(800)
+    # 4x the tokens. Quadratic per-token cost would scale ~4x; a flat cost stays
+    # near 1x. A generous 2.5x bound catches the O(n^2) regression while
+    # tolerating timing noise on a busy CI box.
+    assert large < small * 2.5, f"per-token cost grew {large / small:.1f}x (4x tokens) — looks quadratic"
+
+
+def test_is_complete_does_not_change_emission():
+    # is_complete() now reuses the cached stability verdict instead of
+    # re-segmenting. Polling it between feeds must not perturb what gets emitted.
+    text = "First sentence. Second sentence. Third trails off"
+    polled = StreamSegmenter(language="en")
+    quiet = StreamSegmenter(language="en")
+    collected_polled, collected_quiet = [], []
+    for chunk in ["First sen", "tence. Sec", "ond sentence. Thi", "rd trails off"]:
+        polled.feed(chunk)
+        polled.is_complete()
+        polled.pending_text()
+        collected_polled.extend(polled.get_completed_sentences())
+        quiet.feed(chunk)
+        collected_quiet.extend(quiet.get_completed_sentences())
+    collected_polled.extend(polled.flush())
+    collected_quiet.extend(quiet.flush())
+    assert collected_polled == collected_quiet
+    assert "".join(collected_polled) == text
+
+
+def test_compaction_preserves_streaming_equals_non_streaming():
+    # Compaction must not change emission vs the non-streaming segmenter. With a
+    # whole-text feed (the contractual exact-equality case) the segments must
+    # match, and confirmed boundaries must have streamed out incrementally (so
+    # compaction really fired) rather than all appearing at flush.
+    texts = [
+        "Hello. The model is GPT 3.1 is fast. Goodbye.",
+        "Dr. Smith went to Washington. He arrived at 3 p.m. yesterday.",
+        "One. Two. Three. Four. Five. Six. Seven. Eight. Nine. Ten.",
+        'He said "hello." Then she left. And finally it ended.',
+    ]
+    for text in texts:
+        stream = StreamSegmenter(language="en")
+        stream.feed(text)
+        pre_flush = stream.get_completed_sentences()
+        streamed = pre_flush + stream.flush()
+        assert streamed == sentencesplit.Segmenter(language="en").segment(text)
+        # Interior boundaries confirmed before flush -> compaction had something
+        # to drop, proving the flat-cost path is exercised on real input.
+        assert pre_flush, f"no interior boundary streamed before flush for {text!r}"
+
+
+def test_compaction_chunked_feed_loses_nothing():
+    # Across small chunked feeds (which can dribble a stray trailing space as its
+    # own emission — pre-existing, documented behavior), compaction must still
+    # neither lose nor duplicate text: the concatenation reproduces the source.
+    texts = [
+        "One. Two. Three. Four. Five. Six. Seven. Eight. Nine. Ten.",
+        "Dr. Smith went to Washington. He arrived at 3 p.m. yesterday. Done.",
+    ]
+    for text in texts:
+        stream = StreamSegmenter(language="en")
+        collected = []
+        for i in range(0, len(text), 7):
+            stream.feed(text[i : i + 7])
+            collected.extend(stream.get_completed_sentences())
+        collected.extend(stream.flush())
+        assert "".join(collected) == text
+
+
+# --------------------------------------------------------------------------- #
 # Per-language coverage
 # --------------------------------------------------------------------------- #
 
