@@ -394,6 +394,26 @@ def test_split_mode_controls_high_ambiguity_abbreviations(text, expected_conserv
     assert aggressive_seg.segment(text) == expected_aggressive
 
 
+def test_split_mode_ampm_dial_applies_to_german_override():
+    # German overrides AbbreviationReplacer.replace(); the conservative a.m./p.m.
+    # dial must still apply (it shares the base helper).
+    text = "Das Treffen ist um 3 p.m. Bitte kommen Sie früh."
+    assert len(sentencesplit.Segmenter(language="de", split_mode="conservative").segment(text)) == 1
+    for mode in ("balanced", "aggressive"):
+        assert len(sentencesplit.Segmenter(language="de", split_mode=mode).segment(text)) == 2
+
+
+def test_split_mode_number_abbrev_dial_applies_to_en_es_zh_override():
+    # en_es_zh overrides scan_for_replacements; the conservative number-abbrev
+    # dial must apply there too, while "Vol. IV" stays joined in every mode.
+    text = "See Fig. Several panels follow."
+    assert len(sentencesplit.Segmenter(language="en_es_zh", split_mode="conservative").segment(text)) == 1
+    for mode in ("balanced", "aggressive"):
+        assert len(sentencesplit.Segmenter(language="en_es_zh", split_mode=mode).segment(text)) == 2
+    for mode in ("conservative", "balanced", "aggressive"):
+        assert len(sentencesplit.Segmenter(language="en_es_zh", split_mode=mode).segment("See Vol. IV for details.")) == 1
+
+
 @pytest.mark.parametrize(
     "text,joined,split",
     [

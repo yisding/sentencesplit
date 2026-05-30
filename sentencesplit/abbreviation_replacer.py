@@ -302,16 +302,27 @@ class AbbreviationReplacer:
 
         self.text = re.sub(r"(?<=[A-Z]∯[A-Z]∯[A-Z])∯(?=\s)", restore_uppercase_initialism_boundary, self.text)
         self.text = self.protect_allcaps_imprint_abbreviations()
-        if self._leans_join:
-            # conservative: keep a.m./p.m. periods protected before a capital
-            # ("3 p.m. Please …" stays joined). Only the structural spacing
-            # normalizer runs; the boundary-restore rules are skipped.
-            self.text = apply_rules(self.text, self.lang.AmPmRules.SpacedAmPmRule)
-        else:
-            self.text = apply_rules(self.text, *self.lang.AmPmRules.All)
-            self.text = self.restore_non_ascii_ampm_boundaries()
+        self.apply_ampm_boundary_rules()
         self.text = self.replace_abbreviation_as_sentence_boundary()
         return self.text
+
+    def apply_ampm_boundary_rules(self, restore_non_ascii: bool = True) -> None:
+        """Apply a.m./p.m. handling to ``self.text``, honoring the split-bias.
+
+        In 'conservative' mode the a.m./p.m. periods stay protected before a
+        capital ("3 p.m. Please …" stays joined) — only the structural spacing
+        normalizer runs. Otherwise the boundary-restore rules fire. Subclasses
+        that override ``replace`` should call this instead of applying
+        ``AmPmRules.All`` directly, so the dial works for every language.
+        *restore_non_ascii* is opt-out for profiles that never restored
+        non-ASCII a.m./p.m. boundaries (e.g. German).
+        """
+        if self._leans_join:
+            self.text = apply_rules(self.text, self.lang.AmPmRules.SpacedAmPmRule)
+            return
+        self.text = apply_rules(self.text, *self.lang.AmPmRules.All)
+        if restore_non_ascii:
+            self.text = self.restore_non_ascii_ampm_boundaries()
 
     # An all-caps word (2+ letters) immediately followed, across whitespace, by
     # another all-caps word (2+ letters). Used to detect imprint/colophon runs
