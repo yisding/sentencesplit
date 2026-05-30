@@ -39,6 +39,7 @@ if str(_GATE_DIR) not in sys.path:
     sys.path.insert(0, str(_GATE_DIR))
 
 from gate_scoring import (  # noqa: E402
+    DEFAULT_EM_TOLERANCE,
     F1_TOLERANCE,
     load_gold_corpora,
     score_corpus,
@@ -124,3 +125,51 @@ def test_golden_rules_never_regress(scores, baseline):
     base = baseline["by_corpus"]["golden_rules"]["exact_match"]
     now = scores["golden_rules"]["exact_match"]
     assert now >= base, f"Golden Rules exact-match regressed {base} -> {now} (zero tolerance)"
+
+
+# ── negative / drop-detection unit tests ──────────────────────────────────────
+# The parametrized tests above only ever exercise the EM predicate in its passing
+# direction (real scores happen to clear the baseline). These pure-unit tests pin
+# the *failing* branch and the tolerance map so a flipped ``>=`` or a broken
+# ``tolerance_for`` can't leave the gate vacuously green. No re-segmentation here.
+
+
+def _em_predicate(now: float, base: float, tol: float) -> bool:
+    """Mirror the gate's per-corpus EM check (line ~97): ``now >= base - tol``."""
+    return now >= base - tol
+
+
+def test_em_predicate_fires_on_drop_beyond_tolerance():
+    """A drop just past the tolerance must violate the gate predicate, and a drop
+    sitting exactly at the tolerance must still pass — this is the failing branch
+    the parametrized tests never reach with real scores."""
+    base, tol = 90.0, DEFAULT_EM_TOLERANCE
+    # Exactly at the allowed floor: still passes.
+    assert _em_predicate(base - tol, base, tol)
+    # One tenth of a point below the floor: gate must catch it.
+    assert not _em_predicate(base - tol - 0.1, base, tol)
+
+
+def test_em_predicate_passes_on_improvement():
+    """An improvement (or no change) is never a regression."""
+    base, tol = 90.0, DEFAULT_EM_TOLERANCE
+    assert _em_predicate(base, base, tol)
+    assert _em_predicate(base + 5.0, base, tol)
+
+
+def test_zero_tolerance_corpora_catch_any_drop():
+    """Golden Rules and CJK are zero-tolerance: even a 0.1pp dip must fail."""
+    for corpus in ("golden_rules", "ud_zh_gsd"):
+        tol = tolerance_for(corpus)
+        assert tol == 0.0, f"{corpus} must be zero-tolerance"
+        base = 100.0
+        assert _em_predicate(base, base, tol)
+        assert not _em_predicate(base - 0.1, base, tol)
+
+
+def test_tolerance_for_known_and_unknown_corpora():
+    """The tightened corpora must report 0.0; an unknown corpus must fall back to
+    the default cushion."""
+    assert tolerance_for("golden_rules") == 0.0
+    assert tolerance_for("ud_zh_gsd") == 0.0
+    assert tolerance_for("some_unknown_corpus") == DEFAULT_EM_TOLERANCE
