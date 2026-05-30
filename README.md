@@ -191,12 +191,16 @@ class MultiLang(Common, Standard):
     class AbbreviationReplacer(AbbreviationReplacer):
         SENTENCE_STARTERS = English.AbbreviationReplacer.SENTENCE_STARTERS
 
-LANGUAGE_CODES['multi'] = MultiLang
+from sentencesplit.languages import register_language
+
+register_language("multi", MultiLang)  # or: LANGUAGE_CODES["multi"] = MultiLang
 
 seg = sentencesplit.Segmenter(language="multi", clean=False)
 print(seg.segment("Hola Srta. Ledesma. How are you?"))
 # ['Hola Srta. Ledesma. ', 'How are you?']
 ```
+
+`register_language()` (and `unregister_language()`) mutate a **process-global, non-thread-safe** registry shared by every `Segmenter`. Register custom languages once at import time, before any concurrent segmentation, rather than from worker threads.
 
 This works well for languages that share the `Common` and `Standard` base classes and use the same sentence-ending punctuation (`.`, `!`, `?`). The same pattern can be extended to other similar languages like Italian, Dutch, or Danish. Languages with different writing systems or punctuation (e.g. Japanese, Arabic) would need a different approach.
 
@@ -257,9 +261,8 @@ Release steps:
 2. Open GitHub Actions and run the `Release` workflow on `main`.
 3. Choose the version bump: `patch`, `minor`, `major`, or `prerelease`.
 4. Set `dry_run=true` to preview the release, then run it again with `dry_run=false` for the real release.
-5. The workflow creates the version commit, tag, changelog update, and GitHub Release.
-6. After the release step succeeds, the `Release` workflow calls the separate `Publish to PyPI` workflow, which checks out the new tag and uploads the built distributions using Trusted Publishing.
-7. If you need to publish an already-created release tag, run `Publish to PyPI` manually and enter the existing tag, for example `v0.0.1`.
+5. The `Release` workflow creates the version commit, tag, changelog update, and GitHub Release. It does **not** publish to PyPI — publishing is a separate, manual step.
+6. To publish, run the `Publish to PyPI` workflow manually (`workflow_dispatch`) and enter the tag to publish, for example `v0.0.1`; it checks out that tag and uploads the built distributions using Trusted Publishing.
 
 `python-semantic-release` uses Conventional Commits to generate changelog entries, so commit messages like `fix: ...`, `feat: ...`, and `feat!: ...` are recommended.
 

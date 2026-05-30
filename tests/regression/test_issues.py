@@ -684,6 +684,24 @@ def test_trailing_zero_width_space_preserves_char_spans():
 
 
 @pytest.mark.parametrize(
+    "text,expected",
+    [
+        # U+200D inside an emoji ZWJ sequence is meaningful, not a boundary artifact.
+        ("👩‍💻 works here.", ["👩‍💻 works here."]),
+        # U+200C (ZWNJ) inside a Persian word must survive segmentation.
+        ("او می‌گوید سلام.", ["او می‌گوید سلام."]),
+        # Interior ZWNJ is preserved even while a trailing U+200B artifact is dropped.
+        ("می‌گوید.​", ["می‌گوید."]),
+    ],
+)
+def test_interior_zero_width_joiner_preserved(text, expected):
+    """Only boundary zero-width artifacts are dropped; joiners inside a word or
+    emoji sequence must be preserved (not globally deleted)."""
+    seg = sentencesplit.Segmenter(language="es", clean=False)
+    assert [s.strip() for s in seg.segment(text)] == expected
+
+
+@pytest.mark.parametrize(
     "language,text,expected",
     [
         # Multi-character terminator (!!!) before a capitalized word ends a sentence.

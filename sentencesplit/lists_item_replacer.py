@@ -51,6 +51,16 @@ class ListItemReplacer:
     # Rubular: http://rubular.com/r/GcnmQt4a3I
     ROMAN_NUMERALS_IN_PARENTHESES = r"\(((?=[mdclxvi])m*(c[md]|d?c*)(x[cl]|l?x*)(i[xv]|v?i*))\)(?=\s[A-Z])"
 
+    # A false-positive guard for numbered lists. A genuine numbered-list item
+    # introduces text beginning with an uppercase letter or a digit; a marker
+    # followed by a lowercase word is an ordinal embedded in running prose
+    # (e.g. English "for 1. above ... 2. above" or German "des 19. und ...
+    # 20. Jahrhunderts"), not a list, so no line breaks should be inserted. The
+    # marker periods are still protected by the '♨'→placeholder substitution the
+    # caller applies afterwards. Languages may override this (or set it to None
+    # to disable the guard).
+    NUMBERED_LIST_FALSE_POSITIVE_REGEX = r"\d{1,2}♨\s+[a-zà-öø-ÿ]"
+
     def __init__(self, text: str) -> None:
         self.text = text
 
@@ -123,19 +133,12 @@ class ListItemReplacer:
 
         self.text = re.sub(regex, partial(replace_item, val=each, strip=strip, repl=replacement), self.text)
 
-    # A genuine numbered-list item introduces text beginning with an uppercase
-    # letter or a digit. A numbered marker followed by a lowercase word is an
-    # ordinal embedded in running prose (e.g. English 'for 1. above ... 2. above'
-    # or German 'des 19. und ... 20. Jahrhunderts'), not a list, so no line
-    # breaks should be inserted. The marker periods are still protected by the
-    # '♨'→placeholder substitution that the caller applies afterwards.
-    NUMBERED_MARKER_BEFORE_LOWERCASE_REGEX = r"\d{1,2}♨\s+[a-zà-öø-ÿ]"
-
     def add_line_breaks_for_numbered_list_with_periods(self):
+        false_positive = self.NUMBERED_LIST_FALSE_POSITIVE_REGEX
         if (
             ("♨" in self.text)
             and (not re.search("♨.+(\n|\r).+♨", self.text))
-            and (not re.search(self.NUMBERED_MARKER_BEFORE_LOWERCASE_REGEX, self.text))
+            and (false_positive is None or not re.search(false_positive, self.text))
         ):
             self.text = apply_rules(
                 self.text,

@@ -7,28 +7,35 @@ from sentencesplit.abbreviation_replacer import AbbreviationReplacer
 from sentencesplit.between_punctuation import BetweenPunctuation
 from sentencesplit.lang.common import Common, Standard
 from sentencesplit.lang.common.cjk import (
-    _CJK_REPORTING_CLAUSE_BOUNDARY,
     _QUOTE_CLOSER_RE,
+    CJK_REPORTING_CLAUSE_RE,
     CJKBetweenPunctuationMixin,
     CJKBoundaryProfile,
+    make_cjk_abbreviation_rules,
 )
 from sentencesplit.lang.english import English
 from sentencesplit.lang.spanish import Spanish
 from sentencesplit.processor import (
+    _CJK_BANG_RESPLIT_RE,
     _CJK_QUOTE_RESPLIT_RE,
     _ELLIPSIS_RE,
+    _LATIN_RESPLIT_RE,
     _ORPHAN_SINGLE_CHARS,
     Processor,
     _split_on_uppercase_boundary,
 )
-from sentencesplit.utils import Rule
 
-_LATIN_PAREN_RESPLIT_RE = re.compile(r"(?<=[a-zA-Z]{2}\.\))\s+")
 _CJK_FOLLOWING_CHAR_RE = re.compile(r"[\u3400-\u9FFF]")
-_ENGLISH_HEURISTIC_ABBREVIATIONS = frozenset(a.lower() for a in Standard.Abbreviation.ABBREVIATIONS)
-_CJK_REPORTING_CLAUSE_RE = re.compile(
-    rf"^(?:他|她|他们|她们|我|我们|记者|警方|老师|母亲|父亲|主持人|发言人).{{0,6}}(?:说|问|答|表示|回应|补充|解释){_CJK_REPORTING_CLAUSE_BOUNDARY}"
+# The uppercase sentence-start heuristic applies to BOTH the English and Spanish
+# abbreviation sets. Gating it to English-only previously made common words that
+# are also Spanish abbreviations (doc, dir, dom, \u2026) under-split versus both the
+# standalone "en" and "es" profiles.
+_HEURISTIC_ABBREVIATIONS = frozenset(
+    a.lower() for a in (Standard.Abbreviation.ABBREVIATIONS + Spanish.Abbreviation.ABBREVIATIONS)
 )
+# Closers that mark an embedded CJK quote/title; a lowercase Latin continuation
+# after one of these is not a quote continuation (unlike a Latin quote closer).
+_CJK_QUOTE_CLOSERS = frozenset("\u300d\u300f\u300b\u3011")
 
 
 class EnglishSpanishChinese(CJKBoundaryProfile, Common, Standard):
@@ -66,7 +73,7 @@ class EnglishSpanishChinese(CJKBoundaryProfile, Common, Standard):
                 char = ""
             am_lower = am.strip().lower()
             ascii_upper = bool(char) and char.isascii() and char.isupper()
-            use_uppercase_heuristic = ascii_upper and am_lower in _ENGLISH_HEURISTIC_ABBREVIATIONS
+            use_uppercase_heuristic = ascii_upper and am_lower in _HEURISTIC_ABBREVIATIONS
             if not use_uppercase_heuristic or am_lower in self._data.prepositive_set:
                 am_escaped = re.escape(am.strip())
                 txt = " " + txt
@@ -98,10 +105,7 @@ class EnglishSpanishChinese(CJKBoundaryProfile, Common, Standard):
             return txt
 
     class CjkAbbreviationRules:
-        IntraAbbreviationPeriodRule = Rule(r"(?<=[A-Za-z])\.(?=[A-Za-z]\.)", "∯")
-        EndAbbreviationBeforeCjkRule = Rule(r"(?<=[A-Za-z]∯[A-Za-z])\.(?=[\u3400-\u9FFF])", "∯")
-
-        All = [IntraAbbreviationPeriodRule, EndAbbreviationBeforeCjkRule]
+        All = make_cjk_abbreviation_rules(r"\u3400-\u9FFF")
 
     class BetweenPunctuation(CJKBetweenPunctuationMixin, BetweenPunctuation):
         def replace(self) -> str:
@@ -112,12 +116,12 @@ class EnglishSpanishChinese(CJKBoundaryProfile, Common, Standard):
         def _resplit_segments(self, postprocessed_sents: list[str]) -> list[str]:
             resplit = []
             for pps in postprocessed_sents:
-                latin_parts = _split_on_uppercase_boundary(pps, _LATIN_PAREN_RESPLIT_RE)
+                latin_parts = _split_on_uppercase_boundary(pps, _LATIN_RESPLIT_RE)
                 for latin_part in latin_parts or [pps]:
                     if not latin_part:
                         continue
-                    parts = _CJK_QUOTE_RESPLIT_RE.split(latin_part)
-                    resplit.extend(part for part in parts if part)
+                    for part in _CJK_QUOTE_RESPLIT_RE.split(latin_part):
+                        resplit.extend(p for p in _CJK_BANG_RESPLIT_RE.split(part) if p)
             return self._merge_quote_continuations(resplit or postprocessed_sents)
 
         def _merge_quote_continuations(self, sentences: list[str]) -> list[str]:
@@ -138,12 +142,17 @@ class EnglishSpanishChinese(CJKBoundaryProfile, Common, Standard):
             current = current.lstrip()
             if not previous or not current:
                 return False
-            if not _QUOTE_CLOSER_RE.search(previous):
+            closer = _QUOTE_CLOSER_RE.search(previous)
+            if not closer:
                 return False
-            first_char = current[0]
-            if first_char.islower():
+            # A lowercase Latin continuation is only a quote continuation after a
+            # Latin quote closer ("…" then he said). After a CJK closer (」』》】)
+            # a lowercase word is a separate sentence (matching standalone zh);
+            # only the CJK reporting clause re-merges those.
+            is_cjk_closer = any(c in _CJK_QUOTE_CLOSERS for c in closer.group())
+            if current[0].islower() and not is_cjk_closer:
                 return True
-            if _CJK_REPORTING_CLAUSE_RE.match(current):
+            if CJK_REPORTING_CLAUSE_RE.match(current):
                 return True
             return False
 
@@ -161,6 +170,8 @@ class EnglishSpanishChinese(CJKBoundaryProfile, Common, Standard):
                         len(stripped) <= 10
                         and stripped.endswith(".")
                         and not stripped[0].isupper()
+                        and stripped[0] not in ")]}"
+                        and " " not in stripped[:-1]
                         and any(c.isalnum() or _CJK_FOLLOWING_CHAR_RE.match(c) for c in stripped)
                     ):
                         is_orphan = True

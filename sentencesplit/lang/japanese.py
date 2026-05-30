@@ -5,7 +5,12 @@ from sentencesplit.abbreviation_replacer import AbbreviationReplacer
 from sentencesplit.between_punctuation import BetweenPunctuation
 from sentencesplit.cleaner import Cleaner
 from sentencesplit.lang.common import Common, Standard
-from sentencesplit.lang.common.cjk import CJKBetweenPunctuationMixin, CJKBoundaryProfile, CJKProcessor
+from sentencesplit.lang.common.cjk import (
+    CJKBetweenPunctuationMixin,
+    CJKBoundaryProfile,
+    CJKProcessor,
+    make_cjk_abbreviation_rules,
+)
 from sentencesplit.utils import Rule, apply_rules
 
 
@@ -17,7 +22,10 @@ class Japanese(CJKBoundaryProfile, Common, Standard):
 
     class Cleaner(Cleaner):
         def __init__(self, text, lang, doc_type=None):
-            super().__init__(text, lang)
+            # NOTE: clean() is fully overridden below with a particle-aware
+            # line-join, so doc_type (incl. "pdf") has no effect for Japanese —
+            # PDF-specific cleaning is intentionally unsupported here.
+            super().__init__(text, lang, doc_type=doc_type)
 
         def clean(self):
             self.remove_newline_in_middle_of_word()
@@ -53,10 +61,7 @@ class Japanese(CJKBoundaryProfile, Common, Standard):
             return txt[1:]
 
     class CjkAbbreviationRules:
-        IntraAbbreviationPeriodRule = Rule(r"(?<=[A-Za-z])\.(?=[A-Za-z]\.)", "∯")
-        EndAbbreviationBeforeCjkRule = Rule(r"(?<=[A-Za-z]∯[A-Za-z])\.(?=[\u3040-\u30ff\u4e00-\u9fff])", "∯")
-
-        All = [IntraAbbreviationPeriodRule, EndAbbreviationBeforeCjkRule]
+        All = make_cjk_abbreviation_rules(r"\u3040-\u30ff\u4e00-\u9fff")
 
     class Processor(CJKProcessor):
         pass

@@ -12,6 +12,7 @@ from sentencesplit.utils import SegmentLookahead, TextSpan
 _DEFAULT_LOOKAHEAD_STEMS = ("a", "A")
 _LANGUAGE_LOOKAHEAD_STEMS = {
     "am": ("ሀ",),
+    "en_es_zh": ("a", "A", "甲"),
     "ar": ("ا",),
     "bg": ("А",),
     "el": ("Α",),
@@ -37,8 +38,26 @@ _ZERO_WIDTH_TRANSLATION = {ord(c): None for c in _ZERO_WIDTH_CHARS}
 
 
 def _strip_zero_width(text: str) -> str:
-    """Remove zero-width/format characters from a (plain, non-span) segment."""
-    return text.translate(_ZERO_WIDTH_TRANSLATION)
+    """Drop boundary zero-width/format characters from a (plain, non-span) segment.
+
+    Only the leading/trailing run of whitespace-or-zero-width is cleaned, and
+    even there whitespace is kept — just the stray zero-width artifact (e.g. a
+    lone U+200B Wikipedia reference marker) is removed. Interior zero-width
+    joiners are preserved, so emoji sequences (👩‍💻) and scripts that use
+    U+200C/U+200D within a word (e.g. Hindi, Persian) are not corrupted.
+    """
+
+    def _is_boundary_trim(ch: str) -> bool:
+        return ch.isspace() or ch in _ZERO_WIDTH_CHARS
+
+    start, end = 0, len(text)
+    while start < end and _is_boundary_trim(text[start]):
+        start += 1
+    while end > start and _is_boundary_trim(text[end - 1]):
+        end -= 1
+    lead = text[:start].translate(_ZERO_WIDTH_TRANSLATION)
+    trail = text[end:].translate(_ZERO_WIDTH_TRANSLATION)
+    return lead + text[start:end] + trail
 
 
 class Segmenter:
@@ -80,6 +99,8 @@ class Segmenter:
         if split_mode not in {"conservative", "aggressive"}:
             raise ValueError("split_mode must be either 'conservative' or 'aggressive'.")
         self.split_mode = split_mode
+        if doc_type not in (None, "pdf"):
+            raise ValueError("doc_type must be None or 'pdf'.")
         if self.clean and self.char_span:
             raise ValueError("char_span must be False if clean is True. Since `clean=True` will modify original text.")
         # when doctype is pdf then force user to clean the text
@@ -304,6 +325,13 @@ class Segmenter:
             prior_end = end_idx
 
     def segment(self, text: str | None) -> list[str] | list[TextSpan]:
+        """Segment ``text`` into sentences.
+
+        Returns a ``list[str]`` by default, or a ``list[TextSpan]`` (with
+        ``.sent``/``.start``/``.end``) when the Segmenter was constructed with
+        ``char_span=True``. Use :meth:`segment_spans` to always get spans
+        regardless of the ``char_span`` flag.
+        """
         _, segments, _ = self._segment_result(text)
         return segments
 
