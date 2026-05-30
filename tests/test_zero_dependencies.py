@@ -50,6 +50,26 @@ def test_bare_import_pulls_in_no_third_party_modules():
     )
 
 
+def test_public_surface_matches_all():
+    # `from sentencesplit import *` and dir(sentencesplit) should expose exactly
+    # the curated public names, not every submodule. `__all__` defines that
+    # boundary, so it must match the names we intend to support.
+    import sentencesplit
+
+    expected = {
+        "Segmenter",
+        "StreamSegmenter",
+        "list_languages",
+        "TextSpan",
+        "SegmentLookahead",
+        "__version__",
+    }
+    assert set(sentencesplit.__all__) == expected
+    assert len(sentencesplit.__all__) == len(set(sentencesplit.__all__)), "duplicate names in __all__"
+    for name in sentencesplit.__all__:
+        assert hasattr(sentencesplit, name), f"__all__ lists {name!r} but it is not importable"
+
+
 def test_list_languages_imports_no_language_modules():
     # Enumerating supported languages must stay cheap: it must not import any
     # concrete `sentencesplit.lang.*` module just to list the codes.
