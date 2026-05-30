@@ -83,8 +83,15 @@ class Segmenter:
             Normal text or OCRed text, by default None
             set to `pdf` for OCRed text
         char_span : bool, optional
-            Get start & end character offsets of each sentences
-            within original text, by default False
+            Get start & end character offsets of each sentence within
+            the original text, by default False.
+
+            .. deprecated::
+               Prefer :meth:`segment_spans`, the canonical spans API, which
+               always returns ``list[TextSpan]`` regardless of this flag and
+               guarantees a byte-for-byte round-trip with the source. The
+               ``char_span`` flag is retained for backward compatibility but
+               may be removed in a future release.
         split_mode : str, optional
             Global split-bias for ambiguous boundaries, by default
             "balanced". One of:
@@ -323,6 +330,11 @@ class Segmenter:
         Yields (text_slice, start, end) tuples for each sentence.
         Accounts for trailing whitespace that SENTENCE_BOUNDARY_REGEX
         does not capture, keeping the segmentation non-destructive.
+
+        Spans contiguously tile the whole source: the final yield covers any
+        unmatched trailing remainder so that ``"".join(s for s, _, _ in ...)``
+        reproduces ``original_text`` byte-for-byte even when the processor
+        emits no sentence content (e.g. whitespace- or zero-width-only input).
         """
         prior_end = 0
         for idx, sent in enumerate(sentences):
@@ -346,6 +358,15 @@ class Segmenter:
                 end_idx += 1
             yield original_text[start_idx:end_idx], start_idx, end_idx
             prior_end = end_idx
+
+        # Trailing remainder the matching loop did not cover (e.g. whitespace-
+        # or zero-width-only input the processor drops, leaving no sentence to
+        # anchor to). Emit it as a final span so spans contiguously tile the
+        # whole source and the round-trip reproduces it byte-for-byte. In normal
+        # text the per-sentence trailing-whitespace sweep already advances
+        # prior_end to len(original_text), so this never fires.
+        if prior_end < len(original_text):
+            yield original_text[prior_end:], prior_end, len(original_text)
 
     def segment(self, text: str | None) -> list[str] | list[TextSpan]:
         """Segment ``text`` into sentences.
@@ -376,7 +397,18 @@ class Segmenter:
         )
 
     def segment_spans(self, text: str | None) -> list[TextSpan]:
-        """Return sentence spans regardless of the instance's char_span flag."""
+        """Return sentence spans regardless of the instance's ``char_span`` flag.
+
+        This is the canonical spans API and is byte-for-byte faithful: each
+        returned :class:`~sentencesplit.utils.TextSpan` is an exact slice of the
+        source (``text[span.start:span.end] == span.sent``), the spans
+        contiguously tile the source with no gaps or overlaps
+        (``0 <= start < end <= len(text)``, first ``start`` is 0, last ``end`` is
+        ``len(text)``), and reassembling them reproduces the source verbatim
+        (``"".join(s.sent for s in segment_spans(text)) == text``). It is
+        therefore non-destructive even on dirty input (ZWSP/NBSP/BOM/combining
+        marks/RTL markers). Requires ``clean=False``.
+        """
         if self.clean:
             raise ValueError("segment_spans() requires clean=False.")
         if not text:
