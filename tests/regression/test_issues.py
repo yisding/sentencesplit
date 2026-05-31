@@ -4,6 +4,7 @@ from time import perf_counter
 import pytest
 
 import sentencesplit
+from sentencesplit.lang.common.standard import Standard
 from sentencesplit.lists_item_replacer import ListItemReplacer
 from sentencesplit.utils import TextSpan
 
@@ -899,6 +900,27 @@ def test_glued_ellipsis_lowercase_runon_not_split(text, expected):
     seg = sentencesplit.Segmenter(language="en", clean=False)
     segments = [s.strip() for s in seg.segment(text)]
     assert segments == expected
+
+
+def test_glued_ellipsis_lowercase_rule_handles_long_period_runs_linearly():
+    """The glued lowercase run-on protection must not rescan long period runs
+    from every period when the run is not followed by lowercase text."""
+    text = "a" + "." * 20_000 + "A"
+
+    start = perf_counter()
+    result = Standard.EllipsisRules.GluedLowercaseRunOnRule.regex.sub("∮", text)
+    elapsed = perf_counter() - start
+
+    assert result == text
+    assert elapsed < 0.25
+
+
+def test_glued_ellipsis_lowercase_rule_preserves_long_runon_protection():
+    """Runs longer than four periods still protect every dot before the
+    trailing ellipsis so no bare terminal period remains."""
+    result = Standard.EllipsisRules.GluedLowercaseRunOnRule.regex.sub("∮", "slides......they")
+
+    assert result == "slides∮∮∮...they"
 
 
 @pytest.mark.parametrize(

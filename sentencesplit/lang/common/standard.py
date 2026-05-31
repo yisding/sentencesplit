@@ -5,6 +5,47 @@ from sentencesplit.abbreviation_replacer import AbbreviationReplacer
 from sentencesplit.utils import Rule
 
 
+class _GluedLowercaseRunOnRegex:
+    """Linear-time replacer for glued 4+ dot lowercase run-ons."""
+
+    def sub(self, replacement: str, text: str) -> str:
+        chars: list[str] | None = None
+        index = 0
+        length = len(text)
+
+        while index < length:
+            if text[index] != ".":
+                index += 1
+                continue
+
+            run_start = index
+            while index < length and text[index] == ".":
+                index += 1
+            run_end = index
+            protected_end = run_end - 3
+
+            if (
+                protected_end > run_start
+                and run_start > 0
+                and not text[run_start - 1].isspace()
+                and run_end < length
+                and "a" <= text[run_end] <= "z"
+            ):
+                if chars is None:
+                    chars = list(text)
+                chars[run_start:protected_end] = replacement * (protected_end - run_start)
+
+        if chars is None:
+            return text
+        return "".join(chars)
+
+
+class _GluedLowercaseRunOnRule:
+    pattern = "glued-lowercase-run-on"
+    replacement = "∮"
+    regex = _GluedLowercaseRunOnRegex()
+
+
 class Standard:
     # This class holds the punctuation marks.
     Punctuations = ["。", "．", ".", "！", "!", "?", "？"]
@@ -361,7 +402,7 @@ class Standard:
         # behind to act as a terminal: the trailing "..." is then handled by
         # OtherThreePeriodRule and the leading dots restore via SubOnePeriod.
         # The lowercase lookahead keeps "Wait.... The" / "...They" splitting.
-        GluedLowercaseRunOnRule = Rule(r"(?<=\S)\.(?=\.{3,}[a-z])", "∮")
+        GluedLowercaseRunOnRule = _GluedLowercaseRunOnRule()
 
         OtherThreePeriodRule = Rule(r"\.\.\.", "ƪƪƪ")
 
