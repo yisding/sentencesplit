@@ -140,6 +140,16 @@ class AbbreviationReplacer:
     SENTENCE_STARTERS = []
     SENTENCE_BOUNDARY_ABBREVIATIONS = ["U∯S", "U.S", "U∯K", "E∯U", "E.U", "U∯S∯A", "U.S.A", "I", "i.v", "I.V"]
 
+    # Opt-in for scripts (e.g. Greek, Cyrillic) that do not capitalize common
+    # nouns mid-sentence: there, a capital letter following a multi-period
+    # abbreviation's final period reliably marks a new sentence, so even a pure
+    # single-letter initialism ("π.Χ.", "Ε.Ε.") ends the sentence before it. The
+    # Latin sentence-start heuristic (_is_latin_upper) deliberately ignores these
+    # scripts, so without this flag their abbreviation boundaries never restore.
+    # Off by default — for Latin scripts a capital follower is ambiguous with a
+    # proper-noun continuation ("A.I. Systems").
+    NON_LATIN_CAPITAL_STARTS_SENTENCE = False
+
     AGGRESSIVE_PREPOSITIVE_BOUNDARY_BLOCKLIST = frozenset(
         {
             # "st." is highly ambiguous (street vs Saint) and is often
@@ -387,6 +397,12 @@ class AbbreviationReplacer:
             # before any likely sentence start, including pure initialisms
             # ("A.I. Systems …").
             likely_start = self._is_likely_sentence_start(next_text)
+            # Greek/Cyrillic etc. (opt-in): a capital follower reliably starts a
+            # new sentence, so a pure single-letter initialism ("π.Χ.", "Ε.Ε.")
+            # ends the sentence before it even though _is_latin_upper ignored it.
+            capital_boundary = (
+                self.NON_LATIN_CAPITAL_STARTS_SENTENCE and not likely_start and _next_nonspace_char(next_text).isupper()
+            )
             # a.m./p.m. own their boundary decision later (with timezone
             # awareness), so the aggressive pure-initialism split skips them to
             # avoid breaking a "p.m. EST" time+zone unit.
@@ -394,8 +410,8 @@ class AbbreviationReplacer:
             if self._leans_join:
                 protect_final_period = True
             elif self._leans_split and not is_ampm:
-                protect_final_period = not likely_start
-            elif likely_start and any(len(part) > 1 for part in parts):
+                protect_final_period = not (likely_start or capital_boundary)
+            elif (likely_start and any(len(part) > 1 for part in parts)) or capital_boundary:
                 protect_final_period = False
 
             body = matched[:-1].replace(".", "∯")

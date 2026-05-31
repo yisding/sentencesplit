@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import re
 
+from sentencesplit.abbreviation_replacer import AbbreviationReplacer
 from sentencesplit.lang.common import Common, Standard
 
 
@@ -9,6 +10,12 @@ class Greek(Common, Standard):
 
     SENTENCE_BOUNDARY_REGEX = re.compile(r".*?[\.;!\?]|.*?$")
     Punctuations = [".", "!", ";", "?"]
+
+    class AbbreviationReplacer(AbbreviationReplacer):
+        # Greek does not capitalize common nouns mid-sentence, so a capital after
+        # a multi-period abbreviation's period ("π.Χ. Ήταν …") is a real sentence
+        # boundary even for a pure single-letter initialism.
+        NON_LATIN_CAPITAL_STARTS_SENTENCE = True
 
     # The shared MULTI_PERIOD_ABBREVIATION_REGEX only matches ASCII letters, so
     # Greek multi-period abbreviations such as "μ.Χ." (A.D.) and "Ε.Ε." (E.U.)
