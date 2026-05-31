@@ -334,6 +334,16 @@ def test_html_tag_rule_not_redos_on_long_unclosed_run():
     assert time.perf_counter() - start < 2.0
 
 
+def test_html_tag_rule_not_quadratic_on_many_unclosed_openers():
+    import time
+
+    seg = sentencesplit.Segmenter(language="en", clean=True)
+    evil = ("<a " * 50000) + "end."
+    start = time.perf_counter()
+    assert seg.segment(evil)[-1].endswith("end.")
+    assert time.perf_counter() - start < 2.0
+
+
 def test_html_tag_rule_preserves_gt_inside_quoted_attribute():
     from sentencesplit.cleaner import Cleaner
     from sentencesplit.languages import Language
