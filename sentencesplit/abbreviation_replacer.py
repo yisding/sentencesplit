@@ -206,12 +206,43 @@ class AbbreviationReplacer:
         }
     )
 
-    # Matches a run of single-letter initials protected as "X∯X∯…X∯", ending at
-    # the position of the final separator that the restore is examining.
-    _INITIALS_CHAIN_RE = re.compile(r"(?:[A-Za-z]∯)+[A-Za-z]\Z")
+    @staticmethod
+    def _initials_chain_start(text: str, sep_index: int) -> int | None:
+        """Return the start offset for initials ending before *sep_index*.
 
-    # First whitespace-delimited token after the initialism separator.
-    _FOLLOWER_WORD_RE = re.compile(r"\s+(\S+)")
+        The caller already matched the final protected separator after at least
+        three uppercase initials.  Walk left over the compact ``X∯X∯X`` suffix
+        instead of searching a growing prefix for every candidate.
+        """
+        chain_start = sep_index - 1
+        if chain_start < 0 or not text[chain_start].isalpha():
+            return None
+        while chain_start >= 2 and text[chain_start - 1] == "∯" and text[chain_start - 2].isalpha():
+            chain_start -= 2
+        return chain_start
+
+    @staticmethod
+    def _previous_whitespace_token(text: str, end_index: int) -> str:
+        """Return the whitespace-delimited token before *end_index*."""
+        word_end = end_index
+        while word_end > 0 and text[word_end - 1].isspace():
+            word_end -= 1
+        word_start = word_end
+        while word_start > 0 and not text[word_start - 1].isspace():
+            word_start -= 1
+        return text[word_start:word_end]
+
+    @staticmethod
+    def _next_whitespace_token(text: str, start_index: int) -> str:
+        """Return the whitespace-delimited token at or after *start_index*."""
+        word_start = start_index
+        text_len = len(text)
+        while word_start < text_len and text[word_start].isspace():
+            word_start += 1
+        word_end = word_start
+        while word_end < text_len and not text[word_end].isspace():
+            word_end += 1
+        return text[word_start:word_end]
 
     def _is_initials_name(self, text: str, sep_index: int) -> bool:
         """Return True if the initialism ending at *sep_index* is a personal name.
@@ -223,16 +254,15 @@ class AbbreviationReplacer:
         an article/determiner before it ("the S.A.T.") or a known sentence
         starter after it ("from H.B.S. She ...").
         """
-        chain = self._INITIALS_CHAIN_RE.search(text[:sep_index])
-        if chain is None:
+        chain_start = self._initials_chain_start(text, sep_index)
+        if chain_start is None:
             return False
-        before = text[: chain.start()].rstrip()
-        prev_word = before.rsplit(None, 1)[-1] if before else ""
+        prev_word = self._previous_whitespace_token(text, chain_start)
         if prev_word.lower() in self._INITIALS_NAME_DETERMINERS:
             return False
         if self.SENTENCE_STARTERS:
-            follower = self._FOLLOWER_WORD_RE.match(text[sep_index + 1 :])
-            if follower and follower.group(1).rstrip(",.;:") in self.SENTENCE_STARTERS:
+            follower = self._next_whitespace_token(text, sep_index + 1)
+            if follower.rstrip(",.;:") in self.SENTENCE_STARTERS:
                 return False
         return True
 

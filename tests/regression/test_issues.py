@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+from time import perf_counter
+
 import pytest
 
 import sentencesplit
@@ -816,6 +818,19 @@ def test_acronym_noun_before_new_sentence_still_splits(text, expected):
     seg = sentencesplit.Segmenter(language="en", clean=False)
     segments = [s.strip() for s in seg.segment(text)]
     assert segments == expected
+
+
+def test_repeated_initials_heuristic_is_linear_time():
+    """Repeated dotted initialisms should not rescan the full prefix per match."""
+    seg = sentencesplit.Segmenter(language="en", clean=False)
+    text = "A.B.C. X " * 4000
+
+    start = perf_counter()
+    segments = seg.segment(text)
+    elapsed = perf_counter() - start
+
+    assert segments
+    assert elapsed < 2.0
 
 
 @pytest.mark.parametrize(
