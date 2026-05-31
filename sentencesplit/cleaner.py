@@ -39,7 +39,7 @@ class CleanRules:
     # Anchor the page number to end-of-line (newlines are already "\r" at this
     # stage) so a dot-leader TOC entry ("About Me....5") is split but ordinary
     # prose with an ellipsis followed by a number ("wait.... 42 things") is not.
-    TableOfContentsRule = Rule(r"\.{4,}\s*\d+-*\d*(?=\s*(?:\r|\n|$))", "\r")
+    TableOfContentsRule = Rule(r"(?<!\.)\.{4,}+[^\S\r\n]*+\d++-*+\d*+(?=[^\S\r\n]*(?:\r|\n|$))", "\r")
 
     # Rubular: http://rubular.com/r/DwNSuZrNtk
     ConsecutivePeriodsRule = Rule(r"\.{5,}", " ")
