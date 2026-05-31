@@ -314,6 +314,20 @@ def test_sentinel_escape_handles_preexisting_private_use_chars():
     assert "".join(clean.segment_clean(t2)) == t2
 
 
+def test_sentinel_escape_pool_exhaustion_raises_clear_error(monkeypatch):
+    """If the input occupies every free private-use codepoint (impossible with
+    natural text), escaping a reserved sentinel must raise a clear ValueError
+    rather than letting a bare StopIteration escape from process()."""
+    from sentencesplit import processor as _proc
+
+    # Shrink the escape pool to two codepoints so the 20 reserved sentinels
+    # cannot all be assigned a free target.
+    monkeypatch.setattr(_proc, "_PRIVATE_USE_RANGES", ((0xE000, 0xE001),))
+    seg = sentencesplit.Segmenter(language="en")
+    with pytest.raises(ValueError, match="private-use codepoint"):
+        seg.segment("Has a ∯ reserved sentinel. And more.")
+
+
 def test_escaped_html_rule_is_not_redos_vulnerable():
     import time
 

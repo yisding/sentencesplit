@@ -61,10 +61,15 @@ _LEADING_QUOTE_RE = re.compile(r"\A[\s_]*([“\"«])")
 # Any quotation character — used to reject quotes with nested quotes/attribution.
 _ANY_QUOTE_CHARS = frozenset("“”\"«»‘’'")
 # Interior boundary inside a restored (already de-protected) quoted segment: a
-# single PERIOD, optional whitespace, then a Latin capital. Only periods count —
-# runs of '!'/'?' inside a quote are usually one emphatic speech act
-# ("Oh dear! Oh dear!" / "As if I would! ... again!"), not separate sentences.
-_QUOTE_INTERIOR_BOUNDARY_RE = re.compile(r"(?<=[.])\s+(?=[A-Z])")
+# single PERIOD, optional whitespace, then an uppercase-letter sentence start.
+# Only periods count — runs of '!'/'?' inside a quote are usually one emphatic
+# speech act ("Oh dear! Oh dear!" / "As if I would! ... again!"), not separate
+# sentences. The follower may be an uppercase letter of any cased script — ASCII,
+# accented Latin (É, Ñ, …), Greek (Η), or Cyrillic (П) — so multi-sentence
+# quotations split the same way across languages. The regex matches before any
+# letter and _resplit_multi_sentence_quote filters with str.isupper(), which is
+# False for caseless scripts (e.g. CJK ideographs), so those never split here.
+_QUOTE_INTERIOR_BOUNDARY_RE = re.compile(r"(?<=[.])\s+(?=[^\W\d_])")
 # A multi-sentence quotation must contain at least this many interior pieces
 # (i.e. at least two interior boundaries / three sentences) before the resplit
 # fires, and every piece must be at least _QUOTE_MIN_WORDS words long. Requiring
@@ -103,6 +108,11 @@ def _resplit_multi_sentence_quote(
     spans = []
     last = 0
     for boundary in _QUOTE_INTERIOR_BOUNDARY_RE.finditer(text):
+        # The lookahead is zero-width, so boundary.end() is the candidate start
+        # letter itself. Split only before an uppercase letter (any cased script);
+        # skip a lowercase or caseless follower so the boundary count stays exact.
+        if not text[boundary.end() : boundary.end() + 1].isupper():
+            continue
         spans.append(text[last : boundary.start()])
         last = boundary.end()
     if len(spans) + 1 < min_interior_sentences:
@@ -143,7 +153,17 @@ def _build_sentinel_escape_tables(text: str) -> tuple[dict[int, int], dict[int, 
     escape: dict[int, int] = {}
     restore: dict[int, str] = {}
     for ch in _RESERVED_SENTINELS:
-        cp = next(free)
+        cp = next(free, None)
+        if cp is None:
+            # Unreachable with natural text (the pool holds ~330k codepoints and
+            # only ~20 are needed); guards adversarial input that occupies every
+            # free private-use codepoint, turning a bare StopIteration out of
+            # process() into a clear, actionable error.
+            raise ValueError(
+                "Cannot segment input non-destructively: it contains a reserved "
+                "sentinel character and leaves no free private-use codepoint to "
+                "escape it to."
+            )
         escape[ord(ch)] = cp
         restore[cp] = ch
     return escape, restore
