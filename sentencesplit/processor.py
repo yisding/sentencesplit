@@ -5,7 +5,7 @@ import re
 
 from sentencesplit.exclamation_words import ExclamationWords
 from sentencesplit.language_profile import LanguageProfile
-from sentencesplit.utils import _next_nonspace_char_starts_sentence, apply_rules, split_mode_rank
+from sentencesplit.utils import ZERO_WIDTH_CHARS, _next_nonspace_char_starts_sentence, apply_rules, split_mode_rank
 
 # Pre-compiled patterns used on the hot path
 _ALPHA_ONLY_RE = re.compile(r"\A[a-zA-Z]*\Z")
@@ -14,10 +14,10 @@ _TRAILING_EXCL_RE = re.compile(r"&ᓴ&$")
 _PAREN_SPACE_BEFORE_RE = re.compile(r"\s(?=\()")
 _PAREN_SPACE_AFTER_RE = re.compile(r"(?<=\))\s")
 _ORPHAN_SINGLE_CHARS = frozenset("'\")\u2019\u201d")
-# Zero-width / format characters that str.strip() does not remove. Wikipedia
-# reference markers leave a lone U+200B at a sentence boundary, which otherwise
-# survives as a phantom empty sentence or is folded into the next sentence.
-_ZERO_WIDTH_CHARS = "\u200b\u200c\u200d\ufeff"
+# Shared with segmenter.py via utils so the two stay in sync. A lone zero-width
+# char (e.g. a Wikipedia U+200B reference marker) survives str.strip() and would
+# otherwise become a phantom empty sentence or fold into the next sentence.
+_ZERO_WIDTH_CHARS = ZERO_WIDTH_CHARS
 _CJK_QUOTE_RESPLIT_RE = re.compile(
     r"(?<=[。．][\]\"')”’」』】）》])(?=[\u4e00-\u9fff\u3040-\u30ff\u31f0-\u31ffA-Za-z0-9「『【（《])"
 )

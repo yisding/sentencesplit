@@ -6,6 +6,13 @@ import re
 import unicodedata
 from dataclasses import dataclass
 
+# Zero-width / format characters that ``str.isspace()`` / ``str.strip()`` do not
+# flag or remove (ZWSP, ZWNJ, ZWJ, BOM). A lone one at a sentence boundary (e.g. a
+# Wikipedia U+200B reference marker) otherwise survives as a phantom empty
+# sentence or is folded into the next one. Defined once here so the processor and
+# segmenter share a single source of truth.
+ZERO_WIDTH_CHARS = "\u200b\u200c\u200d\ufeff"
+
 
 class Rule:
     def __init__(self, pattern: str, replacement: str, flags: int = 0) -> None:

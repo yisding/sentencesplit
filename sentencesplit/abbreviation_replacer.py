@@ -206,8 +206,7 @@ class AbbreviationReplacer:
             "il",
             "lo",
             "gli",
-            "uno",
-            "una",  # it
+            "uno",  # it ("una" already covered above)
             "o",
             "os",
             "um",

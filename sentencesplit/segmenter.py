@@ -7,7 +7,7 @@ import warnings
 from sentencesplit.cleaner import Cleaner
 from sentencesplit.languages import Language
 from sentencesplit.processor import Processor
-from sentencesplit.utils import SPLIT_MODES, SegmentLookahead, TextSpan
+from sentencesplit.utils import SPLIT_MODES, ZERO_WIDTH_CHARS, SegmentLookahead, TextSpan
 
 # Simple, common characters per script that won't trigger abbreviation rules.
 _DEFAULT_LOOKAHEAD_STEMS = ("a", "A")
@@ -34,7 +34,7 @@ _TRAILING_SENTENCE_CLOSERS = frozenset("\"')]}»”’）】》」』")
 # Zero-width / format characters that str.isspace() does not flag. A lone one
 # (e.g. a Wikipedia U+200B reference marker) at a boundary survives str.strip()
 # and is otherwise emitted as a phantom sentence or folded into the next one.
-_ZERO_WIDTH_CHARS = frozenset("​‌‍﻿")
+_ZERO_WIDTH_CHARS = frozenset(ZERO_WIDTH_CHARS)
 _ZERO_WIDTH_TRANSLATION = {ord(c): None for c in _ZERO_WIDTH_CHARS}
 
 
