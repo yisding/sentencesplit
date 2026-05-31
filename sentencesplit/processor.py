@@ -5,7 +5,7 @@ import re
 
 from sentencesplit.exclamation_words import ExclamationWords
 from sentencesplit.language_profile import LanguageProfile
-from sentencesplit.utils import _next_nonspace_char_starts_sentence, apply_rules, split_mode_rank
+from sentencesplit.utils import ZERO_WIDTH_CHARS, _next_nonspace_char_starts_sentence, apply_rules, split_mode_rank
 
 # Pre-compiled patterns used on the hot path
 _ALPHA_ONLY_RE = re.compile(r"\A[a-zA-Z]*\Z")
@@ -14,10 +14,10 @@ _TRAILING_EXCL_RE = re.compile(r"&ᓴ&$")
 _PAREN_SPACE_BEFORE_RE = re.compile(r"\s(?=\()")
 _PAREN_SPACE_AFTER_RE = re.compile(r"(?<=\))\s")
 _ORPHAN_SINGLE_CHARS = frozenset("'\")\u2019\u201d")
-# Zero-width / format characters that str.strip() does not remove. Wikipedia
-# reference markers leave a lone U+200B at a sentence boundary, which otherwise
-# survives as a phantom empty sentence or is folded into the next sentence.
-_ZERO_WIDTH_CHARS = "\u200b\u200c\u200d\ufeff"
+# Shared with segmenter.py via utils so the two stay in sync. A lone zero-width
+# char (e.g. a Wikipedia U+200B reference marker) survives str.strip() and would
+# otherwise become a phantom empty sentence or fold into the next sentence.
+_ZERO_WIDTH_CHARS = ZERO_WIDTH_CHARS
 _CJK_QUOTE_RESPLIT_RE = re.compile(
     r"(?<=[。．][\]\"')”’」』】）》])(?=[\u4e00-\u9fff\u3040-\u30ff\u31f0-\u31ffA-Za-z0-9「『【（《])"
 )
@@ -61,10 +61,15 @@ _LEADING_QUOTE_RE = re.compile(r"\A[\s_]*([“\"«])")
 # Any quotation character — used to reject quotes with nested quotes/attribution.
 _ANY_QUOTE_CHARS = frozenset("“”\"«»‘’'")
 # Interior boundary inside a restored (already de-protected) quoted segment: a
-# single PERIOD, optional whitespace, then a Latin capital. Only periods count —
-# runs of '!'/'?' inside a quote are usually one emphatic speech act
-# ("Oh dear! Oh dear!" / "As if I would! ... again!"), not separate sentences.
-_QUOTE_INTERIOR_BOUNDARY_RE = re.compile(r"(?<=[.])\s+(?=[A-Z])")
+# single PERIOD, optional whitespace, then an uppercase-letter sentence start.
+# Only periods count — runs of '!'/'?' inside a quote are usually one emphatic
+# speech act ("Oh dear! Oh dear!" / "As if I would! ... again!"), not separate
+# sentences. The follower may be an uppercase letter of any cased script — ASCII,
+# accented Latin (É, Ñ, …), Greek (Η), or Cyrillic (П) — so multi-sentence
+# quotations split the same way across languages. The regex matches before any
+# letter and _resplit_multi_sentence_quote filters with str.isupper(), which is
+# False for caseless scripts (e.g. CJK ideographs), so those never split here.
+_QUOTE_INTERIOR_BOUNDARY_RE = re.compile(r"(?<=[.])\s+(?=[^\W\d_])")
 # A multi-sentence quotation must contain at least this many interior pieces
 # (i.e. at least two interior boundaries / three sentences) before the resplit
 # fires, and every piece must be at least _QUOTE_MIN_WORDS words long. Requiring
@@ -103,6 +108,11 @@ def _resplit_multi_sentence_quote(
     spans = []
     last = 0
     for boundary in _QUOTE_INTERIOR_BOUNDARY_RE.finditer(text):
+        # The lookahead is zero-width, so boundary.end() is the candidate start
+        # letter itself. Split only before an uppercase letter (any cased script);
+        # skip a lowercase or caseless follower so the boundary count stays exact.
+        if not text[boundary.end() : boundary.end() + 1].isupper():
+            continue
         spans.append(text[last : boundary.start()])
         last = boundary.end()
     if len(spans) + 1 < min_interior_sentences:
@@ -143,7 +153,17 @@ def _build_sentinel_escape_tables(text: str) -> tuple[dict[int, int], dict[int, 
     escape: dict[int, int] = {}
     restore: dict[int, str] = {}
     for ch in _RESERVED_SENTINELS:
-        cp = next(free)
+        cp = next(free, None)
+        if cp is None:
+            # Unreachable with natural text (the pool holds ~330k codepoints and
+            # only ~20 are needed); guards adversarial input that occupies every
+            # free private-use codepoint, turning a bare StopIteration out of
+            # process() into a clear, actionable error.
+            raise ValueError(
+                "Cannot segment input non-destructively: it contains a reserved "
+                "sentinel character and leaves no free private-use codepoint to "
+                "escape it to."
+            )
         escape[ord(ch)] = cp
         restore[cp] = ch
     return escape, restore

@@ -39,7 +39,13 @@ _CLASS_NAME_TO_MODULE: dict[str, tuple[str, str]] = {
 
 _loaded_cache: dict[str, type] = {}
 
-__all__ = ["LANGUAGE_CODES", "Language", "register_language", "unregister_language"] + list(_CLASS_NAME_TO_MODULE.keys())
+__all__ = [
+    "LANGUAGE_CODES",
+    "Language",
+    "list_languages",
+    "register_language",
+    "unregister_language",
+] + list(_CLASS_NAME_TO_MODULE.keys())
 
 
 def _load_language(code: str) -> type:
@@ -198,6 +204,20 @@ def unregister_language(code: str) -> None:
         del LANGUAGE_CODES[code]
     except KeyError:
         pass
+
+
+def list_languages() -> list[str]:
+    """Return the supported ISO 639-1 language codes, sorted.
+
+    Includes the built-in natural languages plus the special profiles
+    ``en_es_zh`` and ``en_legal``, and reflects any languages added via
+    :func:`register_language` (or removed via :func:`unregister_language`).
+
+    Reading the list does **not** import any concrete language module, so it is
+    cheap to call for discovery or for validating a ``language`` argument before
+    constructing a :class:`~sentencesplit.segmenter.Segmenter`.
+    """
+    return sorted(LANGUAGE_CODES.keys())
 
 
 class Language:

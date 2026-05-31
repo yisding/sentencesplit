@@ -34,3 +34,32 @@ GREEK_ABBREVIATION_CASES = [
 def test_greek_multi_period_abbreviations(case_id, text, expected):
     seg = sentencesplit.Segmenter(language="el")
     assert [s.strip() for s in seg.segment(text)] == expected
+
+
+# A Greek multi-period abbreviation whose final period is followed by a Greek
+# CAPITAL letter is a genuine sentence boundary: Greek (unlike German) does not
+# capitalize common nouns mid-sentence, so a capital after "π.Χ. " reliably marks
+# a new sentence. The internal periods stay protected; only the final one splits.
+GREEK_ABBREVIATION_BOUNDARY_CASES = [
+    (
+        "pi_chi_capital",
+        "Έζησε το 480 π.Χ. Ήταν σοφός.",
+        ["Έζησε το 480 π.Χ.", "Ήταν σοφός."],
+    ),
+    (
+        "mu_chi_capital",
+        "Συνέβη το 49 μ.Χ. Όλοι το θυμούνται.",
+        ["Συνέβη το 49 μ.Χ.", "Όλοι το θυμούνται."],
+    ),
+    (
+        "ee_capital",
+        "Είναι μέλος της Ε.Ε. Η χώρα ευημερεί.",
+        ["Είναι μέλος της Ε.Ε.", "Η χώρα ευημερεί."],
+    ),
+]
+
+
+@pytest.mark.parametrize("case_id,text,expected", GREEK_ABBREVIATION_BOUNDARY_CASES)
+def test_greek_multi_period_abbreviation_boundary_before_capital(case_id, text, expected):
+    seg = sentencesplit.Segmenter(language="el")
+    assert [s.strip() for s in seg.segment(text)] == expected

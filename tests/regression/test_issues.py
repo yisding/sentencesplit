@@ -1038,3 +1038,64 @@ def test_multi_sentence_quotation_keeps_short_speech_acts(case_id, text, expecte
     fragmented by the multi-sentence-quotation resplit."""
     seg = sentencesplit.Segmenter(language="en", clean=False)
     assert [s.strip() for s in seg.segment(text)] == expected
+
+
+# The interior-boundary detector recognises a sentence start by its leading
+# capital. Restricting it to ASCII [A-Z] under-split multi-sentence quotations
+# whose sentences begin with a non-ASCII capital — accented Latin (É, Ú, Ñ, Ä, …,
+# Spanish/French/Italian), Greek (Η, Έ), or Cyrillic (П, В, Т, Russian/Bulgarian).
+# The detector now accepts any uppercase letter (str.isupper(); the regex already
+# guarantees a letter follows, so caseless CJK is naturally excluded), so these
+# split like their all-ASCII equivalents.
+MULTI_SENTENCE_QUOTATION_NON_ASCII_DATA = [
+    # Accented Latin capitals (É, Ú) — Spanish.
+    (
+        "es",
+        "«La primera frase está aquí mismo. Época de grandes cambios llegó ya. Última frase para terminar esto.»",
+        [
+            "«La primera frase está aquí mismo.",
+            "Época de grandes cambios llegó ya.",
+            "Última frase para terminar esto.»",
+        ],
+    ),
+    # Mixed: the accented-capital boundary (". Época") was previously missed,
+    # undercounting interior sentences so the whole quote stayed joined.
+    (
+        "en",
+        "“This first sentence is right here. Época nueva comienza para todos hoy. This third sentence is right here.”",
+        [
+            "“This first sentence is right here.",
+            "Época nueva comienza para todos hoy.",
+            "This third sentence is right here.”",
+        ],
+    ),
+    # Greek capitals (Η) — guillemet quotation wrapping three sentences.
+    (
+        "el",
+        "«Η πρώτη πρόταση είναι εδώ τώρα. Η δεύτερη πρόταση είναι εδώ τώρα. Η τρίτη πρόταση είναι εδώ τώρα.»",
+        [
+            "«Η πρώτη πρόταση είναι εδώ τώρα.",
+            "Η δεύτερη πρόταση είναι εδώ τώρα.",
+            "Η τρίτη πρόταση είναι εδώ τώρα.»",
+        ],
+    ),
+    # Cyrillic capitals (П, В, Т) — Russian guillemet quotation.
+    (
+        "ru",
+        "«Первое предложение находится прямо здесь. Второе предложение находится прямо здесь. "
+        "Третье предложение находится прямо здесь.»",
+        [
+            "«Первое предложение находится прямо здесь.",
+            "Второе предложение находится прямо здесь.",
+            "Третье предложение находится прямо здесь.»",
+        ],
+    ),
+]
+
+
+@pytest.mark.parametrize("language, text, expected", MULTI_SENTENCE_QUOTATION_NON_ASCII_DATA)
+def test_multi_sentence_quotation_splits_before_non_ascii_capital(language, text, expected):
+    """A multi-sentence quotation whose interior sentences begin with a non-ASCII
+    capital (accented Latin, Greek, or Cyrillic) must split, like the ASCII case."""
+    seg = sentencesplit.Segmenter(language=language, clean=False)
+    assert [s.strip() for s in seg.segment(text)] == expected

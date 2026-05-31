@@ -2,11 +2,12 @@
 from __future__ import annotations
 
 import re
+import warnings
 
 from sentencesplit.cleaner import Cleaner
 from sentencesplit.languages import Language
 from sentencesplit.processor import Processor
-from sentencesplit.utils import SPLIT_MODES, SegmentLookahead, TextSpan
+from sentencesplit.utils import SPLIT_MODES, ZERO_WIDTH_CHARS, SegmentLookahead, TextSpan
 
 # Simple, common characters per script that won't trigger abbreviation rules.
 _DEFAULT_LOOKAHEAD_STEMS = ("a", "A")
@@ -33,7 +34,7 @@ _TRAILING_SENTENCE_CLOSERS = frozenset("\"')]}»”’）】》」』")
 # Zero-width / format characters that str.isspace() does not flag. A lone one
 # (e.g. a Wikipedia U+200B reference marker) at a boundary survives str.strip()
 # and is otherwise emitted as a phantom sentence or folded into the next one.
-_ZERO_WIDTH_CHARS = frozenset("​‌‍﻿")
+_ZERO_WIDTH_CHARS = frozenset(ZERO_WIDTH_CHARS)
 _ZERO_WIDTH_TRANSLATION = {ord(c): None for c in _ZERO_WIDTH_CHARS}
 
 
@@ -60,6 +61,24 @@ def _strip_zero_width(text: str) -> str:
     return lead + text[start:end] + trail
 
 
+# ``char_span`` is soft-deprecated in favour of ``segment_spans()`` but retained
+# indefinitely as a convenience alias (no removal planned). The DeprecationWarning
+# fires only once per process — a gentle nudge, not per-construction noise.
+_CHAR_SPAN_DEPRECATION_WARNED = False
+
+
+def _warn_char_span_deprecated(stacklevel: int = 2) -> None:
+    global _CHAR_SPAN_DEPRECATION_WARNED
+    if _CHAR_SPAN_DEPRECATION_WARNED:
+        return
+    _CHAR_SPAN_DEPRECATION_WARNED = True
+    warnings.warn(
+        "char_span is deprecated; use segment_spans()",
+        DeprecationWarning,
+        stacklevel=stacklevel,
+    )
+
+
 class Segmenter:
     def __init__(
         self,
@@ -83,8 +102,16 @@ class Segmenter:
             Normal text or OCRed text, by default None
             set to `pdf` for OCRed text
         char_span : bool, optional
-            Get start & end character offsets of each sentences
-            within original text, by default False
+            Get start & end character offsets of each sentence within
+            the original text, by default False.
+
+            .. deprecated:: 0.0.5
+               Prefer :meth:`segment_spans`, the canonical spans API, which
+               always returns ``list[TextSpan]`` regardless of this flag and
+               guarantees a byte-for-byte round-trip with the source.
+               ``char_span`` is retained indefinitely as a convenience alias
+               (no removal is planned) and emits a one-time
+               :class:`DeprecationWarning` on first use.
         split_mode : str, optional
             Global split-bias for ambiguous boundaries, by default
             "balanced". One of:
@@ -106,6 +133,8 @@ class Segmenter:
         self.clean = clean
         self.doc_type = doc_type
         self.char_span = char_span
+        if char_span:
+            _warn_char_span_deprecated(stacklevel=3)
         if split_mode not in SPLIT_MODES:
             raise ValueError("split_mode must be one of {}.".format(", ".join(repr(m) for m in SPLIT_MODES)))
         self.split_mode = split_mode
@@ -121,6 +150,19 @@ class Segmenter:
             )
         self._cleaner_cls = getattr(self.language_module, "Cleaner", Cleaner)
         self._processor_cls = getattr(self.language_module, "Processor", Processor)
+
+    @staticmethod
+    def list_languages() -> list[str]:
+        """Return the supported ISO 639-1 language codes, sorted.
+
+        Includes the built-in languages plus the ``en_es_zh`` and ``en_legal``
+        profiles, and reflects any languages registered at runtime. Cheap to
+        call: no language module is imported just to enumerate the codes. See
+        :func:`sentencesplit.languages.list_languages`.
+        """
+        from sentencesplit.languages import list_languages
+
+        return list_languages()
 
     def cleaner(self, text: str):
         return self._cleaner_cls(text, self.language_module, doc_type=self.doc_type)
@@ -310,6 +352,11 @@ class Segmenter:
         Yields (text_slice, start, end) tuples for each sentence.
         Accounts for trailing whitespace that SENTENCE_BOUNDARY_REGEX
         does not capture, keeping the segmentation non-destructive.
+
+        Spans contiguously tile the whole source: the final yield covers any
+        unmatched trailing remainder so that ``"".join(s for s, _, _ in ...)``
+        reproduces ``original_text`` byte-for-byte even when the processor
+        emits no sentence content (e.g. whitespace- or zero-width-only input).
         """
         prior_end = 0
         for idx, sent in enumerate(sentences):
@@ -333,6 +380,15 @@ class Segmenter:
                 end_idx += 1
             yield original_text[start_idx:end_idx], start_idx, end_idx
             prior_end = end_idx
+
+        # Trailing remainder the matching loop did not cover (e.g. whitespace-
+        # or zero-width-only input the processor drops, leaving no sentence to
+        # anchor to). Emit it as a final span so spans contiguously tile the
+        # whole source and the round-trip reproduces it byte-for-byte. In normal
+        # text the per-sentence trailing-whitespace sweep already advances
+        # prior_end to len(original_text), so this never fires.
+        if prior_end < len(original_text):
+            yield original_text[prior_end:], prior_end, len(original_text)
 
     def segment(self, text: str | None) -> list[str] | list[TextSpan]:
         """Segment ``text`` into sentences.
@@ -363,7 +419,18 @@ class Segmenter:
         )
 
     def segment_spans(self, text: str | None) -> list[TextSpan]:
-        """Return sentence spans regardless of the instance's char_span flag."""
+        """Return sentence spans regardless of the instance's ``char_span`` flag.
+
+        This is the canonical spans API and is byte-for-byte faithful: each
+        returned :class:`~sentencesplit.utils.TextSpan` is an exact slice of the
+        source (``text[span.start:span.end] == span.sent``), the spans
+        contiguously tile the source with no gaps or overlaps
+        (``0 <= start < end <= len(text)``, first ``start`` is 0, last ``end`` is
+        ``len(text)``), and reassembling them reproduces the source verbatim
+        (``"".join(s.sent for s in segment_spans(text)) == text``). It is
+        therefore non-destructive even on dirty input (ZWSP/NBSP/BOM/combining
+        marks/RTL markers). Requires ``clean=False``.
+        """
         if self.clean:
             raise ValueError("segment_spans() requires clean=False.")
         if not text:

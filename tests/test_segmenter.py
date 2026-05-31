@@ -14,6 +14,18 @@ _LOOKAHEAD_TEST_TOKENS = {
 _LOOKAHEAD_TEST_PUNCTUATION = ("។", "。", "؟", "։", "՜", "?", "!", "？", "！", ".")
 
 
+def test_list_languages_matches_module_level_function():
+    from sentencesplit.languages import list_languages
+
+    codes = sentencesplit.Segmenter.list_languages()
+    assert codes == list_languages()
+    # Callable on an instance too, and every listed code is constructible.
+    seg = sentencesplit.Segmenter(language="en")
+    assert seg.list_languages() == codes
+    for expected in ("en", "zh", "en_es_zh", "en_legal"):
+        assert expected in codes
+
+
 def test_no_input(default_en_no_clean_no_span_fixture, text=""):
     segments = default_en_no_clean_no_span_fixture.segment(text)
     assert segments == []
@@ -42,6 +54,36 @@ def test_segment_spans_helper_returns_textspans(text="My name is Jonas E. Smith.
     spans = seg.segment_spans(text)
     assert all(isinstance(span, TextSpan) for span in spans)
     assert text == "".join([seg_span.sent for seg_span in spans])
+
+
+def test_segment_spans_is_canonical_and_ignores_char_span_flag():
+    """segment_spans() is the canonical spans API: identical output whether the
+    instance was built with char_span True or False. The char_span flag is
+    deprecated but kept for back-compat — segment(char_span=True) must equal it."""
+    text = "My name is Jonas E. Smith. Please turn to p. 55."
+    plain_seg = sentencesplit.Segmenter(language="en", clean=False, char_span=False)
+    span_seg = sentencesplit.Segmenter(language="en", clean=False, char_span=True)
+
+    canonical = plain_seg.segment_spans(text)
+    assert span_seg.segment_spans(text) == canonical
+    # Back-compat: the deprecated char_span=True flag still yields the same spans.
+    assert span_seg.segment(text) == canonical
+    # Round-trip contract.
+    assert "".join(s.sent for s in canonical) == text
+
+
+def test_segment_spans_whitespace_only_input_roundtrips():
+    """Regression: whitespace-only input used to return [] from segment_spans(),
+    dropping the source bytes and breaking the round-trip. It must now tile the
+    whole source (the trailing-remainder branch of _match_spans)."""
+    seg = sentencesplit.Segmenter(language="en", clean=False, char_span=False)
+    for text in ("\n", "   ", "\t\t", " \n "):
+        spans = seg.segment_spans(text)
+        assert "".join(s.sent for s in spans) == text
+        assert spans and spans[0].start == 0 and spans[-1].end == len(text)
+    # But the plain segment() path still drops whitespace-only content (no
+    # phantom sentence), unchanged from prior behaviour.
+    assert seg.segment("\n") == []
 
 
 def test_no_clean_segment_preserves_leading_whitespace():

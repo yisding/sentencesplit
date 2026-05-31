@@ -22,4 +22,9 @@ class ArabicScriptProfile:
 
     class AbbreviationReplacer(AbbreviationReplacer):
         def scan_for_replacements(self, txt, am, index, character_array, stripped=None, escaped=None):
-            return re.sub(r"(?<={0})\.".format(am), "∯", txt)
+            # ``am`` is the matched abbreviation occurrence (with its leading
+            # boundary char). It must be escaped before being spliced into the
+            # lookbehind: abbreviations such as "e.g"/"i.e"/"ا.د" contain a literal
+            # ".", which would otherwise act as a regex wildcard and protect the
+            # period after unrelated words (e.g. "egg." after seeing "e.g").
+            return re.sub(r"(?<={0})\.".format(re.escape(am)), "∯", txt)
