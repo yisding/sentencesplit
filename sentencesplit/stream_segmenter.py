@@ -70,6 +70,14 @@ from sentencesplit.utils import TextSpan
 
 BUFFERING_MODES = ("conservative", "balanced", "aggressive")
 
+# Terminal marks that can cluster into a single multi-character terminator
+# ("...", "!!!", "??"). A boundary that segment_spans() places *between* two of
+# these (because the cluster is not yet complete) is volatile: appending more of
+# the cluster re-merges it. _detect holds such a span instead of emitting a
+# fragment. ASCII-only because the resplit rules that recombine clusters
+# (_MULTI_TERMINATOR_RESPLIT_RE, the "..." ellipsis rules) are ASCII-only.
+_CLUSTER_TERMINALS = frozenset(".!?")
+
 
 class StreamSegmenter:
     """Stateful streaming wrapper over :class:`Segmenter`.
@@ -235,10 +243,12 @@ class StreamSegmenter:
     def _emittable(self, span: TextSpan, is_final: bool, should_wait: bool) -> bool:
         """Whether *span* may be emitted now (vs. held in the pending tail).
 
-        A non-final span's boundary lies in the interior of the buffer and can
-        never change, so it is always emittable. The final span is the volatile
-        tail; emitting it is gated by buffering mode and by whether it ends in
-        terminal punctuation.
+        A non-final span's boundary lies in the interior of the buffer and is
+        stable *unless* it abuts a still-growing multi-character terminator —
+        that case is screened out by the cluster check in :meth:`_detect` before
+        this is reached, so here a non-final span is always emittable. The final
+        span is the volatile tail; emitting it is gated by buffering mode and by
+        whether it ends in terminal punctuation.
         """
         if not is_final:
             return True
@@ -267,7 +277,15 @@ class StreamSegmenter:
         last_index = len(spans) - 1
         cut = 0
         for index, span in enumerate(spans):
-            if not self._emittable(span, index == last_index, self._last_should_wait):
+            is_final = index == last_index
+            # A non-final span whose boundary is immediately followed by more
+            # terminal punctuation may sit inside an as-yet-incomplete cluster
+            # (e.g. "Wait." inside a "Wait..." still arriving). segment_spans()
+            # will re-merge it once the rest of the cluster lands, so the
+            # boundary is not stable yet — hold it rather than emit a fragment.
+            if not is_final and span.end < len(self._buffer) and self._buffer[span.end] in _CLUSTER_TERMINALS:
+                break
+            if not self._emittable(span, is_final, self._last_should_wait):
                 break  # this span (the volatile final) and nothing after it yet
             self._completed.append(self._stream_span(span))
             cut = span.end
