@@ -1,20 +1,41 @@
 # -*- coding: utf-8 -*-
 """First-class streaming sentence segmentation.
 
-``StreamSegmenter`` is a thin, stateful wrapper around the already-tested
-:meth:`Segmenter.segment_with_lookahead` / :meth:`Segmenter.should_wait_for_more`
-primitives. It accepts text deltas (LLM tokens, ASR partials, chat chunks),
-emits completed sentences as soon as their boundary is *stable*, and buffers the
-unstable tail so a downstream consumer (e.g. a TTS engine) never speaks a
-half-formed sentence.
+``StreamSegmenter`` is a thin, stateful wrapper around :class:`Segmenter`. It
+accepts text deltas (LLM tokens, ASR partials, chat chunks), emits completed
+sentences as soon as their boundary is *stable*, and buffers the unstable tail so
+a downstream consumer (e.g. a TTS engine) never speaks a half-formed sentence.
 
 It is purely additive: it never changes :meth:`Segmenter.segment` output. The
-cornerstone contract is *streaming == non-streaming*::
+cornerstone contract is *streaming == non-streaming* when the whole text is fed at
+once::
 
     stream = StreamSegmenter(language="en")
     stream.feed(full_text)
-    assert stream.get_completed_sentences() + stream.flush() \
+    assert stream.get_completed_sentences() + stream.flush() \\
         == Segmenter(language="en").segment(full_text)
+
+Design — only the unemitted tail is ever re-segmented
+-----------------------------------------------------
+The invariant that keeps this simple and correct: **once bytes are emitted they
+are dropped from the buffer and never looked at again.** Each :meth:`feed`
+re-segments only the still-unemitted tail (``self._buffer``) with the byte-exact,
+char_span-independent :meth:`Segmenter.segment_spans`, projecting to plain strings
+only at the output boundary (see :meth:`_to_output`). Because emitted text is
+immutable:
+
+- a segment can never "grow" after emission (no delta reconciliation);
+- inter-sentence whitespace naturally rides the *next* sentence, since the next
+  round segments a tail that *starts* with that whitespace (no carry buffer);
+- offsets are simply ``base_offset + tail_offset`` and stay byte-faithful, with no
+  length-derived drift on dirty input (zero-width / NBSP / BOM / combining / RTL).
+
+Cost is bounded by the length of a single sentence (the held tail), so a long
+stream stays linear, not quadratic.
+
+``clean=True`` is unsupported: text cleaning (HTML/PDF repair) is a whole-document
+operation that does not compose with incremental streaming. Clean upstream, then
+stream the cleaned text.
 
 Emission is full-sentence granularity only. Sub-sentence (clause/phrase) flows
 should drive an external tokenizer; this class never emits a partial sentence
@@ -24,22 +45,22 @@ Buffering modes
 ---------------
 ``conservative`` (default)
     Emit the trailing sentence only once lookahead confirms its boundary is
-    stable (``should_wait_for_more`` is ``False``). Safest for TTS: an
-    ambiguous abbreviation (``Dr.``) or a possible decimal continuation
-    (``GPT 3.`` -> ``GPT 3.1``) is held until the next delta resolves it.
+    stable (``should_wait_for_more`` is ``False``). Safest for TTS: an ambiguous
+    abbreviation (``Dr.``) or a possible decimal continuation (``GPT 3.`` ->
+    ``GPT 3.1``) is held until the next delta resolves it.
 ``balanced``
-    Same emission policy as ``conservative`` for the trailing sentence. The
-    name mirrors ``Segmenter.split_mode`` and is accepted for symmetry; it does
-    not change emission timing.
+    Same emission policy as ``conservative`` for the trailing sentence. The name
+    mirrors ``Segmenter.split_mode`` and is accepted for symmetry; it does not
+    change emission timing.
 ``aggressive``
-    Trust terminal punctuation immediately: emit the trailing sentence as soon
-    as it ends in a sentence-terminal mark, without waiting for lookahead to
-    confirm. Lower latency, at the risk of speaking an abbreviation tail or a
-    pre-decimal number prematurely.
+    Trust terminal punctuation immediately: emit the trailing sentence as soon as
+    it ends in a sentence-terminal mark, without waiting for lookahead to confirm.
+    Lower latency, at the risk of speaking an abbreviation tail or a pre-decimal
+    number prematurely.
 
 All modes emit confirmed (non-trailing) boundaries identically and always agree
-once :meth:`flush` is called, so the streaming-equals-non-streaming contract
-holds regardless of mode.
+once :meth:`flush` is called, so the streaming-equals-non-streaming contract holds
+regardless of mode.
 """
 
 from __future__ import annotations
@@ -53,10 +74,10 @@ BUFFERING_MODES = ("conservative", "balanced", "aggressive")
 class StreamSegmenter:
     """Stateful streaming wrapper over :class:`Segmenter`.
 
-    Parameters mirror :class:`Segmenter` (``language``, ``clean``,
-    ``char_span``, ``split_mode``) plus a streaming-specific ``buffering_mode``
-    and an optional ``max_buffer_size`` guard against pathological unbounded
-    tails.
+    Parameters mirror :class:`Segmenter` (``language``, ``char_span``,
+    ``split_mode``) plus a streaming-specific ``buffering_mode`` and an optional
+    ``max_buffer_size`` guard against pathological unbounded tails. ``clean=True``
+    is not supported (see the module docstring).
     """
 
     def __init__(
@@ -68,57 +89,40 @@ class StreamSegmenter:
         buffering_mode: str = "conservative",
         max_buffer_size: int | None = None,
     ) -> None:
+        if clean:
+            raise ValueError(
+                "StreamSegmenter does not support clean=True: text cleaning is a whole-document "
+                "operation that does not compose with incremental streaming. Clean the text "
+                "upstream, then stream the cleaned text."
+            )
         if buffering_mode not in BUFFERING_MODES:
             raise ValueError("buffering_mode must be one of {}.".format(", ".join(repr(m) for m in BUFFERING_MODES)))
         if max_buffer_size is not None and max_buffer_size <= 0:
             raise ValueError("max_buffer_size must be a positive integer or None.")
-        # Segmenter validates language/split_mode/clean+char_span constraints,
-        # so StreamSegmenter inherits exactly the same guardrails (e.g.
-        # clean=True forbids char_span).
-        #
-        # The wrapped Segmenter emits the one-time char_span DeprecationWarning
-        # itself (once per process), so the wrapper does not re-warn.
-        self._segmenter = Segmenter(
-            language=language,
-            clean=clean,
-            char_span=char_span,
-            split_mode=split_mode,
-        )
+        # The wrapped Segmenter validates language/split_mode and emits the
+        # one-time char_span DeprecationWarning itself (clean is fixed to False).
+        # segment_spans()/should_wait_for_more() are char_span-independent, so the
+        # flag only governs the user-facing output shape (see _to_output).
+        self._segmenter = Segmenter(language=language, clean=False, char_span=char_span, split_mode=split_mode)
         self.language = language
-        self.clean = clean
+        self.clean = False
         self.char_span = char_span
         self.split_mode = split_mode
         self.buffering_mode = buffering_mode
         self.max_buffer_size = max_buffer_size
 
-        # The *unstable tail* of the stream: confirmed interior sentences are
-        # dropped from the front once emitted (buffer compaction), so this holds
-        # only the bytes that still need re-segmenting. It is extended by feed()
-        # and shortened from the front by compaction; never rewritten.
+        # The unemitted tail: text that still needs (re-)segmenting. Emitted bytes
+        # are dropped from the front, so this only ever holds the volatile tail.
         self._buffer: str = ""
-        # Number of characters of ``self._buffer`` already emitted as completed
-        # sentences. Always a prefix length of ``self._buffer``; the unemitted
-        # tail is ``self._buffer[self._emitted_chars:]``. Compaction rebases this
-        # alongside the buffer so it stays buffer-relative.
-        self._emitted_chars: int = 0
-        # Count of characters dropped from the front of ``self._buffer`` by
-        # compaction. Emitted span offsets are stream-relative, so this is added
-        # to every TextSpan start/end; it is preserved (never reset) across
-        # compaction and max_buffer_size overflow so offsets stay monotonic and
-        # byte-faithful (full[start:end] == sent over the whole stream).
+        # Stream-absolute position of ``self._buffer[0]`` — the count of characters
+        # already emitted and dropped. Added to each span's buffer-relative offset
+        # to produce monotonic, byte-faithful stream offsets.
         self._base_offset: int = 0
-        # Whether the last segmentation's trailing tail wanted more input.
-        # Cached from _detect_completed so is_complete() can reuse it instead of
-        # triggering a second full re-segmentation per poll.
+        # Stability verdict of the last segmentation's trailing tail, cached so
+        # is_complete() need not re-segment.
         self._last_should_wait: bool = False
-        # Completed sentences awaiting collection via get_completed_sentences().
-        self._completed: list[str | TextSpan] = []
-        # Inter-sentence whitespace that grew onto an already-emitted sentence
-        # (its trailing space arrived after we eagerly emitted the sentence). It
-        # is carried here and prepended to the NEXT emitted sentence rather than
-        # surfaced as a standalone whitespace fragment (preserves full-sentence
-        # granularity and byte-faithfulness for incremental consumers).
-        self._pending_lead: str = ""
+        # Completed sentences (always TextSpans internally) awaiting collection.
+        self._completed: list[TextSpan] = []
 
     # ------------------------------------------------------------------ #
     # Public API
@@ -128,19 +132,17 @@ class StreamSegmenter:
         """Append a text delta and detect any newly-stable sentences.
 
         ``None`` and empty deltas are no-ops. Returns ``None`` normally; if
-        ``max_buffer_size`` is set and the pending tail exceeds it, the
-        overflowing tail is force-emitted and the force-flushed sentences are
-        returned (so the caller can react to the overflow rather than silently
-        growing memory).
+        ``max_buffer_size`` is set and the unemitted tail exceeds it, the
+        overflowing tail is force-emitted and returned (so the caller can react to
+        the overflow rather than silently growing memory).
 
-        Overflow force-emission is a hard boundary: it may cut mid-sentence and
-        the spans/text after it continue a fresh logical run. ``max_buffer_size``
-        trades boundary precision for bounded memory; leave it ``None`` (the
-        default) for fully boundary-faithful streaming.
+        Overflow force-emission is a hard boundary: it may cut mid-sentence.
+        ``max_buffer_size`` trades boundary precision for bounded memory; leave it
+        ``None`` (the default) for fully boundary-faithful streaming.
         """
         if delta:
             self._buffer += delta
-            self._detect_completed()
+            self._detect()
         if self.max_buffer_size is not None:
             return self._enforce_max_buffer_size()
         return None
@@ -148,8 +150,8 @@ class StreamSegmenter:
     def get_completed_sentences(self) -> list[str | TextSpan]:
         """Return and drain the sentences whose boundary is now stable.
 
-        Ordered, never duplicated. Calling it again returns ``[]`` until more
-        text completes another sentence.
+        Ordered, never duplicated. Calling it again returns ``[]`` until more text
+        completes another sentence.
         """
         drained = self._completed
         self._completed = []
@@ -157,22 +159,19 @@ class StreamSegmenter:
 
     def pending_text(self) -> str:
         """Return the buffered tail that has not yet been emitted."""
-        return self._buffer[self._emitted_chars :]
+        return self._buffer
 
     def is_complete(self) -> bool:
         """Return whether the pending tail is a stable boundary (or empty).
 
-        ``True`` means the stream could stop here without holding back a
-        partial sentence: an empty tail, or a tail whose boundary lookahead
+        ``True`` means the stream could stop here without holding back a partial
+        sentence: an empty/whitespace tail, or a tail whose boundary lookahead
         considers stable.
         """
-        pending = self.pending_text()
-        if not pending.strip():
+        if not self._buffer.strip():
             return True
-        # Reuse the stability verdict cached by the last _detect_completed
-        # segmentation instead of re-segmenting the whole buffer again. feed()
-        # always runs _detect_completed before any poll, so the cache reflects
-        # the current buffer's trailing tail.
+        # Reuse the verdict cached by the last _detect; feed() always runs _detect
+        # before any poll, so it reflects the current tail.
         return not self._last_should_wait
 
     def flush(self) -> list[str | TextSpan]:
@@ -182,290 +181,116 @@ class StreamSegmenter:
         starts a fresh logical stream. Use this at end-of-stream (LLM done, ASR
         final) as an explicit synchronization point.
         """
-        segments, _ = self._segment_buffer()
-        # Emit every segment past the watermark, reconciling a partially-emitted
-        # final segment via _emit (so a grown prior emission is not duplicated).
-        for segment, start, end in self._offset_segments(segments):
-            if end <= self._emitted_chars:
-                continue
-            self._emit(segment, start, end)
-        # Fold any trailing carried whitespace onto the last item (or surface it)
-        # so no source bytes are dropped at end-of-stream.
-        self._flush_pending_lead()
+        for span in self._tail_spans():
+            self._completed.append(self._stream_span(span))
         out = self._completed
         self._completed = []
         # flush() is an explicit end-of-stream synchronization point: the next
-        # feed() begins a fresh logical stream, so the stream-relative base
-        # offset resets to 0 along with the buffer and watermark.
+        # feed() begins a fresh logical stream, so the stream-relative base offset
+        # resets to 0 along with the buffer.
         self._buffer = ""
-        self._emitted_chars = 0
         self._base_offset = 0
         self._last_should_wait = False
-        self._pending_lead = ""
         return self._to_output(out)
 
     def reset(self) -> None:
         """Clear all buffered state, making the instance reusable from scratch."""
         self._buffer = ""
-        self._emitted_chars = 0
         self._base_offset = 0
         self._last_should_wait = False
         self._completed = []
-        self._pending_lead = ""
 
     # ------------------------------------------------------------------ #
     # Internals
     # ------------------------------------------------------------------ #
 
-    def _segment_buffer(self):
-        """Segment the full buffer, returning ``(segments, should_wait_for_more)``.
+    def _tail_spans(self) -> list[TextSpan]:
+        """Byte-exact spans tiling the current unemitted tail (buffer-relative)."""
+        if not self._buffer:
+            return []
+        return self._segmenter.segment_spans(self._buffer)
 
-        For the normal ``clean=False`` path we drive bookkeeping with **byte-exact
-        spans** (``segment_spans`` — char_span-independent and byte-faithful), so
-        offsets always match the raw buffer. This is load-bearing: plain-mode
-        normalization (zero-width stripping / whitespace-only filtering) makes the
-        normalized segment lengths shorter than the raw bytes, which would drift
-        the watermark and slice the wrong text. Plain string output is projected
-        from these spans at the output boundary (see :meth:`_to_output`).
+    def _stream_span(self, span: TextSpan) -> TextSpan:
+        """Rebase a buffer-relative span to monotonic, byte-faithful stream offsets."""
+        return TextSpan(span.sent, self._base_offset + span.start, self._base_offset + span.end)
 
-        ``clean=True`` rewrites the text (so byte-exact spans into the raw buffer
-        are not meaningful, and ``char_span`` is forbidden), so there we fall back
-        to the normalized lookahead segments.
-        """
-        if self.clean:
-            result = self._segmenter.segment_with_lookahead(self._buffer)
-            return result.segments, result.should_wait_for_more
-        spans = self._segmenter.segment_spans(self._buffer)
-        should_wait = self._segmenter.should_wait_for_more(self._buffer)
-        return spans, should_wait
+    def _to_output(self, items: list[TextSpan]) -> list:
+        """Project internal TextSpans to the caller-facing form.
 
-    def _segment_text(self, segment: str | TextSpan) -> str:
-        return segment.sent if isinstance(segment, TextSpan) else segment
-
-    def _to_output(self, items: list) -> list:
-        """Project drained internal items to the caller-facing form.
-
-        ``char_span=True`` returns the byte-exact :class:`TextSpan` items
-        unchanged. Plain mode normalizes each span's text exactly as
-        :meth:`Segmenter.segment` does — stripping boundary zero-width/format
-        characters and dropping any segment that is whitespace-only — so streaming
-        plain output matches non-streaming ``segment()`` even on dirty input.
-        (``clean=True`` items are already plain strings and pass through.)
+        ``char_span=True`` returns the byte-exact :class:`TextSpan` items unchanged.
+        Plain mode normalizes each span's text exactly as :meth:`Segmenter.segment`
+        does — stripping boundary zero-width/format characters and dropping any
+        segment that is whitespace-only — so streaming plain output matches
+        non-streaming ``segment()`` even on dirty input.
         """
         if self.char_span:
             return items
-        out: list = []
-        for item in items:
-            if isinstance(item, TextSpan):
-                text = _strip_zero_width(item.sent)
-                if text.strip():
-                    out.append(text)
-            else:
-                out.append(item)
+        out: list[str] = []
+        for span in items:
+            text = _strip_zero_width(span.sent)
+            if text.strip():
+                out.append(text)
         return out
 
-    def _offset_segments(self, segments):
-        """Yield ``(segment, start, end)`` buffer offsets for each segment.
+    def _emittable(self, span: TextSpan, is_final: bool, should_wait: bool) -> bool:
+        """Whether *span* may be emitted now (vs. held in the pending tail).
 
-        Segments tile the buffer contiguously (they are exact slices via
-        ``_match_spans``), so offsets accumulate from the running length.
-        """
-        consumed = 0
-        for segment in segments:
-            length = len(self._segment_text(segment))
-            yield segment, consumed, consumed + length
-            consumed += length
-
-    def _is_emittable(self, segment, is_final: bool, should_wait: bool) -> bool:
-        """Whether *segment* may be emitted now (vs. held in the pending tail).
-
-        A non-final segment's boundary already lies in the interior of the
-        buffer and can never change, so it is always emittable. The final
-        segment is the volatile tail; emitting it is gated by buffering mode and
-        by whether its text could still grow (e.g. absorb trailing whitespace),
-        which would otherwise duplicate already-emitted text.
+        A non-final span's boundary lies in the interior of the buffer and can
+        never change, so it is always emittable. The final span is the volatile
+        tail; emitting it is gated by buffering mode and by whether it ends in
+        terminal punctuation.
         """
         if not is_final:
             return True
-        text = self._segment_text(segment)
-        ends_in_terminal = self._segmenter._terminal_punctuation(text.rstrip()) is not None
-        if not ends_in_terminal:
+        if self._segmenter._terminal_punctuation(span.sent.rstrip()) is None:
             return False
         if self.buffering_mode == "aggressive":
-            # Trust terminal punctuation immediately, even before lookahead
-            # confirms stability. The final segment may still grow by trailing
-            # whitespace on the next feed; _detect_completed reconciles that.
+            # Trust terminal punctuation immediately, before lookahead confirms.
             return True
-        # conservative / balanced: hold the final sentence until lookahead
-        # confirms its boundary is stable.
+        # conservative / balanced: hold the final sentence until its boundary is
+        # stable under lookahead.
         return not should_wait
 
-    def _emit(self, segment, start: int, end: int) -> None:
-        """Append the not-yet-emitted slice ``[max(start, watermark), end)``.
+    def _detect(self) -> None:
+        """Emit any newly-stable leading sentences and drop them from the buffer.
 
-        ``start``/``end`` are buffer-relative offsets into the (possibly
-        compacted) tail. Emitted ``TextSpan`` offsets, by contrast, are
-        stream-relative, so ``self._base_offset`` — the count of characters
-        already dropped from the front of the buffer — is added to them.
-
-        Usually ``start`` equals the watermark and the whole segment is emitted.
-        If an earlier emission of this same (final) segment grew — e.g. it
-        absorbed a trailing space that arrived in a later delta — only the new
-        delta is emitted, so concatenating all emissions reproduces the source
-        exactly with neither duplication nor loss.
+        Segments the unemitted tail, emits the confirmed leading spans (every
+        non-final span, plus the final one if the buffering mode allows), then
+        drops the emitted prefix from the front of the buffer and advances the
+        stream base offset. Emitted text is never revisited, so nothing it emits
+        can later grow or be re-sliced.
         """
-        watermark = self._emitted_chars
-        if start >= watermark:
-            # Whole segment is new. Prepend any inter-sentence whitespace carried
-            # from a prior grown emission (see the whitespace-only branch below)
-            # so it rides on this sentence instead of surfacing on its own.
-            # Rebase a TextSpan's offsets to stream-relative; a plain string
-            # segment is emitted verbatim (it may have had zero-width chars
-            # stripped, so it is not a raw buffer slice).
-            lead = self._pending_lead
-            self._pending_lead = ""
-            if isinstance(segment, TextSpan):
-                self._completed.append(
-                    TextSpan(lead + segment.sent, self._base_offset + start - len(lead), self._base_offset + end)
-                )
-            else:
-                self._completed.append(lead + segment)
-        else:
-            # A prior emission of this segment grew; only [watermark, end) is new.
-            delta = self._buffer[watermark:end]
-            if delta and not _strip_zero_width(delta).strip():
-                # Pure inter-sentence filler (whitespace and/or zero-width chars)
-                # absorbed onto an already-emitted sentence — its trailing space
-                # arrived in a later delta. Do NOT surface it as a standalone
-                # fragment: carry it and prepend it to the next emitted sentence.
-                # (str.strip() alone wouldn't catch a U+200B run, which plain-mode
-                # normalization would later collapse to nothing and drop.) Bytes
-                # are preserved on the char_span path either way.
-                self._pending_lead += delta
-            else:
-                # Non-whitespace growth (e.g. an aggressive-mode emission whose
-                # boundary turned out to continue). Emit the delta to preserve
-                # bytes, with any carried whitespace prepended.
-                lead = self._pending_lead
-                self._pending_lead = ""
-                if isinstance(segment, TextSpan):
-                    self._completed.append(
-                        TextSpan(lead + delta, self._base_offset + watermark - len(lead), self._base_offset + end)
-                    )
-                else:
-                    self._completed.append(lead + delta)
-        self._emitted_chars = end
-
-    def _flush_pending_lead(self) -> None:
-        """Attach any carried inter-sentence whitespace at an end-of-stream point.
-
-        Called from :meth:`flush` and the ``max_buffer_size`` force-flush. If a
-        trailing whitespace run was carried but no following sentence arrived to
-        prepend it to, fold it onto the last emitted item (or surface it as a
-        trailing item if nothing was emitted this drain) so no source bytes are
-        lost.
-        """
-        if not self._pending_lead:
+        spans = self._tail_spans()
+        self._last_should_wait = self._segmenter.should_wait_for_more(self._buffer) if self._buffer else False
+        if not spans:
             return
-        lead = self._pending_lead
-        self._pending_lead = ""
-        if self._completed:
-            last = self._completed[-1]
-            if isinstance(last, TextSpan):
-                self._completed[-1] = TextSpan(last.sent + lead, last.start, last.end + len(lead))
-            else:
-                self._completed[-1] = last + lead
-        elif not self.clean:
-            # Internal items are byte-exact TextSpans (clean=False). Surface the
-            # carried whitespace as a TextSpan with stream-relative offsets so the
-            # span contract holds; plain-mode output then projects/drops it via
-            # _to_output exactly as Segmenter.segment would.
-            end = self._base_offset + self._emitted_chars
-            self._completed.append(TextSpan(lead, end - len(lead), end))
-        else:
-            self._completed.append(lead)
-
-    def _detect_completed(self) -> None:
-        """Move any newly-stable leading sentences into the completed queue.
-
-        Uses ``_emitted_chars`` as a watermark into the buffer. Segments before
-        the volatile tail have permanent (interior) boundaries and are always
-        emitted; the tail is emitted per the buffering mode (see
-        :meth:`_is_emittable`). Reconciliation of a grown prior emission is
-        handled by :meth:`_emit`.
-
-        After emitting, the confirmed-interior prefix is compacted out of the
-        buffer (see :meth:`_compact`) so the next feed only re-segments the
-        volatile tail rather than the whole growing stream.
-        """
-        segments, should_wait = self._segment_buffer()
-        self._last_should_wait = should_wait
-        if not segments:
-            return
-        last_index = len(segments) - 1
-        final_start = None
-        for index, (segment, start, end) in enumerate(self._offset_segments(segments)):
-            if index == last_index:
-                final_start = start
-            if end <= self._emitted_chars:
-                continue  # fully within the already-emitted prefix
-            if not self._is_emittable(segment, index == last_index, should_wait):
-                break  # this and everything after it is the pending tail
-            self._emit(segment, start, end)
-        self._compact(final_start)
-
-    def _compact(self, final_start: int | None) -> None:
-        """Drop the confirmed-interior prefix from the front of the buffer.
-
-        Everything before the final (volatile) segment has a permanent boundary,
-        so those bytes never need re-segmenting again. We slice them off the
-        front of ``self._buffer``, advance ``self._base_offset`` by the dropped
-        length (keeping emitted span offsets monotonic and stream-relative), and
-        rebase ``self._emitted_chars`` to the new tail.
-
-        The cut never crosses ``self._emitted_chars``: the final segment may
-        have been force-emitted (aggressive mode) yet still grow on a later feed,
-        and :meth:`_emit` re-slices it relative to the watermark, so its start
-        must remain in the buffer.
-        """
-        if final_start is None:
-            return
-        drop = min(final_start, self._emitted_chars)
-        if drop <= 0:
-            return
-        self._buffer = self._buffer[drop:]
-        self._base_offset += drop
-        self._emitted_chars -= drop
+        last_index = len(spans) - 1
+        cut = 0
+        for index, span in enumerate(spans):
+            if not self._emittable(span, index == last_index, self._last_should_wait):
+                break  # this span (the volatile final) and nothing after it yet
+            self._completed.append(self._stream_span(span))
+            cut = span.end
+        if cut:
+            self._buffer = self._buffer[cut:]
+            self._base_offset += cut
 
     def _enforce_max_buffer_size(self) -> list[str | TextSpan] | None:
-        """Force-flush the pending tail if it exceeds ``max_buffer_size``.
+        """Force-flush the unemitted tail if it exceeds ``max_buffer_size``.
 
         Pathological inputs (a megabyte with no terminal punctuation) would
-        otherwise grow ``self._buffer`` without bound. When the unemitted tail
-        crosses the limit we emit it verbatim as completed text, then compact it
-        out of the buffer while *preserving* ``self._base_offset`` — so the
-        forced cut bounds memory without resetting stream-relative span offsets
-        (which would corrupt the byte-faithful span contract).
+        otherwise grow the buffer without bound. When the tail crosses the limit we
+        emit all of it and drop it, *preserving* ``self._base_offset`` (unlike
+        :meth:`flush`) so subsequent spans stay monotonic and byte-faithful.
         """
         assert self.max_buffer_size is not None
-        if len(self.pending_text()) <= self.max_buffer_size:
+        if len(self._buffer) <= self.max_buffer_size:
             return None
-        # Emit every remaining segment past the watermark (same machinery as
-        # flush, including plain-mode zero-width stripping and grown-emission
-        # reconciliation via _emit), then compact the now fully-emitted buffer.
-        segments, _ = self._segment_buffer()
-        for segment, start, end in self._offset_segments(segments):
-            if end <= self._emitted_chars:
-                continue
-            self._emit(segment, start, end)
-        self._flush_pending_lead()
-        forced = self._completed
+        for span in self._tail_spans():
+            self._completed.append(self._stream_span(span))
+        out = self._completed
         self._completed = []
-        # Unlike flush(), preserve _base_offset so subsequent spans stay
-        # monotonic and stream-relative: the dropped tail advances the base
-        # rather than resetting it to 0.
         self._base_offset += len(self._buffer)
         self._buffer = ""
-        self._emitted_chars = 0
         self._last_should_wait = False
-        return self._to_output(forced)
+        return self._to_output(out)
