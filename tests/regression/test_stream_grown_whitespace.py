@@ -82,3 +82,39 @@ def test_feed_full_then_flush_still_matches_non_streaming():
 def test_trailing_whitespace_after_last_sentence_is_not_lost():
     out = _drain_incrementally(["Done.", "  "], language="en")
     assert "".join(out) == "Done.  "
+
+
+def test_char_span_flush_trailing_whitespace_stays_textspan():
+    """char_span=True must never surface a bare str — even trailing carried
+    whitespace at flush() must come back as a TextSpan (PR #36 follow-up)."""
+    from sentencesplit.utils import TextSpan
+
+    text = "Done.  "
+    ss = StreamSegmenter(language="en", char_span=True)
+    out: list = []
+    ss.feed("Done.")
+    out.extend(ss.get_completed_sentences())
+    ss.feed("  ")
+    out.extend(ss.get_completed_sentences())
+    out.extend(ss.flush())
+    assert out, "expected at least one emission"
+    assert all(isinstance(x, TextSpan) for x in out), [type(x).__name__ for x in out]
+    assert "".join(x.sent for x in out) == text
+    for x in out:
+        assert text[x.start : x.end] == x.sent
+
+
+def test_char_span_overflow_trailing_whitespace_stays_textspan():
+    """The shared end-of-stream whitespace path (max_buffer_size overflow) must
+    also honour the span contract."""
+    from sentencesplit.utils import TextSpan
+
+    ss = StreamSegmenter(language="en", char_span=True, max_buffer_size=4)
+    collected: list = []
+    for ch in "Hi.   ":  # terminal then a long whitespace tail that overflows
+        out = ss.feed(ch)
+        if out:
+            collected.extend(out)
+        collected.extend(ss.get_completed_sentences())
+    collected.extend(ss.flush())
+    assert all(isinstance(x, TextSpan) for x in collected), [type(x).__name__ for x in collected]

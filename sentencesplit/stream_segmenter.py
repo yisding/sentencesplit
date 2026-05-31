@@ -339,6 +339,13 @@ class StreamSegmenter:
                 self._completed[-1] = TextSpan(last.sent + lead, last.start, last.end + len(lead))
             else:
                 self._completed[-1] = last + lead
+        elif self.char_span:
+            # Nothing emitted this drain to fold onto: surface the carried
+            # whitespace as its own item so its bytes aren't dropped — but honour
+            # the span contract, emitting a TextSpan (never a bare str) with
+            # stream-relative offsets for the carried run.
+            end = self._base_offset + self._emitted_chars
+            self._completed.append(TextSpan(lead, end - len(lead), end))
         else:
             self._completed.append(lead)
 
