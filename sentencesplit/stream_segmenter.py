@@ -278,12 +278,19 @@ class StreamSegmenter:
         cut = 0
         for index, span in enumerate(spans):
             is_final = index == last_index
-            # A non-final span whose boundary is immediately followed by more
-            # terminal punctuation may sit inside an as-yet-incomplete cluster
-            # (e.g. "Wait." inside a "Wait..." still arriving). segment_spans()
-            # will re-merge it once the rest of the cluster lands, so the
-            # boundary is not stable yet — hold it rather than emit a fragment.
-            if not is_final and span.end < len(self._buffer) and self._buffer[span.end] in _CLUSTER_TERMINALS:
+            # A non-final span whose boundary falls between terminal punctuation
+            # characters may sit inside an as-yet-incomplete cluster (e.g.
+            # "Wait." inside a "Wait..." still arriving). segment_spans() will
+            # re-merge it once the rest of the cluster lands, so the boundary is
+            # not stable yet — hold it rather than emit a fragment. A terminal
+            # punctuation mark starting the next span ("One. !Two.") is not part
+            # of the previous boundary and must not prevent buffer compaction.
+            if (
+                not is_final
+                and 0 < span.end < len(self._buffer)
+                and self._buffer[span.end - 1] in _CLUSTER_TERMINALS
+                and self._buffer[span.end] in _CLUSTER_TERMINALS
+            ):
                 break
             if not self._emittable(span, is_final, self._last_should_wait):
                 break  # this span (the volatile final) and nothing after it yet
