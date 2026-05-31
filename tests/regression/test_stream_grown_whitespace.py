@@ -79,9 +79,29 @@ def test_feed_full_then_flush_still_matches_non_streaming():
     assert out == Segmenter(language="en").segment(text)
 
 
-def test_trailing_whitespace_after_last_sentence_is_not_lost():
+def test_plain_trailing_whitespace_after_drain_is_not_a_fragment():
+    # The sentence was drained before its trailing spaces arrived; plain mode
+    # drops the standalone trailing whitespace rather than emitting a " "
+    # fragment (plain output is not byte-faithful — it also strips zero-width).
     out = _drain_incrementally(["Done.", "  "], language="en")
-    assert "".join(out) == "Done.  "
+    assert out == ["Done."]
+    assert all(s.strip() for s in out)
+
+
+def test_char_span_trailing_whitespace_is_preserved_byte_faithfully():
+    # char_span IS byte-faithful: the trailing whitespace is preserved (as a
+    # TextSpan), unlike plain mode which drops it.
+    from sentencesplit.utils import TextSpan
+
+    ss = StreamSegmenter(language="en", char_span=True)
+    out: list = []
+    ss.feed("Done.")
+    out.extend(ss.get_completed_sentences())
+    ss.feed("  ")
+    out.extend(ss.get_completed_sentences())
+    out.extend(ss.flush())
+    assert all(isinstance(x, TextSpan) for x in out)
+    assert "".join(x.sent for x in out) == "Done.  "
 
 
 def test_char_span_flush_trailing_whitespace_stays_textspan():
@@ -102,6 +122,49 @@ def test_char_span_flush_trailing_whitespace_stays_textspan():
     assert "".join(x.sent for x in out) == text
     for x in out:
         assert text[x.start : x.end] == x.sent
+
+
+_DIRTY_INPUTS = [
+    "A.​ B.",  # zero-width space between sentences
+    "One.​ Two.​ Three.",
+    "X.﻿ Y.",  # BOM
+    "P. Q.",  # NBSP
+    "Plain text. No tricks here. Done.",
+]
+
+
+@pytest.mark.parametrize("text", _DIRTY_INPUTS)
+def test_plain_no_offset_drift_on_zero_width(text):
+    """Plain-mode normalization must not drift offsets (PR #36 follow-up): a
+    zero-width char shortens the normalized segment vs the raw buffer, which used
+    to mis-slice the next sentence (feed('A.\\u200b B.') -> ['A. ', ' B.'])."""
+    ref = Segmenter(language="en").segment(text)
+    # Fed whole, streaming plain output matches non-streaming exactly.
+    assert _drain_incrementally([text], language="en") == ref
+    # Fed char-by-char: no orphan/empty items, and content matches segment()
+    # (inter-sentence whitespace may ride the next sentence per option A).
+    by_char = _drain_incrementally(list(text), language="en")
+    assert all(s.strip() for s in by_char), by_char
+    assert "".join(by_char).split() == "".join(ref).split()
+
+
+@pytest.mark.parametrize("text", _DIRTY_INPUTS)
+def test_char_span_byte_faithful_char_by_char_on_dirty_input(text):
+    """char_span streaming stays byte-faithful char-by-char even on dirty input:
+    every span slices to its own text and reassembly reproduces the source."""
+    from sentencesplit.utils import TextSpan
+
+    ss = StreamSegmenter(language="en", char_span=True)
+    spans: list = []
+    for ch in text:
+        ss.feed(ch)
+        spans.extend(ss.get_completed_sentences())
+    spans.extend(ss.flush())
+    assert all(isinstance(s, TextSpan) for s in spans)
+    assert all(text[s.start : s.end] == s.sent for s in spans), spans
+    assert "".join(s.sent for s in spans) == text
+    for a, b in zip(spans, spans[1:]):
+        assert a.end <= b.start
 
 
 def test_char_span_overflow_trailing_whitespace_stays_textspan():

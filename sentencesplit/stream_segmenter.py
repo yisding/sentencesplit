@@ -44,7 +44,7 @@ holds regardless of mode.
 
 from __future__ import annotations
 
-from sentencesplit.segmenter import Segmenter
+from sentencesplit.segmenter import Segmenter, _strip_zero_width
 from sentencesplit.utils import TextSpan
 
 BUFFERING_MODES = ("conservative", "balanced", "aggressive")
@@ -153,7 +153,7 @@ class StreamSegmenter:
         """
         drained = self._completed
         self._completed = []
-        return drained
+        return self._to_output(drained)
 
     def pending_text(self) -> str:
         """Return the buffered tail that has not yet been emitted."""
@@ -202,7 +202,7 @@ class StreamSegmenter:
         self._base_offset = 0
         self._last_should_wait = False
         self._pending_lead = ""
-        return out
+        return self._to_output(out)
 
     def reset(self) -> None:
         """Clear all buffered state, making the instance reusable from scratch."""
@@ -218,18 +218,51 @@ class StreamSegmenter:
     # ------------------------------------------------------------------ #
 
     def _segment_buffer(self):
-        """Segment the full buffer with lookahead.
+        """Segment the full buffer, returning ``(segments, should_wait_for_more)``.
 
-        Returns ``(segments, should_wait_for_more)``. Segments are exact slices
-        of the buffer (str, or TextSpan with buffer-relative offsets), so they
-        always tile the buffer contiguously and the last one is the tail whose
-        stability ``should_wait_for_more`` describes.
+        For the normal ``clean=False`` path we drive bookkeeping with **byte-exact
+        spans** (``segment_spans`` — char_span-independent and byte-faithful), so
+        offsets always match the raw buffer. This is load-bearing: plain-mode
+        normalization (zero-width stripping / whitespace-only filtering) makes the
+        normalized segment lengths shorter than the raw bytes, which would drift
+        the watermark and slice the wrong text. Plain string output is projected
+        from these spans at the output boundary (see :meth:`_to_output`).
+
+        ``clean=True`` rewrites the text (so byte-exact spans into the raw buffer
+        are not meaningful, and ``char_span`` is forbidden), so there we fall back
+        to the normalized lookahead segments.
         """
-        result = self._segmenter.segment_with_lookahead(self._buffer)
-        return result.segments, result.should_wait_for_more
+        if self.clean:
+            result = self._segmenter.segment_with_lookahead(self._buffer)
+            return result.segments, result.should_wait_for_more
+        spans = self._segmenter.segment_spans(self._buffer)
+        should_wait = self._segmenter.should_wait_for_more(self._buffer)
+        return spans, should_wait
 
     def _segment_text(self, segment: str | TextSpan) -> str:
         return segment.sent if isinstance(segment, TextSpan) else segment
+
+    def _to_output(self, items: list) -> list:
+        """Project drained internal items to the caller-facing form.
+
+        ``char_span=True`` returns the byte-exact :class:`TextSpan` items
+        unchanged. Plain mode normalizes each span's text exactly as
+        :meth:`Segmenter.segment` does — stripping boundary zero-width/format
+        characters and dropping any segment that is whitespace-only — so streaming
+        plain output matches non-streaming ``segment()`` even on dirty input.
+        (``clean=True`` items are already plain strings and pass through.)
+        """
+        if self.char_span:
+            return items
+        out: list = []
+        for item in items:
+            if isinstance(item, TextSpan):
+                text = _strip_zero_width(item.sent)
+                if text.strip():
+                    out.append(text)
+            else:
+                out.append(item)
+        return out
 
     def _offset_segments(self, segments):
         """Yield ``(segment, start, end)`` buffer offsets for each segment.
@@ -300,11 +333,14 @@ class StreamSegmenter:
         else:
             # A prior emission of this segment grew; only [watermark, end) is new.
             delta = self._buffer[watermark:end]
-            if delta and not delta.strip():
-                # Pure inter-sentence whitespace absorbed onto an already-emitted
-                # sentence (its trailing space arrived in a later delta). Do NOT
-                # surface it as a standalone fragment — carry it and prepend it to
-                # the next emitted sentence. Bytes are preserved either way.
+            if delta and not _strip_zero_width(delta).strip():
+                # Pure inter-sentence filler (whitespace and/or zero-width chars)
+                # absorbed onto an already-emitted sentence — its trailing space
+                # arrived in a later delta. Do NOT surface it as a standalone
+                # fragment: carry it and prepend it to the next emitted sentence.
+                # (str.strip() alone wouldn't catch a U+200B run, which plain-mode
+                # normalization would later collapse to nothing and drop.) Bytes
+                # are preserved on the char_span path either way.
                 self._pending_lead += delta
             else:
                 # Non-whitespace growth (e.g. an aggressive-mode emission whose
@@ -339,11 +375,11 @@ class StreamSegmenter:
                 self._completed[-1] = TextSpan(last.sent + lead, last.start, last.end + len(lead))
             else:
                 self._completed[-1] = last + lead
-        elif self.char_span:
-            # Nothing emitted this drain to fold onto: surface the carried
-            # whitespace as its own item so its bytes aren't dropped — but honour
-            # the span contract, emitting a TextSpan (never a bare str) with
-            # stream-relative offsets for the carried run.
+        elif not self.clean:
+            # Internal items are byte-exact TextSpans (clean=False). Surface the
+            # carried whitespace as a TextSpan with stream-relative offsets so the
+            # span contract holds; plain-mode output then projects/drops it via
+            # _to_output exactly as Segmenter.segment would.
             end = self._base_offset + self._emitted_chars
             self._completed.append(TextSpan(lead, end - len(lead), end))
         else:
@@ -432,4 +468,4 @@ class StreamSegmenter:
         self._buffer = ""
         self._emitted_chars = 0
         self._last_should_wait = False
-        return forced
+        return self._to_output(forced)
