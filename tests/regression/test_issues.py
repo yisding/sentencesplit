@@ -1,4 +1,6 @@
 # -*- coding: utf-8 -*-
+from time import perf_counter
+
 import pytest
 
 import sentencesplit
@@ -800,6 +802,35 @@ def test_chained_initials_before_capital_surname_no_split(language, text, expect
 
 
 @pytest.mark.parametrize(
+    "language,text,expected",
+    [
+        # EL: the Greek profile's Unicode MULTI_PERIOD_ABBREVIATION_REGEX absorbs a
+        # leading non-ASCII initial into the protected chain (e.g. "Δ.A.B.C." ->
+        # "Δ∯A∯B∯C∯"). The initials-name heuristic must keep the ASCII-only
+        # ([A-Za-z]) semantics of the original regex and stop walking left at the
+        # non-ASCII letter — otherwise it traverses back to the preceding "a"/"o"/"de"
+        # determiner and wrongly splits before the surname.
+        (
+            "el",
+            "a Δ.A.B.C. Smith arrived.",
+            ["a Δ.A.B.C. Smith arrived."],
+        ),
+        (
+            "el",
+            "die Ñ.A.B.C. Applications arrived.",
+            ["die Ñ.A.B.C. Applications arrived."],
+        ),
+    ],
+)
+def test_non_ascii_prefixed_initials_no_split(language, text, expected):
+    """A non-ASCII leading initial absorbed into the protected initials chain
+    (via the Greek Unicode MPA regex) must not cause the initials-name heuristic
+    to walk back to a preceding determiner and split before the surname."""
+    seg = sentencesplit.Segmenter(language=language, clean=False)
+    assert [s.strip() for s in seg.segment(text)] == expected
+
+
+@pytest.mark.parametrize(
     "text,expected",
     [
         # An acronym used as a noun (preceded by an article) before a new
@@ -816,6 +847,19 @@ def test_acronym_noun_before_new_sentence_still_splits(text, expected):
     seg = sentencesplit.Segmenter(language="en", clean=False)
     segments = [s.strip() for s in seg.segment(text)]
     assert segments == expected
+
+
+def test_repeated_initials_heuristic_is_linear_time():
+    """Repeated dotted initialisms should not rescan the full prefix per match."""
+    seg = sentencesplit.Segmenter(language="en", clean=False)
+    text = "A.B.C. X " * 4000
+
+    start = perf_counter()
+    segments = seg.segment(text)
+    elapsed = perf_counter() - start
+
+    assert segments
+    assert elapsed < 2.0
 
 
 @pytest.mark.parametrize(
