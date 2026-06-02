@@ -75,14 +75,15 @@ cr = CleanRules
 class HTML:
     # Rubular: http://rubular.com/r/9d0OVOEJWj
     # Tag matcher: "<", optional "/", a tag name, then attribute content up to the
-    # closing ">", allowing ">" inside a quoted attribute value. Attribute content
-    # must not cross another raw "<" opener; otherwise inputs with many unclosed
-    # tag starts force the regex engine to rescan the remaining suffix at each
-    # opener. Possessive quantifiers (\w++ / *+ — Python 3.11+) forbid the
-    # backtracking that made earlier patterns ReDoS-vulnerable on untrusted
-    # clean=True input. Still strips <em>, <p class="x">, <img src="y">,
-    # self-closing <br/>, and <a title="a>b">.
-    HTMLTagRule = Rule(r"""<\/?\w++(?:"[^"<]*"|'[^'<]*'|[^<>"'])*+>""", "")
+    # closing ">". A quoted attribute run is self-terminating at its closing quote
+    # and cannot cross another tag, so both "<" and ">" are allowed inside quoted
+    # runs. Only the *unquoted* run is bounded at a raw "<" so inputs with many
+    # unclosed tag starts don't force the regex engine to rescan the remaining
+    # suffix at each opener. Possessive quantifiers (\w++ / *+ — Python 3.11+)
+    # forbid the backtracking that made earlier patterns ReDoS-vulnerable on
+    # untrusted clean=True input. Still strips <em>, <p class="x">, <img src="y">,
+    # self-closing <br/>, <a title="a>b">, and <span data-x="1 < 2">.
+    HTMLTagRule = Rule(r"""<\/?\w++(?:"[^"]*"|'[^']*'|[^<>"'])*+>""", "")
 
     # Rubular: http://rubular.com/r/XZVqMPJhea
     # Match an escaped tag &lt;tag ...&gt; — the inner content must start with a
