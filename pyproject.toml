@@ -48,7 +48,10 @@ classifiers = [
 dependencies = []
 
 [project.urls]
+Homepage = "https://github.com/yisding/sentencesplit"
 Repository = "https://github.com/yisding/sentencesplit"
+Issues = "https://github.com/yisding/sentencesplit/issues"
+Changelog = "https://github.com/yisding/sentencesplit/blob/main/CHANGELOG.md"
 
 [project.optional-dependencies]
 spacy = ["spacy>=3.8"]
