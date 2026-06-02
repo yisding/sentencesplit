@@ -213,11 +213,22 @@ class AbbreviationReplacer:
         The caller already matched the final protected separator after at least
         three uppercase initials.  Walk left over the compact ``X∯X∯X`` suffix
         instead of searching a growing prefix for every candidate.
+
+        Only ASCII letters count as initials, mirroring the original
+        ``[A-Za-z]`` regex: language profiles with a Unicode multi-period
+        abbreviation regex (e.g. Greek) may absorb a leading non-ASCII initial
+        into the protected chain, but walking back across it would reach the
+        preceding determiner and wrongly allow a split before the surname.
         """
         chain_start = sep_index - 1
-        if chain_start < 0 or not text[chain_start].isalpha():
+        if chain_start < 0 or not (text[chain_start].isascii() and text[chain_start].isalpha()):
             return None
-        while chain_start >= 2 and text[chain_start - 1] == "∯" and text[chain_start - 2].isalpha():
+        while (
+            chain_start >= 2
+            and text[chain_start - 1] == "∯"
+            and text[chain_start - 2].isascii()
+            and text[chain_start - 2].isalpha()
+        ):
             chain_start -= 2
         return chain_start
 
