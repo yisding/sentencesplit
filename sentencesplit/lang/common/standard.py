@@ -24,16 +24,20 @@ class _GluedLowercaseRunOnRegex:
             run_end = index
             protected_end = run_end - 3
 
-            if (
-                protected_end > run_start
-                and run_start > 0
-                and not text[run_start - 1].isspace()
-                and run_end < length
-                and "a" <= text[run_end] <= "z"
-            ):
-                if chars is None:
-                    chars = list(text)
-                chars[run_start:protected_end] = replacement * (protected_end - run_start)
+            if run_end < length and "a" <= text[run_end] <= "z":
+                # Emulate the original per-dot lookbehind `(?<=\S)\.`: the run's
+                # first dot is only protected when it follows a non-space char,
+                # but every interior dot is preceded by a literal '.', so dots
+                # 2..N stay protected even when the run starts the string or
+                # follows whitespace.
+                if run_start > 0 and not text[run_start - 1].isspace():
+                    protect_from = run_start
+                else:
+                    protect_from = run_start + 1
+                if protected_end > protect_from:
+                    if chars is None:
+                        chars = list(text)
+                    chars[protect_from:protected_end] = replacement * (protected_end - protect_from)
 
         if chars is None:
             return text

@@ -1165,3 +1165,32 @@ def test_multi_sentence_quotation_splits_before_non_ascii_capital(language, text
     capital (accented Latin, Greek, or Cyrillic) must split, like the ASCII case."""
     seg = sentencesplit.Segmenter(language=language, clean=False)
     assert [s.strip() for s in seg.segment(text)] == expected
+
+
+# PR #41: the linear-time glued-lowercase-run-on scanner must reproduce the
+# original `(?<=\S)\.(?=\.{3,}[a-z])` regex, whose per-dot lookbehind protected
+# interior dots even when the run begins at index 0 or follows whitespace
+# (each interior dot is preceded by a literal '.', which is \S). A whole-run
+# guard that skips leading / whitespace-preceded runs over-fragments these on
+# the public clean=False path (used for span mapping).
+GLUED_LEADING_DOT_RUN_DATA = [
+    ("leading_run", ".....and then.", [".....and then."]),
+    ("leading_run_letter", ".....x is here.", [".....x is here."]),
+    ("ws_preceded_run", "ok. .....and then.", ["ok. ", ".", "....and then."]),
+    (
+        "ws_preceded_run_with_tail",
+        "Foo. .....and then. Bar.",
+        ["Foo. ", ".", "....and then. ", "Bar."],
+    ),
+    # CONTROLS: word-char-preceded mid-string runs must be unaffected.
+    ("glued_word", "slides......they", ["slides......they"]),
+    ("uppercase_tail", "Wait.... The end.", ["Wait.... ", "The end."]),
+]
+
+
+@pytest.mark.parametrize("case_id, text, expected", GLUED_LEADING_DOT_RUN_DATA)
+def test_glued_lowercase_run_on_protects_leading_dot_runs(case_id, text, expected):
+    """REGRESSION (PR #41): leading / whitespace-preceded 4+ period runs must
+    stay intact under clean=False, matching the original per-dot lookbehind."""
+    seg = sentencesplit.Segmenter(language="en", clean=False)
+    assert seg.segment(text) == expected
