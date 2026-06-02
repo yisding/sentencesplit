@@ -172,12 +172,22 @@ def _private_use_substrings(text: str, token_len: int) -> set[str]:
     return {text[i : i + token_len] for i in range(len(text) - token_len + 1)}
 
 
-def _build_sentinel_escape_tables(text: str) -> tuple[dict[int, str], tuple[tuple[str, str], ...]]:
+def _build_sentinel_escape_tables(
+    text: str,
+) -> tuple[dict[int, str], dict[str, str], re.Pattern[str]]:
     """Return escape/restore tables for reserved sentinels in *text*.
 
     The escape values are private-use tokens that do not occur in the input.
     Single private-use characters are used for normal inputs; longer tokens are
     selected only if an adversarial input exhausts the single-character pool.
+
+    Returns ``(escape, restore, restore_re)`` where ``escape`` maps codepoints to
+    tokens for ``str.translate``, ``restore`` maps each token back to its
+    sentinel, and ``restore_re`` is a compiled alternation that restores every
+    token in a single left-to-right pass. The atomic restore is required for
+    correctness: multi-character tokens are not prefix-free, so a sequential
+    per-token ``str.replace`` could match a window straddling two adjacent
+    escaped sentinels and corrupt the round-trip.
     """
     token_len = 1
     while True:
@@ -190,8 +200,9 @@ def _build_sentinel_escape_tables(text: str) -> tuple[dict[int, str], tuple[tupl
                 tokens.append(token)
                 if len(tokens) == len(_RESERVED_SENTINELS):
                     escape = {ord(ch): token for ch, token in zip(_RESERVED_SENTINELS, tokens, strict=True)}
-                    restore = tuple(zip(tokens, _RESERVED_SENTINELS, strict=True))
-                    return escape, restore
+                    restore = {token: ch for ch, token in zip(_RESERVED_SENTINELS, tokens, strict=True)}
+                    restore_re = re.compile("|".join(re.escape(token) for token in tokens))
+                    return escape, restore, restore_re
         if not saw_candidate:
             raise ValueError("At least two private-use escape codepoints are required")
         token_len += 1
@@ -229,16 +240,21 @@ class Processor:
         if not self.text:
             return []
         restore = None
+        restore_re = None
         text = self.text
         if not _RESERVED_SENTINEL_SET.isdisjoint(text):
-            escape, restore = _build_sentinel_escape_tables(text)
+            escape, restore, restore_re = _build_sentinel_escape_tables(text)
             text = text.translate(escape)
         for phase in self._text_processing_phases():
             text = phase(text)
         segments = self.split_into_segments(text)
         if restore is not None:
-            for token, ch in restore:
-                segments = [seg.replace(token, ch) for seg in segments]
+            # Restore atomically (single left-to-right pass) so it is the true
+            # inverse of the atomic ``str.translate`` escape. A sequential
+            # per-token ``str.replace`` is not overlap-safe: multi-char escape
+            # tokens are not prefix-free, so an earlier token's replace could
+            # consume a window straddling two adjacent escaped sentinels.
+            segments = [restore_re.sub(lambda m: restore[m.group(0)], seg) for seg in segments]
         return segments
 
     def _text_processing_phases(self):
