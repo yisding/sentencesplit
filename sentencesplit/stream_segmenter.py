@@ -65,6 +65,7 @@ regardless of mode.
 
 from __future__ import annotations
 
+from sentencesplit.exceptions import InvalidConfigurationError
 from sentencesplit.segmenter import Segmenter, _strip_zero_width
 from sentencesplit.utils import TextSpan
 
@@ -98,15 +99,17 @@ class StreamSegmenter:
         max_buffer_size: int | None = None,
     ) -> None:
         if clean:
-            raise ValueError(
+            raise InvalidConfigurationError(
                 "StreamSegmenter does not support clean=True: text cleaning is a whole-document "
                 "operation that does not compose with incremental streaming. Clean the text "
                 "upstream, then stream the cleaned text."
             )
         if buffering_mode not in BUFFERING_MODES:
-            raise ValueError("buffering_mode must be one of {}.".format(", ".join(repr(m) for m in BUFFERING_MODES)))
+            raise InvalidConfigurationError(
+                "buffering_mode must be one of {}.".format(", ".join(repr(m) for m in BUFFERING_MODES))
+            )
         if max_buffer_size is not None and max_buffer_size <= 0:
-            raise ValueError("max_buffer_size must be a positive integer or None.")
+            raise InvalidConfigurationError("max_buffer_size must be a positive integer or None.")
         # The wrapped Segmenter validates language/split_mode and emits the
         # one-time char_span DeprecationWarning itself (clean is fixed to False).
         # segment_spans()/should_wait_for_more() are char_span-independent, so the

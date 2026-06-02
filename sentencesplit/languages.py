@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import importlib
 
+from sentencesplit.exceptions import UnknownLanguageError
+
 _LANGUAGE_MODULES: dict[str, tuple[str, str]] = {
     "en": ("sentencesplit.lang.english", "English"),
     "en_es_zh": ("sentencesplit.lang.en_es_zh", "EnglishSpanishChinese"),
@@ -228,7 +230,7 @@ class Language:
     def get_language_code(cls, code: str):
         try:
             return LANGUAGE_CODES[code]
-        except KeyError:
-            raise ValueError(
+        except KeyError as err:
+            raise UnknownLanguageError(
                 "Provide valid language ID i.e. ISO code. Available codes are : {}".format(sorted(LANGUAGE_CODES.keys()))
-            )
+            ) from err
