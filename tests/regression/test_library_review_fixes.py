@@ -183,6 +183,18 @@ def test_table_of_contents_rule_does_not_eat_ellipsis_prose():
     assert Cleaner("wait.... 42 things happened", en).clean() == "wait.... 42 things happened"
 
 
+def test_table_of_contents_rule_not_redos_on_failed_line_anchor():
+    import time
+
+    from sentencesplit.cleaner import cr
+    from sentencesplit.utils import apply_rules
+
+    evil = "." * 300 + " " * 300 + "1" * 300 + "X"
+    start = time.perf_counter()
+    assert apply_rules(evil, cr.TableOfContentsRule) == evil
+    assert time.perf_counter() - start < 0.25
+
+
 def test_escaped_and_real_newlines_clean_identically():
     from sentencesplit.cleaner import Cleaner
     from sentencesplit.languages import Language
