@@ -95,7 +95,6 @@ mccabe.max-complexity = 10
 "sentencesplit/about.py" = ["E501"]
 "sentencesplit/exclamation_words.py" = ["E501"]
 "sentencesplit/lists_item_replacer.py" = ["E501"]
-"sentencesplit/processor.py" = ["C901"]
 "benchmarks/english_golden_rules.py" = ["E501"]
 "analysis/analyze_disagreements_v1.py" = ["C901"]
 "analysis/analyze_disagreements_v2.py" = ["C901"]
