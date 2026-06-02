@@ -125,10 +125,16 @@ module = ["spacy", "spacy.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]
+minversion = "8.0"
 testpaths = ["tests"]
 # Fail the suite if an xfail-marked test starts passing, so a fixed bug's stale
 # xfail can't silently rot as an xpass.
 xfail_strict = true
+# -ra: show a short summary of all non-passing outcomes.
+# --strict-config: error out on unknown/typo'd ini keys.
+# --import-mode=importlib: modern, isolated test-module imports.
+# --cov=sentencesplit: collect coverage by default (see [tool.coverage]).
+addopts = ["-ra", "--strict-config", "--import-mode=importlib", "--cov=sentencesplit"]
 
 [tool.semantic_release]
 tag_format = "v{version}"
@@ -141,7 +147,16 @@ git add uv.lock
 uv build
 """
 
+[tool.coverage.run]
+branch = true
+source = ["sentencesplit"]
+
 [tool.coverage.report]
+show_missing = true
+# Conservative ratchet: floor(measured TOTAL %) minus 3. Branch coverage and
+# the intentional char_span deprecation path keep this comfortably below the
+# observed ~95% so the gate is non-flaky.
+fail_under = 93
 exclude_lines = [
   "pragma: no cover",
   "def __repr__",
