@@ -8,7 +8,14 @@ from sentencesplit.cleaner import Cleaner
 from sentencesplit.exceptions import InvalidConfigurationError
 from sentencesplit.languages import Language
 from sentencesplit.processor import Processor
-from sentencesplit.utils import SPLIT_MODES, ZERO_WIDTH_CHARS, SegmentLookahead, TextSpan
+from sentencesplit.utils import (
+    SPLIT_MODES,
+    ZERO_WIDTH_CHARS,
+    DocType,
+    SegmentLookahead,
+    SplitMode,
+    TextSpan,
+)
 
 # Simple, common characters per script that won't trigger abbreviation rules.
 _DEFAULT_LOOKAHEAD_STEMS = ("a", "A")
@@ -85,9 +92,9 @@ class Segmenter:
         self,
         language: str = "en",
         clean: bool = False,
-        doc_type: str | None = None,
+        doc_type: DocType = None,
         char_span: bool = False,
-        split_mode: str = "balanced",
+        split_mode: SplitMode = "balanced",
     ) -> None:
         """Segments a text into a list of sentences
         with or without character offsets from original text

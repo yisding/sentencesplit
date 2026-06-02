@@ -6,7 +6,13 @@ from itertools import product
 
 from sentencesplit.exclamation_words import ExclamationWords
 from sentencesplit.language_profile import LanguageProfile
-from sentencesplit.utils import ZERO_WIDTH_CHARS, _next_nonspace_char_starts_sentence, apply_rules, split_mode_rank
+from sentencesplit.utils import (
+    ZERO_WIDTH_CHARS,
+    SplitMode,
+    _next_nonspace_char_starts_sentence,
+    apply_rules,
+    split_mode_rank,
+)
 
 # Pre-compiled patterns used on the hot path
 _ALPHA_ONLY_RE = re.compile(r"\A[a-zA-Z]*\Z")
@@ -230,7 +236,7 @@ def _sub_symbols_fast(text: str, lang) -> str:
 
 
 class Processor:
-    def __init__(self, text: str | None, lang, split_mode: str = "balanced") -> None:
+    def __init__(self, text: str | None, lang, split_mode: SplitMode = "balanced") -> None:
         self.text = text
         self.lang = lang
         self.split_mode = split_mode

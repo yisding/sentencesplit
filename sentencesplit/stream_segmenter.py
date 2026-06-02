@@ -67,7 +67,7 @@ from __future__ import annotations
 
 from sentencesplit.exceptions import InvalidConfigurationError
 from sentencesplit.segmenter import Segmenter, _strip_zero_width
-from sentencesplit.utils import TextSpan
+from sentencesplit.utils import BufferingMode, SplitMode, TextSpan
 
 BUFFERING_MODES = ("conservative", "balanced", "aggressive")
 
@@ -94,8 +94,8 @@ class StreamSegmenter:
         language: str = "en",
         clean: bool = False,
         char_span: bool = False,
-        split_mode: str = "balanced",
-        buffering_mode: str = "conservative",
+        split_mode: SplitMode = "balanced",
+        buffering_mode: BufferingMode = "conservative",
         max_buffer_size: int | None = None,
     ) -> None:
         if clean:
