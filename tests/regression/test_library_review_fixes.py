@@ -326,18 +326,57 @@ def test_sentinel_escape_handles_preexisting_private_use_chars():
     assert "".join(clean.segment_clean(t2)) == t2
 
 
-def test_sentinel_escape_pool_exhaustion_raises_clear_error(monkeypatch):
-    """If the input occupies every free private-use codepoint (impossible with
-    natural text), escaping a reserved sentinel must raise a clear ValueError
-    rather than letting a bare StopIteration escape from process()."""
+def test_sentinel_escape_pool_exhaustion_uses_absent_private_use_tokens(monkeypatch):
+    """If the input occupies every single-character escape target, escaping a
+    reserved sentinel must fall back to a longer absent private-use token instead
+    of raising from process()."""
     from sentencesplit import processor as _proc
 
     # Shrink the escape pool to two codepoints so the 20 reserved sentinels
-    # cannot all be assigned a free target.
+    # cannot all be assigned a single-character free target.
     monkeypatch.setattr(_proc, "_PRIVATE_USE_RANGES", ((0xE000, 0xE001),))
     seg = sentencesplit.Segmenter(language="en")
-    with pytest.raises(ValueError, match="private-use codepoint"):
-        seg.segment("Has a ∯ reserved sentinel. And more.")
+    text = "Has \ue000 and \ue001 plus a ∯ reserved sentinel. And more."
+    assert "".join(seg.segment(text)) == text
+
+
+def test_sentinel_restore_is_overlap_safe_for_adjacent_multichar_tokens(monkeypatch):
+    """When the single-char private-use pool is exhausted, two adjacent reserved
+    sentinels escape to multi-character tokens. Restoring them must be atomic so
+    an earlier token's restore cannot consume a window straddling the next
+    token's bytes (which would leave raw private-use chars in the output).
+
+    Exercised directly through Processor.process() and segment_clean(), not only
+    segment(): the default span-recovery path in Segmenter._match_spans re-anchors
+    to the original text and would mask the corruption.
+    """
+    from sentencesplit import processor as _proc
+    from sentencesplit.languages import Language
+
+    # Two-codepoint pool forces fixed-width multi-char escape tokens for the 20
+    # reserved sentinels, so adjacent escaped sentinels form an ambiguous run.
+    monkeypatch.setattr(_proc, "_PRIVATE_USE_RANGES", ((0xE000, 0xE001),))
+
+    en = Language.get_language_code("en")
+    clean = sentencesplit.Segmenter(language="en", clean=True)
+
+    # Single sentence: the two adjacent sentinels (♭∯) escape to distinct
+    # multi-char tokens, and the whole string must round-trip exactly, with no
+    # raw private-use chars left behind.
+    single = "Pair ♭∯ here and more."
+    out = "".join(_proc.Processor(single, en).process())
+    assert out == single
+    assert not any(0xE000 <= ord(ch) <= 0xF8FF for ch in out)
+    assert "".join(clean.segment_clean(single)) == single
+
+    # Across a sentence boundary the adjacent sentinels must still survive
+    # verbatim on the segment that carries them (the boundary space is consumed
+    # by splitting, so an exact whole-string join is not the invariant here).
+    multi = "Pair ♭∯ here. And more."
+    segments = _proc.Processor(multi, en).process()
+    assert segments == ["Pair ♭∯ here.", "And more."]
+    assert not any(0xE000 <= ord(ch) <= 0xF8FF for seg in segments for ch in seg)
+    assert clean.segment_clean(multi) == ["Pair ♭∯ here.", "And more."]
 
 
 def test_escaped_html_rule_is_not_redos_vulnerable():

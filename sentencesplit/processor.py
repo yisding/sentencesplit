@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import re
+from itertools import product
 
 from sentencesplit.exclamation_words import ExclamationWords
 from sentencesplit.language_profile import LanguageProfile
@@ -140,33 +141,71 @@ _RESERVED_SENTINELS = "∯♬♭☉☇☈☄☊☋☌☍ȸȹƪ♟♝☏∮♨☝
 _RESERVED_SENTINEL_SET = frozenset(_RESERVED_SENTINELS)
 # Private-use codepoints (BMP + both supplementary planes) used as escape
 # targets. Targets are chosen per call from this pool to be absent from the
-# input, so escape→restore is always a clean bijection even when the input
-# already contains private-use characters.
+# input. If adversarial input occupies every single private-use character, the
+# escape target grows into a private-use string token that is absent from the
+# input, preserving a clean bijection without raising from segmentation.
 _PRIVATE_USE_RANGES = ((0xE000, 0xF8FF), (0xF0000, 0xFFFFD), (0x100000, 0x10FFFD))
 
 
-def _build_sentinel_escape_tables(text: str) -> tuple[dict[int, int], dict[int, str]]:
-    """Return (escape, restore) translate tables mapping each reserved sentinel
-    to a private-use codepoint that does not occur in *text*."""
-    used = set(text)
-    free = (cp for lo, hi in _PRIVATE_USE_RANGES for cp in range(lo, hi + 1) if chr(cp) not in used)
-    escape: dict[int, int] = {}
-    restore: dict[int, str] = {}
-    for ch in _RESERVED_SENTINELS:
-        cp = next(free, None)
-        if cp is None:
-            # Unreachable with natural text (the pool holds ~330k codepoints and
-            # only ~20 are needed); guards adversarial input that occupies every
-            # free private-use codepoint, turning a bare StopIteration out of
-            # process() into a clear, actionable error.
-            raise ValueError(
-                "Cannot segment input non-destructively: it contains a reserved "
-                "sentinel character and leaves no free private-use codepoint to "
-                "escape it to."
-            )
-        escape[ord(ch)] = cp
-        restore[cp] = ch
-    return escape, restore
+def _iter_private_use_chars():
+    for lo, hi in _PRIVATE_USE_RANGES:
+        for cp in range(lo, hi + 1):
+            yield chr(cp)
+
+
+def _iter_private_use_tokens(token_len: int):
+    if token_len == 1:
+        yield from _iter_private_use_chars()
+        return
+    alphabet = tuple(_iter_private_use_chars())
+    if len(alphabet) < 2:
+        return
+    for chars in product(alphabet, repeat=token_len):
+        yield "".join(chars)
+
+
+def _private_use_substrings(text: str, token_len: int) -> set[str]:
+    if token_len == 1:
+        return set(text)
+    if len(text) < token_len:
+        return set()
+    return {text[i : i + token_len] for i in range(len(text) - token_len + 1)}
+
+
+def _build_sentinel_escape_tables(
+    text: str,
+) -> tuple[dict[int, str], dict[str, str], re.Pattern[str]]:
+    """Return escape/restore tables for reserved sentinels in *text*.
+
+    The escape values are private-use tokens that do not occur in the input.
+    Single private-use characters are used for normal inputs; longer tokens are
+    selected only if an adversarial input exhausts the single-character pool.
+
+    Returns ``(escape, restore, restore_re)`` where ``escape`` maps codepoints to
+    tokens for ``str.translate``, ``restore`` maps each token back to its
+    sentinel, and ``restore_re`` is a compiled alternation that restores every
+    token in a single left-to-right pass. The atomic restore is required for
+    correctness: multi-character tokens are not prefix-free, so a sequential
+    per-token ``str.replace`` could match a window straddling two adjacent
+    escaped sentinels and corrupt the round-trip.
+    """
+    token_len = 1
+    while True:
+        occupied = _private_use_substrings(text, token_len)
+        tokens: list[str] = []
+        saw_candidate = False
+        for token in _iter_private_use_tokens(token_len):
+            saw_candidate = True
+            if token not in occupied:
+                tokens.append(token)
+                if len(tokens) == len(_RESERVED_SENTINELS):
+                    escape = {ord(ch): token for ch, token in zip(_RESERVED_SENTINELS, tokens, strict=True)}
+                    restore = {token: ch for ch, token in zip(_RESERVED_SENTINELS, tokens, strict=True)}
+                    restore_re = re.compile("|".join(re.escape(token) for token in tokens))
+                    return escape, restore, restore_re
+        if not saw_candidate:
+            raise ValueError("At least two private-use escape codepoints are required")
+        token_len += 1
 
 
 def _split_on_uppercase_boundary(text: str, whitespace_re: re.Pattern[str]) -> list[str] | None:
@@ -201,15 +240,21 @@ class Processor:
         if not self.text:
             return []
         restore = None
+        restore_re = None
         text = self.text
         if not _RESERVED_SENTINEL_SET.isdisjoint(text):
-            escape, restore = _build_sentinel_escape_tables(text)
+            escape, restore, restore_re = _build_sentinel_escape_tables(text)
             text = text.translate(escape)
         for phase in self._text_processing_phases():
             text = phase(text)
         segments = self.split_into_segments(text)
         if restore is not None:
-            segments = [seg.translate(restore) for seg in segments]
+            # Restore atomically (single left-to-right pass) so it is the true
+            # inverse of the atomic ``str.translate`` escape. A sequential
+            # per-token ``str.replace`` is not overlap-safe: multi-char escape
+            # tokens are not prefix-free, so an earlier token's replace could
+            # consume a window straddling two adjacent escaped sentinels.
+            segments = [restore_re.sub(lambda m: restore[m.group(0)], seg) for seg in segments]
         return segments
 
     def _text_processing_phases(self):
