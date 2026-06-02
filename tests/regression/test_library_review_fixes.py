@@ -360,12 +360,47 @@ def test_html_tag_rule_not_redos_on_long_unclosed_run():
     assert time.perf_counter() - start < 2.0
 
 
+def test_html_tag_rule_not_quadratic_on_many_unclosed_openers():
+    import time
+
+    seg = sentencesplit.Segmenter(language="en", clean=True)
+    evil = ("<a " * 50000) + "end."
+    start = time.perf_counter()
+    assert seg.segment(evil)[-1].endswith("end.")
+    assert time.perf_counter() - start < 2.0
+
+
 def test_html_tag_rule_preserves_gt_inside_quoted_attribute():
     from sentencesplit.cleaner import Cleaner
     from sentencesplit.languages import Language
 
     en = Language.get_language_code("en")
     assert Cleaner('<a title="a>b">link</a>', en).clean() == "link"
+
+
+def test_html_tag_rule_strips_lt_inside_quoted_attribute():
+    """A literal '<' inside a quoted attribute value must not stop the tag from
+    matching: a quoted run is self-terminating at its closing quote and cannot
+    cross another tag, so '<' (like '>') is allowed inside quoted runs. Excluding
+    it would leak the opening tag into the cleaned untrusted-HTML stream."""
+    from sentencesplit.cleaner import Cleaner
+    from sentencesplit.languages import Language
+
+    en = Language.get_language_code("en")
+    assert Cleaner('<span data-x="1 < 2">Text</span>', en).clean() == "Text"
+    assert Cleaner("<span data-x='1 < 2'>Text</span>", en).clean() == "Text"
+
+
+def test_html_tag_rule_not_quadratic_with_lt_permissive_quoted_run():
+    """The '<'-inside-quotes fix must not reintroduce the quadratic blow-up on
+    many unclosed openers that the perf hardening killed."""
+    import time
+
+    seg = sentencesplit.Segmenter(language="en", clean=True)
+    evil = ("<a " * 50000) + "end."
+    start = time.perf_counter()
+    assert seg.segment(evil)[-1].endswith("end.")
+    assert time.perf_counter() - start < 2.0
 
 
 def test_cjk_bang_resplit_does_not_oversplit_ascii_in_combined_profile():
