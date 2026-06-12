@@ -5,6 +5,8 @@ import pytest
 
 import sentencesplit
 from sentencesplit.lang.common.standard import Standard
+from sentencesplit.language_profile import LanguageProfile
+from sentencesplit.languages import LANGUAGE_CODES
 from sentencesplit.lists_item_replacer import ListItemReplacer
 from sentencesplit.utils import TextSpan
 
@@ -195,6 +197,24 @@ you may copy it, give it away or re-use it under the terms of the this license
         marks=pytest.mark.xfail,
     ),
 ]
+
+
+@pytest.mark.parametrize("language", ["am", "hy", "my", "hi", "mr", "ur", "fr", "it", "pl", "es", "nl"])
+def test_non_english_empty_sentence_starter_profiles_do_not_inherit_english_starters(language):
+    """Profiles that intentionally use no boundary abbreviation starters must not
+    inherit Standard's English-only SENTENCE_STARTERS through the MRO."""
+    profile = LanguageProfile.from_language(LANGUAGE_CODES[language])
+
+    assert profile.abbreviation_replacer_cls.SENTENCE_STARTERS == []
+
+
+@pytest.mark.parametrize("language", ["mr", "fr", "it", "pl", "es", "nl"])
+def test_non_english_boundary_abbreviation_splits_without_english_starter(language):
+    """Latin-script non-English profiles should restore boundary abbreviations
+    before any following sentence, not only before English starter words."""
+    seg = sentencesplit.Segmenter(language=language, clean=False)
+
+    assert [s.strip() for s in seg.segment("Je vois U.S. Il part.")] == ["Je vois U.S.", "Il part."]
 
 
 def test_fig_number_abbreviation():
