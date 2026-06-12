@@ -289,6 +289,14 @@ def test_german_consecutive_ordinals_not_treated_as_numbered_list():
     assert segments == [text]
 
 
+@pytest.mark.parametrize("split_mode", ["conservative", "balanced"])
+def test_german_ordinal_range_not_treated_as_numbered_list(split_mode):
+    text = "Die Sammlung umfasst Werke vom 19. bis 20. Jahrhundert."
+    seg = sentencesplit.Segmenter(language="de", clean=False, split_mode=split_mode)
+
+    assert [s.strip() for s in seg.segment(text)] == [text]
+
+
 def test_consecutive_ordinals_followed_by_lowercase_not_a_list():
     """Embedded ordinals followed by prose connectors are not list markers, so
     no line break ('\\r') is inserted to split them into list items. The ordinal

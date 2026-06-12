@@ -56,7 +56,7 @@ class ListItemReplacer:
     # "des 19. und ... 20. Jahrhunderts"). Keep this narrow so regular
     # lowercase list items like "1. apple 2. banana" still split. Languages may
     # override this (or set it to None to disable the guard).
-    NUMBERED_LIST_FALSE_POSITIVE_REGEX = r"\d{1,2}♨\s+(?:above|and|below|or|und|oder)\b"
+    NUMBERED_LIST_FALSE_POSITIVE_REGEX = r"\d{1,2}♨\s+(?:above|and|below|or|bis|und|oder)\b"
 
     def __init__(self, text: str, split_mode: str = "balanced") -> None:
         self.text = text
