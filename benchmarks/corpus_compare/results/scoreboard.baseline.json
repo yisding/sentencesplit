@@ -113,7 +113,7 @@
       "kind": "neural",
       "description": "BlingFire.",
       "available": false,
-      "unavailable_reason": "import blingfire failed (exit 1): OSError: /home/yi/Code/sentencesplit/.venv/lib/python3.13/site-packages/blingfire/libblingfiretokdll.so: cannot open shared object file: No ",
+      "unavailable_reason": "import blingfire failed (exit 1): OSError: <path>: cannot open shared object file: No ",
       "languages": "any"
     },
     {

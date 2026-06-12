@@ -9,9 +9,15 @@ export const meta = {
   ],
 }
 
-const ROOT = '/home/yi/Code/sentencesplit'
-const CC = `${ROOT}/benchmarks/corpus_compare`
+const CC = 'benchmarks/corpus_compare'
 const CAP = (args && args.cap) || 120
+
+function repoRelativeCasePath(path) {
+  const marker = `${CC}/`
+  const markerIndex = path.indexOf(marker)
+  if (markerIndex !== -1) return path.slice(markerIndex)
+  return `${CC}/${path.replace(/^\.?\//, '')}`
+}
 
 // ── schemas ───────────────────────────────────────────────────────────────────
 
@@ -99,7 +105,7 @@ Return (via the structured output tool):
 - excluded: [{name, reason}] for segmenters where available==false (use unavailable_reason, trimmed).
 - scoreboard_overall: one row per available segmenter from gold_scores.overall: {name, exact_match, boundary_f1, n}.
 - total_divergences, emitted_cases, dropped: from divergences.json.
-- cases: the full divergences.json "cases" array, but rewrite each "path" to an ABSOLUTE path by prefixing "${CC}/".
+- cases: the full divergences.json "cases" array, but rewrite each "path" to be relative to the repository root by prefixing "${CC}/".
 
 Do not adjudicate anything — just run and report.`,
   { label: 'run-harness', phase: 'Benchmark', schema: BENCH_SCHEMA },
@@ -110,6 +116,7 @@ log(`Harness: ${bench.available.length} segmenters available (${bench.available.
 if (bench.excluded.length) {
   log(`Excluded: ${bench.excluded.map(e => e.name).join(', ')} (native/ARM issues).`)
 }
+bench.cases = bench.cases.map(c => ({ ...c, path: repoRelativeCasePath(c.path) }))
 
 // ── Phase 2: one judge per divergence ──────────────────────────────────────────
 

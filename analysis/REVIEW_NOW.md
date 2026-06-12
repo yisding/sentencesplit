@@ -2,7 +2,7 @@
 
 Review of the cumulative work integrated on `feat/now-all` versus `origin/main`, toward
 `analysis/LEVEL_UP_PLAN.md` (specs in `analysis/ROADMAP_EXECUTION.md`). Branch is checked
-out at `/home/yi/Code/sentencesplit` (HEAD `20a8d4c`). Nothing is pushed; `main` is untouched.
+out at `<repo-root>` (HEAD `20a8d4c`). Nothing is pushed; `main` is untouched.
 
 ---
 

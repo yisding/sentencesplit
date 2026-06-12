@@ -15,11 +15,13 @@ export const meta = {
 // ---------------------------------------------------------------------------
 // Shared grounding handed to every agent.
 // ---------------------------------------------------------------------------
+const ROOT = process.env.SENTENCESPLIT_ROOT || process.cwd()
+
 const PROJECT = `
 PROJECT: sentencesplit — a rule-based sentence boundary detection (SBD) library, derived from pySBD /
 Pragmatic Segmenter, supporting 24 natural languages plus a combined "en_es_zh" profile and a domain
 "en_legal" profile. Pure Python, ZERO runtime dependencies (stdlib only: re, unicodedata, string,
-functools, dataclasses). Python 3.11+. MIT. Repo root: /home/yi/Code/sentencesplit. Current version 0.0.4.
+functools, dataclasses). Python 3.11+. MIT. Repo root: ${ROOT}. Current version 0.0.4.
 
 PIPELINE: Segmenter -> Processor -> sentence list.
 - sentencesplit/segmenter.py: public API. Params: language (ISO 639-1), clean, doc_type, char_span,
@@ -382,7 +384,7 @@ const critique = await agent(
 log(`Critic verdict: ${critique.verdict}; ${critique.missingAngles?.length || 0} missing angles, ${critique.weakClaims?.length || 0} weak claims`)
 
 const finalNote = await agent(
-  `${PROJECT}\n\n=== YOUR TASK ===\nProduce the FINAL version of the level-up roadmap and write it to a file.\n\nStart from the draft, then fold in the critic's feedback: add any missing angles, caveat or remove the weak/unverified claims (mark genuinely uncertain market numbers as "approximate — verify"), and fix sequencing/estimate inconsistencies. Keep it comprehensive but tight and opinionated. Preserve the section structure (Executive summary, Where we stand, Strategy, Roadmap Now/Next/Later, Accuracy & evaluation plan, Success metrics, Risks & open questions). End the document with a short "## Sources" section listing the key URLs the research relied on.\n\n=== DRAFT (markdown) ===\n${draft}\n\n=== CRITIC FEEDBACK (JSON) ===\n${JSON.stringify(critique)}\n\n=== LANDSCAPE BRIEF (JSON, for source URLs and grounding) ===\n${JSON.stringify(brief)}\n\nWrite the finished markdown to the absolute path /home/yi/Code/sentencesplit/analysis/LEVEL_UP_PLAN.md (overwrite if it exists). Then return a 6-10 line plain-text executive summary of the plan (the top bet, the Now-phase initiatives, and the headline success metrics) for the human who triggered this.`,
+  `${PROJECT}\n\n=== YOUR TASK ===\nProduce the FINAL version of the level-up roadmap and write it to a file.\n\nStart from the draft, then fold in the critic's feedback: add any missing angles, caveat or remove the weak/unverified claims (mark genuinely uncertain market numbers as "approximate — verify"), and fix sequencing/estimate inconsistencies. Keep it comprehensive but tight and opinionated. Preserve the section structure (Executive summary, Where we stand, Strategy, Roadmap Now/Next/Later, Accuracy & evaluation plan, Success metrics, Risks & open questions). End the document with a short "## Sources" section listing the key URLs the research relied on.\n\n=== DRAFT (markdown) ===\n${draft}\n\n=== CRITIC FEEDBACK (JSON) ===\n${JSON.stringify(critique)}\n\n=== LANDSCAPE BRIEF (JSON, for source URLs and grounding) ===\n${JSON.stringify(brief)}\n\nWrite the finished markdown to the absolute path ${ROOT}/analysis/LEVEL_UP_PLAN.md (overwrite if it exists). Then return a 6-10 line plain-text executive summary of the plan (the top bet, the Now-phase initiatives, and the headline success metrics) for the human who triggered this.`,
   { label: 'finalize+write', phase: 'Critique', agentType: 'general-purpose' }
 )
 

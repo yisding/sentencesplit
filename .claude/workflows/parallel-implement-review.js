@@ -12,7 +12,7 @@ export const meta = {
   ],
 }
 
-const ROOT = '/home/yi/Code/sentencesplit'
+const ROOT = process.env.SENTENCESPLIT_ROOT || process.cwd()
 const PLAN = `${ROOT}/analysis/LEVEL_UP_PLAN.md`
 const BACKLOG = `${ROOT}/analysis/ROADMAP_EXECUTION.md`
 const ORIGIN = 'origin/main'
@@ -39,7 +39,7 @@ const ITEMS = [
     id: 'N5',
     title: 'Span-faithful round-trip contract + property tests',
     branch: 'feat/span-roundtrip',
-    wt: '/home/yi/Code/ss-wt-n5',
+    wt: `${ROOT}-wt-n5`,
     spec: `Enforce a CI-gated, byte-for-byte round-trip contract for segment_spans(): every sentence maps to an exact
 [start,end) slice of the source, and reassembling all spans reproduces the source verbatim. Add **Hypothesis**
 property tests (DEV-ONLY dependency — add to the dev dependency group, NEVER to [project].dependencies; the bare
@@ -57,7 +57,7 @@ critical path.`,
     id: 'N4',
     title: 'StreamSegmenter (first-class streaming)',
     branch: 'feat/stream-segmenter',
-    wt: '/home/yi/Code/ss-wt-n4',
+    wt: `${ROOT}-wt-n4`,
     spec: `A stateful StreamSegmenter wrapping the existing, tested segment_with_lookahead() / should_wait_for_more()
 primitives. Accepts text/token deltas, emits completed sentences once their boundary is stable (via lookahead
 probes), buffers the unstable tail, defaults to conservative buffering. ADDITIVE — does not change segment()
