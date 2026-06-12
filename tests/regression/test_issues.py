@@ -65,13 +65,12 @@ TEST_ISSUE_DATA = [
             "Recently, Ghosh and Mahdian [86] at Yahoo! Research extended our charities work, and based on this a web-based system for charitable donations was built at Yahoo!",
         ],
     ),
-    pytest.param(
+    (
         "#39",
         "T stands for the vector transposition. As shown in Fig. ??",
         ["T stands for the vector transposition.", "As shown in Fig. ??"],
-        marks=pytest.mark.xfail,
     ),
-    pytest.param("#39", "Fig. ??", ["Fig. ??"], marks=pytest.mark.xfail),
+    ("#39", "Fig. ??", ["Fig. ??"]),
     (
         "#58",
         "Rok bud.2027777983834843834843042003200220012000199919981997199619951994199319921991199019891988198042003200220012000199919981997199619951994199319921991199019891988198",
@@ -586,6 +585,36 @@ def test_en_es_zh_number_abbreviations_before_lowercase(text, expected):
     """Number abbreviations (eq, pt) in en_es_zh must stay joined before lowercase text."""
     seg = sentencesplit.Segmenter(language="en_es_zh", clean=False, char_span=False)
     assert [s.strip() for s in seg.segment(text)] == expected
+
+
+@pytest.mark.parametrize("split_mode", ["conservative", "balanced", "aggressive"])
+def test_en_es_zh_number_abbreviation_before_unknown_placeholder(split_mode):
+    seg = sentencesplit.Segmenter(language="en_es_zh", clean=False, char_span=False, split_mode=split_mode)
+
+    assert [s.strip() for s in seg.segment("As shown in Fig. ??")] == ["As shown in Fig. ??"]
+
+
+@pytest.mark.parametrize("language", ["en", "en_es_zh"])
+@pytest.mark.parametrize(
+    "text,expected",
+    [
+        ("Fig. ?? is missing. Done.", ["Fig. ?? is missing.", "Done."]),
+        ("As shown in Fig. ??, the curve rises. Done.", ["As shown in Fig. ??, the curve rises.", "Done."]),
+    ],
+)
+def test_number_abbreviation_unknown_placeholder_continuations(language, text, expected):
+    seg = sentencesplit.Segmenter(language=language, clean=False)
+
+    assert [s.strip() for s in seg.segment(text)] == expected
+
+
+@pytest.mark.parametrize("language", ["en", "en_es_zh"])
+def test_number_abbreviation_does_not_partially_attach_long_question_run(language):
+    seg = sentencesplit.Segmenter(language=language, clean=False)
+    segments = [s.strip() for s in seg.segment("Fig. ???")]
+
+    assert segments[0] == "Fig."
+    assert "".join(segments[1:]) == "???"
 
 
 def test_greek_uppercase_not_treated_as_sentence_start():

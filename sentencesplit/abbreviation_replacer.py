@@ -167,6 +167,7 @@ class AbbreviationReplacer:
     # splits, while "Bankr. Court approved the plan." stays joined.
     # Only effective when SENTENCE_STARTERS is non-empty.
     STARTER_AWARE_PREPOSITIVE: frozenset[str] = frozenset()
+    _UNKNOWN_PLACEHOLDER = "&ᓷ&&ᓷ&"
 
     def __init__(self, text: str, lang, split_mode: str = "balanced") -> None:
         self.text = text
@@ -557,7 +558,13 @@ class AbbreviationReplacer:
             # balanced/aggressive: protect only before Roman numerals (Vol. IV).
             # Exclude lone "I" to avoid false joins with the pronoun "I".
             return _replace_with_escape(txt, am_escaped, r"\.(?=\s(?:[IVXLCDM]{2,}|[VXLCDM])\b)", "∯", boundary)
-        return _replace_with_escape(txt, am_escaped, r"\.(?=(\s\d|\s+\(|\s[IVXLCDM]+\b))", "∯", boundary)
+        txt = _replace_with_escape(txt, am_escaped, r"\.(?=(\s\d|\s+\(|\s\?\?(?!\?)|\s[IVXLCDM]+\b))", "∯", boundary)
+        return self._protect_number_abbr_unknown_placeholder(txt, am_escaped, boundary)
+
+    def _protect_number_abbr_unknown_placeholder(self, txt: str, am_escaped: str, boundary: str) -> str:
+        txt = " " + txt
+        txt = re.sub(rf"(?<=[{boundary}]{am_escaped}∯)\s\?\?(?!\?)", f" {self._UNKNOWN_PLACEHOLDER}", txt)
+        return txt[1:]
 
     def _prepositive_suffix(self, am_lower: str, upper: bool, char: str) -> str:
         """Return the regex suffix pattern for protecting a prepositive abbreviation."""
