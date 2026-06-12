@@ -164,12 +164,13 @@ class AbbreviationReplacer:
         }
     )
 
-    # Prepositive abbreviations listed here will allow sentence splits
-    # before known sentence starters.  E.g. "Cir. The panel reversed."
-    # splits, while "Bankr. Court approved the plan." stays joined.
-    # Only effective when SENTENCE_STARTERS is non-empty.
+    # Prepositive abbreviations listed here are ambiguous: they often introduce
+    # a following title/name ("Bankr. Court") but can also end a sentence
+    # ("The 9th Cir. The panel reversed."). split_mode resolves that ambiguity.
     STARTER_AWARE_PREPOSITIVE: frozenset[str] = frozenset()
+    BOUNDARY_ABBREVIATION_SPLIT_MIN_RANK = 1
     _UNKNOWN_PLACEHOLDER = "&ᓷ&&ᓷ&"
+    _SENTENCE_START_OPENERS = frozenset("\"'“‘«([")
 
     def __init__(self, text: str, lang, split_mode: str = "balanced") -> None:
         self.text = text
@@ -298,10 +299,9 @@ class AbbreviationReplacer:
 
         A run of single-letter initials (e.g. "F∯J∯G") followed by a single
         capitalized surname is an "Initials + Surname" personal name, so its
-        trailing period must not be restored as a boundary.  Two cues mark the
-        initialism as a sentence-ending noun instead (and keep the boundary):
-        an article/determiner before it ("the S.A.T.") or a known sentence
-        starter after it ("from H.B.S. She ...").
+        trailing period must not be restored as a boundary. An article or
+        determiner before it ("the S.A.T.") structurally marks the initialism as
+        a sentence-ending noun instead.
         """
         chain_start = self._initials_chain_start(text, sep_index)
         if chain_start is None:
@@ -309,11 +309,16 @@ class AbbreviationReplacer:
         prev_word = self._previous_whitespace_token(text, chain_start)
         if prev_word.lower() in self._INITIALS_NAME_DETERMINERS:
             return False
-        if self.SENTENCE_STARTERS:
-            follower = self._next_whitespace_token(text, sep_index + 1)
-            if follower.rstrip(",.;:") in self.SENTENCE_STARTERS:
-                return False
         return True
+
+    def _sentence_start_content_offset(self, text: str, start: int) -> int:
+        index = start
+        while index < len(text) and (text[index].isspace() or text[index] in self._SENTENCE_START_OPENERS):
+            index += 1
+        return index
+
+    def _follower_is_likely_sentence_start(self, text: str, start: int) -> bool:
+        return self._is_likely_sentence_start_at(text, self._sentence_start_content_offset(text, start))
 
     def _is_likely_sentence_start(self, text: str, start: int = 0) -> bool:
         """Check if the next non-space character in *text* looks like a sentence start.
@@ -446,11 +451,6 @@ class AbbreviationReplacer:
                 )
                 if not boundary_abbr:
                     cls._boundary_regex_cache[cls] = None
-                elif cls.SENTENCE_STARTERS:
-                    sent_starters = "|".join(r"(?=\s{}\s)".format(re.escape(word)) for word in cls.SENTENCE_STARTERS)
-                    cls._boundary_regex_cache[cls] = re.compile(
-                        r"(?<![A-Za-z0-9_∯])({})∯({})".format(boundary_abbr, sent_starters)
-                    )
                 else:
                     cls._boundary_regex_cache[cls] = re.compile(r"(?<![A-Za-z0-9_∯])({})∯".format(boundary_abbr))
             return cls._boundary_regex_cache[cls]
@@ -459,8 +459,43 @@ class AbbreviationReplacer:
         regex = type(self)._get_boundary_regex()
         if regex is None:
             return self.text
-        self.text = regex.sub("\\1.", self.text)
+
+        def _restore(match):
+            if self._should_restore_boundary_abbreviation(match):
+                return match.group(1) + "."
+            return match.group()
+
+        self.text = regex.sub(_restore, self.text)
         return self.text
+
+    def _should_restore_boundary_abbreviation(self, match: re.Match[str]) -> bool:
+        content_offset = self._sentence_start_content_offset(self.text, match.end())
+        if content_offset >= len(self.text):
+            return True
+        if self._is_standalone_i_boundary(match):
+            return True
+        if not self._is_likely_sentence_start_at(self.text, content_offset):
+            return False
+        if self._is_i_name_continuation(match):
+            return self._leans_split
+        return split_mode_rank(self.split_mode) >= self.BOUNDARY_ABBREVIATION_SPLIT_MIN_RANK
+
+    @staticmethod
+    def _boundary_abbreviation_key(match: re.Match[str]) -> str:
+        return match.group(1).replace("∯", ".").lower()
+
+    def _is_i_name_continuation(self, match: re.Match[str]) -> bool:
+        if self._boundary_abbreviation_key(match) != "i":
+            return False
+        prev_word = self._previous_whitespace_token(self.text, match.start()).strip(",;:(")
+        return bool(prev_word) and prev_word[0].isupper()
+
+    def _is_standalone_i_boundary(self, match: re.Match[str]) -> bool:
+        if self._boundary_abbreviation_key(match) != "i":
+            return False
+        if self._is_i_name_continuation(match):
+            return False
+        return self._follower_is_likely_sentence_start(self.text, match.end())
 
     def replace_multi_period_abbreviations(self) -> None:
         def mpa_replace(match):
@@ -580,28 +615,20 @@ class AbbreviationReplacer:
 
     def _prepositive_suffix(self, am_lower: str, upper: bool, char: str) -> str:
         """Return the regex suffix pattern for protecting a prepositive abbreviation."""
-        # Court/tribunal-style prepositives (en_legal's STARTER_AWARE set) can
-        # also legitimately end a sentence. Split-bias governs how eagerly:
-        #   conservative — protect like any prepositive (always join);
-        #   balanced     — split only before a *known* sentence starter;
-        #   aggressive   — split before any capitalized follower (e.g.
-        #                  "Bankr. Court" becomes a boundary).
-        if self.SENTENCE_STARTERS and am_lower in self.STARTER_AWARE_PREPOSITIVE and not self._leans_join:
-            if self._leans_split:
-                return r"\.(?=(\s(?![A-Z])|:\d+))"
-            # Exclude single-char starters like "A" and "I" — they
-            # often appear as identifiers after prepositive
-            # abbreviations (e.g. "Sched. A", "Amend. I").
-            starters = "|".join(re.escape(s) for s in self.SENTENCE_STARTERS if len(s) > 1)
-            if upper:
-                return rf"\.(?=(\s(?!(?:{starters})\s)|:\d+))"
-            if char and not char.isalpha():
-                # First char is non-alpha (e.g. opening quote/bracket).
-                # Allow splits before quoted sentence starters like:
-                # Cir. "The panel reversed," he wrote.
-                open_q = r"""[\"'\u201c\u00ab(\[]*"""
-                return rf"\.(?=(\s(?!{open_q}(?:{starters})\s)|:\d+))"
         return r"\.(?=(\s|:\d+))"
+
+    def _replace_starter_aware_prepositive(self, txt: str, am_escaped: str, boundary: str) -> str:
+        txt = " " + txt
+        pattern = re.compile(rf"(?<=[{boundary}]{am_escaped})\.(?=(\s|:\d+))")
+
+        def _protect_or_restore(match):
+            if txt[match.end() : match.end() + 1] == ":":
+                return "∯"
+            if self._follower_is_likely_sentence_start(txt, match.end()):
+                return "."
+            return "∯"
+
+        return pattern.sub(_protect_or_restore, txt)[1:]
 
     def scan_for_replacements(
         self, txt: str, am: str, ind: int, char_array, stripped: str = "", escaped: str | None = None
@@ -625,8 +652,11 @@ class AbbreviationReplacer:
             if am_lower in self._data.prepositive_set:
                 should_protect = not (self._leans_split and am_lower in self.AGGRESSIVE_PREPOSITIVE_BOUNDARY_BLOCKLIST)
                 if should_protect:
-                    suffix = self._prepositive_suffix(am_lower, upper, char)
-                    txt = _replace_with_escape(txt, am_escaped, suffix, "∯", boundary)
+                    if am_lower in self.STARTER_AWARE_PREPOSITIVE and self._leans_split:
+                        txt = self._replace_starter_aware_prepositive(txt, am_escaped, boundary)
+                    else:
+                        suffix = self._prepositive_suffix(am_lower, upper, char)
+                        txt = _replace_with_escape(txt, am_escaped, suffix, "∯", boundary)
             elif am_lower in self._data.number_abbr_set:
                 txt = self._replace_number_abbr(txt, am_escaped, boundary, upper)
                 # Multi-char number abbreviations (eq, pt, fig, vol, …) also

@@ -532,14 +532,16 @@ def test_pt_abbreviation_before_roman_numeral():
     ]
 
 
-def test_boundary_abbreviation_before_non_ascii_uppercase():
-    """Two-part boundary abbreviations (U.S.) stay joined before non-ASCII uppercase
-    that is not a known sentence starter — avoids over-splitting noun phrases like
-    'U.S. Élodie Foundation'."""
-    seg = sentencesplit.Segmenter(language="en", clean=False, char_span=False)
-    assert [s.strip() for s in seg.segment("He moved from the U.S. \u00c9lodie arrived.")] == [
-        "He moved from the U.S. \u00c9lodie arrived.",
-    ]
+def test_boundary_abbreviation_before_non_ascii_uppercase_follows_split_mode():
+    """Boundary abbreviations no longer depend on exact starter-word lists."""
+    text = "He moved from the U.S. \u00c9lodie arrived."
+
+    conservative = sentencesplit.Segmenter(language="en", clean=False, char_span=False, split_mode="conservative")
+    assert [s.strip() for s in conservative.segment(text)] == [text]
+
+    for mode in ("balanced", "aggressive"):
+        seg = sentencesplit.Segmenter(language="en", clean=False, char_span=False, split_mode=mode)
+        assert [s.strip() for s in seg.segment(text)] == ["He moved from the U.S.", "\u00c9lodie arrived."]
 
 
 @pytest.mark.parametrize(

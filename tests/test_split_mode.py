@@ -94,76 +94,67 @@ def test_split_mode_controls_russian_sr_abbreviation():
 
 
 @pytest.mark.parametrize(
-    "language,starter_text,starter_expected,joined_text,joined_expected",
+    "language,boundary_text,ambiguous_text",
     [
         (
             "en",
             "He moved from the U.S. It happened.",
-            ["He moved from the U.S.", "It happened."],
             "He joined the U.S. Embassy today.",
-            ["He joined the U.S. Embassy today."],
         ),
         (
             "de",
             "Er lebt in der E.U. Das ist bekannt.",
-            ["Er lebt in der E.U.", "Das ist bekannt."],
             "Er lebt in der E.U. Kommission arbeitet dort.",
-            ["Er lebt in der E.U. Kommission arbeitet dort."],
         ),
         (
             "da",
             "Han bor i U.S. Det er kendt.",
-            ["Han bor i U.S.", "Det er kendt."],
             "Han bor i U.S. Embassy i dag.",
-            ["Han bor i U.S. Embassy i dag."],
         ),
     ],
 )
-def test_sentence_starter_lists_gate_boundary_abbreviations(
-    language, starter_text, starter_expected, joined_text, joined_expected
-):
-    """Characterize the existing exact-word starter lists before replacing them.
+def test_split_mode_controls_boundary_abbreviations_without_starter_words(language, boundary_text, ambiguous_text):
+    """Capitalized followers after U.S./E.U. are structural ambiguity.
 
-    A listed starter after U.S./E.U. restores a sentence boundary in balanced
-    mode; an unlisted capitalized continuation stays joined until aggressive
-    mode resolves the ambiguity toward splitting.
+    Conservative keeps the abbreviation joined; balanced and aggressive split.
+    This replaces exact starter-word vocabulary with the global split dial.
     """
-    for mode in ("conservative", "balanced"):
-        assert _segments(language, starter_text, mode) == starter_expected
-        assert _segments(language, joined_text, mode) == joined_expected
-    assert len(_segments(language, joined_text, "aggressive")) == 2
+    assert _segments(language, boundary_text, "conservative") == [boundary_text]
+    assert _segments(language, ambiguous_text, "conservative") == [ambiguous_text]
+    for mode in ("balanced", "aggressive"):
+        assert len(_segments(language, boundary_text, mode)) == 2
+        assert len(_segments(language, ambiguous_text, mode)) == 2
 
 
-def test_sentence_starter_lists_handle_i_boundary_without_royal_name_split():
+def test_split_mode_handles_i_boundary_without_royal_name_split():
     text = "We make a good team, you and I. Did you see Albert I. Jones yesterday."
 
-    for mode in ("conservative", "balanced", "aggressive"):
+    for mode in ("conservative", "balanced"):
         assert _segments("en", text, mode) == [
             "We make a good team, you and I.",
             "Did you see Albert I. Jones yesterday.",
         ]
-
-
-def test_sentence_starter_lists_disambiguate_initialisms_from_names():
-    """Characterize current H.B.S. She vs F.J.G. Smith behavior."""
-    for mode in ("conservative", "balanced", "aggressive"):
-        assert [
-            s.strip()
-            for s in sentencesplit.Segmenter(language="en", split_mode=mode).segment("We discussed H.B.S. She applied.")
-        ] == [
-            "We discussed H.B.S.",
-            "She applied.",
-        ]
-    for mode in ("conservative", "balanced"):
-        assert sentencesplit.Segmenter(language="en", split_mode=mode).segment("F.J.G. Smith arrived.") == [
-            "F.J.G. Smith arrived."
-        ]
-    assert [
-        s.strip() for s in sentencesplit.Segmenter(language="en", split_mode="aggressive").segment("F.J.G. Smith arrived.")
-    ] == [
-        "F.J.G.",
-        "Smith arrived.",
+    assert _segments("en", text, "aggressive") == [
+        "We make a good team, you and I.",
+        "Did you see Albert I.",
+        "Jones yesterday.",
     ]
+
+
+def test_split_mode_aggressive_splits_i_after_heading_like_name_continuation():
+    text = "See Appendix I. It explains this."
+
+    for mode in ("conservative", "balanced"):
+        assert _segments("en", text, mode) == [text]
+    assert _segments("en", text, "aggressive") == ["See Appendix I.", "It explains this."]
+
+
+@pytest.mark.parametrize("text", ["We discussed H.B.S. She applied.", "F.J.G. Smith arrived."])
+def test_split_mode_disambiguates_initialisms_from_names_without_starter_words(text):
+    """A capitalized follower after initials is name-like unless aggressive splits."""
+    for mode in ("conservative", "balanced"):
+        assert sentencesplit.Segmenter(language="en", split_mode=mode).segment(text) == [text]
+    assert len(sentencesplit.Segmenter(language="en", split_mode="aggressive").segment(text)) == 2
 
 
 @pytest.mark.parametrize(
@@ -173,19 +164,20 @@ def test_sentence_starter_lists_disambiguate_initialisms_from_names():
         "Han bor i s.u. Det er kendt.",
     ],
 )
-def test_sentence_starter_lists_include_non_ascii_and_custom_boundary_cases(text):
+def test_boundary_abbreviation_mode_handles_non_ascii_and_custom_cases(text):
     language = "de" if text.startswith("Er ") else "da"
 
-    for mode in ("conservative", "balanced", "aggressive"):
+    assert _segments(language, text, "conservative") == [text]
+    for mode in ("balanced", "aggressive"):
         assert len(_segments(language, text, mode)) == 2
 
 
 def test_danish_custom_boundary_abbreviation_before_unlisted_capital_continuation():
     text = "Han bor i s.u. Embassy i dag."
 
-    for mode in ("conservative", "balanced"):
-        assert _segments("da", text, mode) == [text]
-    assert _segments("da", text, "aggressive") == ["Han bor i s.u.", "Embassy i dag."]
+    assert _segments("da", text, "conservative") == [text]
+    for mode in ("balanced", "aggressive"):
+        assert _segments("da", text, mode) == ["Han bor i s.u.", "Embassy i dag."]
 
 
 def test_allcaps_imprint_behavior_independent_of_sentence_starter_words():
@@ -195,8 +187,9 @@ def test_allcaps_imprint_behavior_independent_of_sentence_starter_words():
 
 
 @pytest.mark.parametrize("language", ["fr", "es", "it", "pl", "nl"])
-def test_non_english_profiles_split_boundary_abbreviation_without_starter_lists(language):
-    for mode in ("conservative", "balanced", "aggressive"):
+def test_non_english_profiles_use_split_mode_for_boundary_abbreviation(language):
+    assert _segments(language, "Je vois U.S. Il part.", "conservative") == ["Je vois U.S. Il part."]
+    for mode in ("balanced", "aggressive"):
         assert _segments(language, "Je vois U.S. Il part.", mode) == ["Je vois U.S.", "Il part."]
 
 
@@ -231,8 +224,8 @@ def test_split_mode_initialism_before_capital(text, joined, split):
 
 
 def test_split_mode_initialism_with_strong_cue_splits_in_all_modes():
-    # A determiner ("the S.A.T.") or sentence-starter ("from H.B.S. She") is a
-    # strong boundary cue, so the split happens regardless of mode.
+    # A determiner ("the S.A.T.") is a structural cue that the initialism is a
+    # noun, not an "Initials + Surname" name, so it splits regardless of mode.
     for mode in ("conservative", "balanced", "aggressive"):
         seg = sentencesplit.Segmenter(language="en", split_mode=mode)
         assert [s.strip() for s in seg.segment("I studied for the S.A.T. Tomorrow is test day.")] == [
@@ -331,29 +324,35 @@ def test_split_mode_number_abbreviation_before_capital():
 
 
 def test_split_mode_court_prepositive_abbreviation():
-    # en_legal STARTER_AWARE prepositive "Cir."/"Bankr.": conservative joins
-    # everything, balanced splits only before a known starter,
-    # aggressive splits before any capital ("Bankr. Court").
+    # en_legal STARTER_AWARE prepositive "Cir."/"Bankr.": conservative and
+    # balanced keep the prepositive reading; aggressive splits before any
+    # capitalized follower ("Bankr. Court" included).
     expectations = {
         "conservative": {
             "The 9th Cir. The panel reversed.": 1,
             "The 9th Cir. This panel reversed.": 1,
             "The 9th Cir. Under the statute, it reversed.": 1,
             'The 9th Cir. "The panel reversed," he wrote.': 1,
+            "The 9th Cir. \u00c9lodie wrote separately.": 1,
+            "The 9th Cir. (The panel reversed.)": 1,
             "The Bankr. Court approved the plan.": 1,
         },
         "balanced": {
-            "The 9th Cir. The panel reversed.": 2,
-            "The 9th Cir. This panel reversed.": 2,
-            "The 9th Cir. Under the statute, it reversed.": 2,
-            'The 9th Cir. "The panel reversed," he wrote.': 2,
+            "The 9th Cir. The panel reversed.": 1,
+            "The 9th Cir. This panel reversed.": 1,
+            "The 9th Cir. Under the statute, it reversed.": 1,
+            'The 9th Cir. "The panel reversed," he wrote.': 1,
+            "The 9th Cir. \u00c9lodie wrote separately.": 1,
+            "The 9th Cir. (The panel reversed.)": 1,
             "The Bankr. Court approved the plan.": 1,
         },
         "aggressive": {
             "The 9th Cir. The panel reversed.": 2,
             "The 9th Cir. This panel reversed.": 2,
             "The 9th Cir. Under the statute, it reversed.": 2,
-            'The 9th Cir. "The panel reversed," he wrote.': 1,
+            'The 9th Cir. "The panel reversed," he wrote.': 2,
+            "The 9th Cir. \u00c9lodie wrote separately.": 2,
+            "The 9th Cir. (The panel reversed.)": 2,
             "The Bankr. Court approved the plan.": 2,
         },
     }
