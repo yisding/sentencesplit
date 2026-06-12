@@ -112,25 +112,49 @@ class Russian(Common, Standard):
             "чуваш",
         }
         _SR_STANDALONE_FOLLOWERS = {"он", "она", "оно", "они", "это", "эта", "этот", "эти"}
+        _SENTENCE_START_OPENERS = frozenset("\"'“”‘’«„([{")
 
-        @staticmethod
-        def _starts_with_cyrillic_upper(text, start=0):
-            for index in range(start, len(text)):
-                char = text[index]
-                if char.isspace():
-                    continue
-                return char.isupper() and unicodedata.name(char, "").startswith("CYRILLIC")
-            return False
-
-        @staticmethod
-        def _next_word_lower(text, start=0):
+        @classmethod
+        def _content_start(cls, text, start=0):
             index = start
-            while index < len(text) and text[index].isspace():
+            while index < len(text) and (text[index].isspace() or text[index] in cls._SENTENCE_START_OPENERS):
                 index += 1
+            return index
+
+        @classmethod
+        def _starts_with_cyrillic_upper(cls, text, start=0):
+            index = cls._content_start(text, start)
+            if index >= len(text):
+                return False
+            char = text[index]
+            return char.isupper() and unicodedata.name(char, "").startswith("CYRILLIC")
+
+        @classmethod
+        def _next_word_lower(cls, text, start=0):
+            index = cls._content_start(text, start)
             word_start = index
             while index < len(text) and text[index].isalpha():
                 index += 1
             return text[word_start:index].lower()
+
+        @staticmethod
+        def _is_embedded_occurrence(text, abbr_start):
+            index = abbr_start - 1
+            while index >= 0 and text[index].isspace():
+                index -= 1
+            if index < 0:
+                return False
+            return text[index] not in ".!?\r\n"
+
+        @classmethod
+        def _sr_continues_compare_phrase(cls, text, start=0):
+            index = cls._content_start(text, start)
+            sentence_end = len(text)
+            for boundary in ".!?":
+                found = text.find(boundary, index)
+                if found != -1:
+                    sentence_end = min(sentence_end, found)
+            return re.search(r"\sи\s+[А-ЯЁ]", text[index:sentence_end]) is not None
 
         def replace_period_of_abbr(self, txt, abbr, escaped=None):
             abbr = abbr.strip()
@@ -139,7 +163,15 @@ class Russian(Common, Standard):
 
             def replacement(match):
                 match_end = match.end()
-                if abbr_lower == "ср" and self._next_word_lower(txt, match_end) in self._SR_STANDALONE_FOLLOWERS:
+                if abbr_lower == "ср":
+                    if not self._starts_with_cyrillic_upper(txt, match_end):
+                        return match.group()[:-1] + "∯"
+                    if self._is_embedded_occurrence(txt, match.start(2)):
+                        return match.group()[:-1] + "∯"
+                    if self._next_word_lower(txt, match_end) in self._SR_STANDALONE_FOLLOWERS:
+                        return match.group()
+                    if self._sr_continues_compare_phrase(txt, match_end):
+                        return match.group()[:-1] + "∯"
                     return match.group()
                 if (
                     abbr_lower != "ср"
