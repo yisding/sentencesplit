@@ -13,10 +13,10 @@ class SentenceSplitFactory:
         # Deferred import avoids circular dependency with sentencesplit.__init__
         from sentencesplit import Segmenter
 
-        self.seg = Segmenter(language=language, clean=False, char_span=True)
+        self.seg = Segmenter(language=language, clean=False)
 
     def __call__(self, doc):
-        sents_char_spans = self.seg.segment(doc.text)
+        sents_char_spans = self.seg.segment_spans(doc.text)
         tokens = list(doc)
         start_token_ids = _sentence_start_token_indices(tokens, sents_char_spans)
         for token in tokens:
