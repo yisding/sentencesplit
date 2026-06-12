@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+from pathlib import Path
 from time import perf_counter
 
 import pytest
@@ -1194,3 +1195,22 @@ def test_glued_lowercase_run_on_protects_leading_dot_runs(case_id, text, expecte
     stay intact under clean=False, matching the original per-dot lookbehind."""
     seg = sentencesplit.Segmenter(language="en", clean=False)
     assert seg.segment(text) == expected
+
+
+def test_multi_period_abbreviation_replacer_avoids_match_tail_slicing():
+    """SECURITY REGRESSION: match callbacks must not copy the full remaining
+    input for each abbreviation match, which is quadratic for repeated tokens.
+    """
+    source = Path("sentencesplit/abbreviation_replacer.py").read_text()
+    assert "[match.end() :]" not in source
+    assert "[match.end():]" not in source
+
+
+def test_next_nonspace_char_scans_from_offset_without_tail_slice():
+    """SECURITY REGRESSION: offset scanning should not materialize text[start:]."""
+    source = Path("sentencesplit/utils.py").read_text()
+    assert "text[start:]" not in source
+    assert sentencesplit.Segmenter(language="en", clean=False).segment("A.I. Systems work. Next sentence.") == [
+        "A.I. Systems work. ",
+        "Next sentence.",
+    ]

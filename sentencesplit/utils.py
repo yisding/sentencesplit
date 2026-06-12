@@ -58,9 +58,12 @@ def apply_rules(text: str, *rules: Rule) -> str:
 
 def _next_nonspace_char(text: str, start: int = 0) -> str:
     """Return the first non-whitespace character in *text* at or after *start*, or empty string."""
-    for char in text[start:]:
+    text_len = len(text)
+    while start < text_len:
+        char = text[start]
         if not char.isspace():
             return char
+        start += 1
     return ""
 
 
