@@ -80,3 +80,26 @@ def test_kk_capitalized_single_period_abbreviations_do_not_split_before_numeric_
     segments = kk_default_fixture.segment("Обл. 2014 жылы ашылды.")
 
     assert segments == ["Обл. 2014 жылы ашылды."]
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "U.S. елшілігі ашылды.",
+        "U.S. 2014 жылы ашылды.",
+        "E.U. елдері келісті.",
+    ],
+)
+def test_kk_latin_initialisms_do_not_split_before_kazakh_continuation(kk_default_fixture, text):
+    assert kk_default_fixture.segment(text) == [text]
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "обл. әкімі келді.",
+        "тех. қызмет ашылды.",
+    ],
+)
+def test_kk_single_period_abbreviations_do_not_split_before_cyrillic_lowercase(kk_default_fixture, text):
+    assert kk_default_fixture.segment(text) == [text]
