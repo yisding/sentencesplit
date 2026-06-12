@@ -67,13 +67,12 @@ TEST_ISSUE_DATA = [
             "Recently, Ghosh and Mahdian [86] at Yahoo! Research extended our charities work, and based on this a web-based system for charitable donations was built at Yahoo!",
         ],
     ),
-    pytest.param(
+    (
         "#39",
         "T stands for the vector transposition. As shown in Fig. ??",
         ["T stands for the vector transposition.", "As shown in Fig. ??"],
-        marks=pytest.mark.xfail,
     ),
-    pytest.param("#39", "Fig. ??", ["Fig. ??"], marks=pytest.mark.xfail),
+    ("#39", "Fig. ??", ["Fig. ??"]),
     (
         "#58",
         "Rok bud.2027777983834843834843042003200220012000199919981997199619951994199319921991199019891988198042003200220012000199919981997199619951994199319921991199019891988198",
@@ -302,22 +301,68 @@ def test_hyphen_prefixed_numbered_period_paren_list_items_split():
 
 def test_german_consecutive_ordinals_not_treated_as_numbered_list():
     """Two nearby ascending ordinals embedded in prose ('19. ... 20. Jahrhunderts')
-    must not be promoted to a numbered list. A real list item begins with an
-    uppercase word; an ordinal followed by a lowercase word ('19. und') is prose."""
+    must not be promoted to a numbered list."""
     seg = sentencesplit.Segmenter(language="de", clean=False)
     text = "Im Laufe des 19. und frühen 20. Jahrhunderts entwickelte sich Berlin zur weltweit drittgrößten Stadt."
     segments = [s.strip() for s in seg.segment(text)]
     assert segments == [text]
 
 
+@pytest.mark.parametrize("split_mode", ["conservative", "balanced"])
+def test_german_ordinal_range_not_treated_as_numbered_list(split_mode):
+    text = "Die Sammlung umfasst Werke vom 19. bis 20. Jahrhundert."
+    seg = sentencesplit.Segmenter(language="de", clean=False, split_mode=split_mode)
+
+    assert [s.strip() for s in seg.segment(text)] == [text]
+
+
+def test_german_ordinal_range_before_later_list_does_not_split_inside_range():
+    text = "Die Sammlung umfasst Werke vom 19. bis 20. Jahrhundert. 1. apple 2. banana"
+    seg = sentencesplit.Segmenter(language="de", clean=False)
+
+    assert [s.strip() for s in seg.segment(text)] == [
+        "Die Sammlung umfasst Werke vom 19. bis 20. Jahrhundert.",
+        "1. apple",
+        "2. banana",
+    ]
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "Die Ausstellung zeigt Werke des 19. sowie 20. Jahrhunderts.",
+        "Die Ausstellung zeigt Werke des 19. bzw. 20. Jahrhunderts.",
+    ],
+)
+def test_german_ordinal_prose_connectors_not_treated_as_numbered_lists(text):
+    seg = sentencesplit.Segmenter(language="de", clean=False)
+
+    assert [s.strip() for s in seg.segment(text)] == [text]
+
+
 def test_consecutive_ordinals_followed_by_lowercase_not_a_list():
-    """Embedded ordinals followed by lowercase words are not list markers, so
+    """Embedded ordinals followed by prose connectors are not list markers, so
     no line break ('\\r') is inserted to split them into list items. The ordinal
     periods are still protected (replaced with the placeholder), which keeps the
     text from splitting downstream."""
     text = "Im Laufe des 19. und frühen 20. Jahrhunderts entwickelte sich Berlin."
     result = ListItemReplacer(text).add_line_break()
     assert "\r" not in result and "\n" not in result
+
+
+def test_lowercase_numbered_list_items_split():
+    """Lowercase item text is still a real numbered list, not prose ordinal text."""
+    for text in ("1. apple 2. banana", "1. and gates 2. or gates"):
+        assert ListItemReplacer(text).add_line_break().count("\r") == 1
+
+        seg = sentencesplit.Segmenter(language="en", clean=False)
+        assert [s.strip() for s in seg.segment(text)] == [text.split(" 2. ")[0], "2. " + text.split(" 2. ")[1]]
+
+
+def test_lowercase_numbered_list_item_does_not_suppress_later_boundaries():
+    """A lowercase item at the start must not globally suppress every list break."""
+    text = "1. apple 2. Banana 3. Cherry"
+    assert ListItemReplacer(text).add_line_break() == "1∯ apple\r2∯ Banana\r3∯ Cherry"
 
 
 def test_common_abbreviations_no_false_split():
@@ -560,6 +605,36 @@ def test_en_es_zh_number_abbreviations_before_lowercase(text, expected):
     """Number abbreviations (eq, pt) in en_es_zh must stay joined before lowercase text."""
     seg = sentencesplit.Segmenter(language="en_es_zh", clean=False, char_span=False)
     assert [s.strip() for s in seg.segment(text)] == expected
+
+
+@pytest.mark.parametrize("split_mode", ["conservative", "balanced", "aggressive"])
+def test_en_es_zh_number_abbreviation_before_unknown_placeholder(split_mode):
+    seg = sentencesplit.Segmenter(language="en_es_zh", clean=False, char_span=False, split_mode=split_mode)
+
+    assert [s.strip() for s in seg.segment("As shown in Fig. ??")] == ["As shown in Fig. ??"]
+
+
+@pytest.mark.parametrize("language", ["en", "en_es_zh"])
+@pytest.mark.parametrize(
+    "text,expected",
+    [
+        ("Fig. ?? is missing. Done.", ["Fig. ?? is missing.", "Done."]),
+        ("As shown in Fig. ??, the curve rises. Done.", ["As shown in Fig. ??, the curve rises.", "Done."]),
+    ],
+)
+def test_number_abbreviation_unknown_placeholder_continuations(language, text, expected):
+    seg = sentencesplit.Segmenter(language=language, clean=False)
+
+    assert [s.strip() for s in seg.segment(text)] == expected
+
+
+@pytest.mark.parametrize("language", ["en", "en_es_zh"])
+def test_number_abbreviation_does_not_partially_attach_long_question_run(language):
+    seg = sentencesplit.Segmenter(language=language, clean=False)
+    segments = [s.strip() for s in seg.segment("Fig. ???")]
+
+    assert segments[0] == "Fig."
+    assert "".join(segments[1:]) == "???"
 
 
 def test_greek_uppercase_not_treated_as_sentence_start():
@@ -955,6 +1030,13 @@ def test_glued_ellipsis_lowercase_rule_preserves_long_runon_protection():
             "CHISWICK PRESS:--CHARLES WHITTINGHAM AND CO. TOOKS COURT, CHANCERY LANE, LONDON.",
             ["CHISWICK PRESS:--CHARLES WHITTINGHAM AND CO. TOOKS COURT, CHANCERY LANE, LONDON."],
         ),
+        (
+            "CELLULAR COMMUNICATIONS INC. SOLD 1,550,000 COMMON SHARES.",
+            ["CELLULAR COMMUNICATIONS INC. SOLD 1,550,000 COMMON SHARES."],
+        ),
+        ("ACME CORP. ANNOUNCED RESULTS.", ["ACME CORP. ANNOUNCED RESULTS."]),
+        ("FOO LTD. LONDON.", ["FOO LTD. LONDON."]),
+        ("WARNER BROS. RELEASED TRAILERS.", ["WARNER BROS. RELEASED TRAILERS."]),
         # GUARD: mixed-case "Co." at a genuine boundary must still split
         # (Golden Rule 9) — the follower "It" is not an all-caps imprint word.
         (
@@ -971,6 +1053,12 @@ def test_glued_ellipsis_lowercase_rule_preserves_long_runon_protection():
         (
             "Let's ask Jane and co. They should know.",
             ["Let's ask Jane and co.", "They should know."],
+        ),
+        # GUARD: unrelated all-caps abbreviations, such as months, can still end
+        # a sentence before an all-caps sentence starter.
+        (
+            "IT HAPPENED IN DEC. THE END.",
+            ["IT HAPPENED IN DEC.", "THE END."],
         ),
     ],
 )
