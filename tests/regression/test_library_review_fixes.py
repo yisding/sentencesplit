@@ -158,6 +158,7 @@ def test_escaped_html_rule_strips_tags_with_entities_in_attributes():
     assert Cleaner("&lt;p data-x=&#39;1&#39;&gt;Z&lt;/p&gt;", en).clean() == "Z"
 
 
+@pytest.mark.perf
 def test_escaped_html_rule_not_redos_on_entity_packed_unclosed_run():
     """The entity-crossing alternation must stay linear: an unclosed escaped tag
     packed with entities (many '&lt;' starts) would be quadratic if a run could
@@ -183,6 +184,7 @@ def test_table_of_contents_rule_does_not_eat_ellipsis_prose():
     assert Cleaner("wait.... 42 things happened", en).clean() == "wait.... 42 things happened"
 
 
+@pytest.mark.perf
 def test_table_of_contents_rule_not_redos_on_failed_line_anchor():
     import time
 
@@ -292,6 +294,7 @@ def test_cjk_abbreviation_period_before_cjk_stays_joined(language, text):
 # (the old HTMLTagRule had catastrophic backtracking on untrusted clean=True
 # input). We assert correctness + a generous wall-clock ceiling.
 # ---------------------------------------------------------------------------
+@pytest.mark.perf
 def test_html_tag_rule_is_not_redos_vulnerable():
     import time
 
@@ -395,6 +398,28 @@ def test_sentinel_restore_does_not_match_across_original_private_use_boundary(mo
     assert clean.segment_clean(text) == ["Has \ue000∯ here.", "And more."]
 
 
+def test_sentinel_escape_all_single_noncharacter_delimiters_falls_back_to_multichar(monkeypatch):
+    """If every single noncharacter delimiter appears in input, fallback tokens
+    should still use an absent multi-character delimiter and round-trip."""
+    from sentencesplit import processor as _proc
+    from sentencesplit.languages import Language
+
+    monkeypatch.setattr(_proc, "_PRIVATE_USE_RANGES", ((0xE000, 0xE001),))
+
+    noncharacters = "".join(_proc._iter_noncharacter_delimiters())
+    text = f"Has \ue000 and \ue001 with {noncharacters} plus ∯ sentinel."
+
+    escape, restore, restore_re = _proc._build_sentinel_escape_tables(text)
+    restored = restore_re.sub(lambda match: restore[match.group(0)], text.translate(escape))
+    assert restored == text
+
+    en = Language.get_language_code("en")
+    assert _proc.Processor(text, en).process() == [text]
+    clean = sentencesplit.Segmenter(language="en", clean=True)
+    assert clean.segment_clean(text) == [text]
+
+
+@pytest.mark.perf
 def test_escaped_html_rule_is_not_redos_vulnerable():
     import time
 
@@ -405,6 +430,7 @@ def test_escaped_html_rule_is_not_redos_vulnerable():
     assert time.perf_counter() - start < 2.0
 
 
+@pytest.mark.perf
 def test_html_tag_rule_not_redos_on_long_unclosed_run():
     import time
 
@@ -415,6 +441,7 @@ def test_html_tag_rule_not_redos_on_long_unclosed_run():
     assert time.perf_counter() - start < 2.0
 
 
+@pytest.mark.perf
 def test_html_tag_rule_not_quadratic_on_many_unclosed_openers():
     import time
 
@@ -446,6 +473,7 @@ def test_html_tag_rule_strips_lt_inside_quoted_attribute():
     assert Cleaner("<span data-x='1 < 2'>Text</span>", en).clean() == "Text"
 
 
+@pytest.mark.perf
 def test_html_tag_rule_not_quadratic_with_lt_permissive_quoted_run():
     """The '<'-inside-quotes fix must not reintroduce the quadratic blow-up on
     many unclosed openers that the perf hardening killed."""

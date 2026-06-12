@@ -59,6 +59,7 @@ def test_public_surface_matches_all():
     expected = {
         "Segmenter",
         "StreamSegmenter",
+        "SentenceSplitError",
         "list_languages",
         "TextSpan",
         "SegmentLookahead",

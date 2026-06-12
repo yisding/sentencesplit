@@ -850,6 +850,7 @@ def test_acronym_noun_before_new_sentence_still_splits(text, expected):
     assert segments == expected
 
 
+@pytest.mark.perf
 def test_repeated_initials_heuristic_is_linear_time():
     """Repeated dotted initialisms should not rescan the full prefix per match."""
     seg = sentencesplit.Segmenter(language="en", clean=False)
@@ -902,6 +903,7 @@ def test_glued_ellipsis_lowercase_runon_not_split(text, expected):
     assert segments == expected
 
 
+@pytest.mark.perf
 def test_glued_ellipsis_lowercase_rule_handles_long_period_runs_linearly():
     """The glued lowercase run-on protection must not rescan long period runs
     from every period when the run is not followed by lowercase text."""

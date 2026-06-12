@@ -14,76 +14,12 @@ import pytest
 import sentencesplit
 from sentencesplit import StreamSegmenter
 from sentencesplit.languages import LANGUAGE_CODES
-from sentencesplit.utils import TextSpan
-
-# Script-appropriate (token, terminal-punctuation) samples, mirroring the
-# helpers in tests/test_segmenter.py so the per-language streaming tests run on
-# input every language's boundary regex actually recognizes.
-#
-# Languages that segment on the Latin period must exercise that native '.'
-# terminal (and its lookahead probe), not collapse onto the CJK full stop just
-# because '。' also appears in their Punctuations list. So script-token
-# languages (CJK / non-Latin scripts where a Latin '.' is not a real boundary)
-# keep a native-terminal preference, while every other (Latin-script) language
-# is steered to a real '.'-terminated word sample.
-_LOOKAHEAD_TEST_TOKENS = {
-    "ar": "ا",
-    "hy": "Ա",
-    "ja": "あ",
-    "zh": "甲",
-}
-# Latin period first: Latin-script languages should exercise the native '.'
-# boundary; the CJK / script terminals are only fallbacks for languages that
-# do not segment on a Latin period.
-_LATIN_FIRST_PUNCTUATION = (".", "？", "！", "。", "។", "؟", "։", "՜", "?", "!")
-# Native-terminal preference for the script-token languages above, where a
-# Latin '.' between native-script tokens is not a sentence boundary.
-_SCRIPT_TERMINAL_PUNCTUATION = ("។", "。", "？", "！", "؟", "։", "՜", "?", "!", ".")
-# Distinct multi-letter words so the sample splits on its terminal rather than
-# being swallowed by the single-initial abbreviation heuristic ("A." -> initial).
-_LATIN_SAMPLE_WORDS = ("Foo", "Bar", "Baz")
-
-
-def _sample_for_language(code):
-    """Return ``(token, punct)`` for a language.
-
-    ``token`` is ``None`` for Latin-script languages (build the sample from
-    distinct words via :func:`_three_sentence_sample`); otherwise it is the
-    native-script repeat token. ``punct`` is a terminal the language's boundary
-    regex actually recognizes, preferring the native Latin '.' for Latin scripts
-    so streaming exercises that real terminal + lookahead path.
-    """
-    language_module = LANGUAGE_CODES[code]
-    token = _LOOKAHEAD_TEST_TOKENS.get(code)
-    if token is None:
-        punct = next(
-            (p for p in _LATIN_FIRST_PUNCTUATION if p in language_module.Punctuations),
-            language_module.Punctuations[0],
-        )
-        return None, punct
-    punct = next(
-        (p for p in _SCRIPT_TERMINAL_PUNCTUATION if p in language_module.Punctuations),
-        language_module.Punctuations[0],
-    )
-    return token, punct
-
-
-def _two_sentence_sample(code):
-    """Two terminal-separated sentences plus an unterminated tail token."""
-    token, punct = _sample_for_language(code)
-    if token is None:
-        a, b, _ = _LATIN_SAMPLE_WORDS
-        return f"{a}{punct} {b}{punct}"
-    return f"{token}{token}{punct} {token}{token}{punct}"
-
-
-def _three_sentence_sample(code):
-    """Three sentences: two terminal-separated, then an unterminated tail."""
-    token, punct = _sample_for_language(code)
-    if token is None:
-        a, b, c = _LATIN_SAMPLE_WORDS
-        return f"{a}{punct} {b}{punct} {c}"
-    return f"{token}{token}{punct} {token}{token}{punct} {token}{token}"
+from tests.helpers import (
+    assert_span_contract,
+    stream_sample_for_language,
+    three_sentence_stream_sample,
+    two_sentence_stream_sample,
+)
 
 
 def _feed_char_by_char(stream, text):
@@ -292,14 +228,9 @@ def test_char_span_returns_textspans_with_stream_offsets():
     stream.feed("Hello. ")
     stream.feed("World here. ")
     spans = stream.get_completed_sentences()
-    assert all(isinstance(s, TextSpan) for s in spans)
-    assert [s.sent for s in spans] == ["Hello. ", "World here. "]
-    # Offsets are relative to the whole stream, contiguous and gap-free.
-    assert spans[0].start == 0
-    assert spans[0].end == spans[1].start
     full = "Hello. World here. "
-    for s in spans:
-        assert full[s.start : s.end] == s.sent
+    assert_span_contract(full, spans)
+    assert [s.sent for s in spans] == ["Hello. ", "World here. "]
 
 
 def test_char_span_offsets_match_segment_spans():
@@ -314,6 +245,11 @@ def test_char_span_offsets_match_segment_spans():
 def test_clean_true_disallows_char_span():
     with pytest.raises(ValueError):
         StreamSegmenter(language="en", clean=True, char_span=True)
+
+
+def test_clean_true_is_not_supported():
+    with pytest.raises(ValueError, match="does not support clean=True"):
+        StreamSegmenter(language="en", clean=True)
 
 
 # --------------------------------------------------------------------------- #
@@ -356,6 +292,12 @@ def test_max_buffer_size_force_flushes_pending():
     assert len(stream.pending_text()) <= 20
 
 
+@pytest.mark.parametrize("max_buffer_size", [0, -1])
+def test_invalid_max_buffer_size_raises(max_buffer_size):
+    with pytest.raises(ValueError, match="max_buffer_size must be a positive integer or None"):
+        StreamSegmenter(language="en", max_buffer_size=max_buffer_size)
+
+
 def test_feed_returns_none_when_no_max_buffer_size():
     stream = StreamSegmenter(language="en")
     assert stream.feed("Hello. ") is None
@@ -383,18 +325,7 @@ def test_char_span_offsets_survive_max_buffer_overflow():
             emitted.extend(forced)
         emitted.extend(stream.get_completed_sentences())
     emitted.extend(stream.flush())
-    assert all(isinstance(s, TextSpan) for s in emitted)
-    prev_end = 0
-    for span in emitted:
-        # Byte-faithful: the slice equals the reported text.
-        assert full[span.start : span.end] == span.sent
-        # Monotonic, no overlap and no back-jump.
-        assert span.start >= prev_end
-        prev_end = span.end
-    # Spans tile the whole stream contiguously and reassemble it verbatim.
-    assert emitted[0].start == 0
-    assert prev_end == len(full)
-    assert "".join(s.sent for s in emitted) == full
+    assert_span_contract(full, emitted)
 
 
 def test_overflow_does_not_drop_or_duplicate_text():
@@ -413,6 +344,7 @@ def test_overflow_does_not_drop_or_duplicate_text():
     assert "".join(collected) == full
 
 
+@pytest.mark.perf
 def test_per_token_cost_is_flat_not_quadratic():
     # Regression: feed() re-segmented the entire growing buffer every call, so
     # per-token cost doubled as the stream doubled (O(n^2) total). Compaction
@@ -504,7 +436,7 @@ def test_compaction_chunked_feed_loses_nothing():
 
 @pytest.mark.parametrize("language_code", sorted(LANGUAGE_CODES))
 def test_streaming_equals_non_streaming_across_all_languages(language_code):
-    text = _three_sentence_sample(language_code)
+    text = three_sentence_stream_sample(language_code)
     stream = StreamSegmenter(language=language_code)
     stream.feed(text)
     streamed = stream.get_completed_sentences() + stream.flush()
@@ -513,7 +445,7 @@ def test_streaming_equals_non_streaming_across_all_languages(language_code):
 
 @pytest.mark.parametrize("language_code", sorted(LANGUAGE_CODES))
 def test_streaming_char_by_char_across_all_languages(language_code):
-    text = _two_sentence_sample(language_code)
+    text = two_sentence_stream_sample(language_code)
     stream = StreamSegmenter(language=language_code)
     collected = []
     _feed_char_by_char(stream, text)
@@ -524,17 +456,11 @@ def test_streaming_char_by_char_across_all_languages(language_code):
 
 @pytest.mark.parametrize("language_code", sorted(LANGUAGE_CODES))
 def test_streaming_is_nondestructive_across_all_languages(language_code):
-    text = _two_sentence_sample(language_code)
+    text = two_sentence_stream_sample(language_code)
     stream = StreamSegmenter(language=language_code, char_span=True)
     stream.feed(text)
     spans = stream.get_completed_sentences() + stream.flush()
-    prev_end = 0
-    for span in spans:
-        assert span.start == prev_end
-        assert text[span.start : span.end] == span.sent
-        prev_end = span.end
-    assert prev_end == len(text)
-    assert "".join(s.sent for s in spans) == text
+    assert_span_contract(text, spans)
 
 
 # A representative set of Latin-script languages that segment on the native
@@ -546,13 +472,13 @@ _LATIN_PERIOD_LANGUAGES = ("en", "de", "es", "fr", "nl", "ru", "it")
 
 @pytest.mark.parametrize("language_code", _LATIN_PERIOD_LANGUAGES)
 def test_latin_languages_stream_on_native_period(language_code):
-    token, punct = _sample_for_language(language_code)
+    token, punct = stream_sample_for_language(language_code)
     # Regression guard for the historical bug where '。' (also present in these
     # languages' Punctuations) was chosen ahead of '.', so the sample never
     # reached the native period terminal.
     assert token is None
     assert punct == "."
-    text = _three_sentence_sample(language_code)
+    text = three_sentence_stream_sample(language_code)
     assert "。" not in text and "." in text
     stream = StreamSegmenter(language=language_code)
     stream.feed(text)

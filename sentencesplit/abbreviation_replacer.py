@@ -1,8 +1,10 @@
 # -*- coding: utf-8 -*-
 from __future__ import annotations
 
+import inspect
 import re
 from collections import deque
+from threading import RLock
 
 from sentencesplit.utils import (
     _next_nonspace_char,
@@ -137,6 +139,8 @@ class _AbbreviationData:
 class AbbreviationReplacer:
     _data_cache: dict[type, _AbbreviationData] = {}
     _boundary_regex_cache: dict[type, re.Pattern[str] | None] = {}
+    _sentence_start_offset_cache: dict[type, bool] = {}
+    _cache_lock = RLock()
     SENTENCE_STARTERS = []
     SENTENCE_BOUNDARY_ABBREVIATIONS = ["U∯S", "U.S", "U∯K", "E∯U", "E.U", "U∯S∯A", "U.S.A", "I", "i.v", "I.V"]
 
@@ -169,9 +173,10 @@ class AbbreviationReplacer:
         self.lang = lang
         abbr_class = lang.Abbreviation
         self.split_mode = split_mode
-        if abbr_class not in AbbreviationReplacer._data_cache:
-            AbbreviationReplacer._data_cache[abbr_class] = _AbbreviationData(lang.Abbreviation)
-        self._data = AbbreviationReplacer._data_cache[abbr_class]
+        with AbbreviationReplacer._cache_lock:
+            if abbr_class not in AbbreviationReplacer._data_cache:
+                AbbreviationReplacer._data_cache[abbr_class] = _AbbreviationData(lang.Abbreviation)
+            self._data = AbbreviationReplacer._data_cache[abbr_class]
 
     @property
     def _leans_split(self) -> bool:
@@ -297,13 +302,32 @@ class AbbreviationReplacer:
                 return False
         return True
 
-    def _is_likely_sentence_start(self, text: str) -> bool:
+    def _is_likely_sentence_start(self, text: str, start: int = 0) -> bool:
         """Check if the next non-space character in *text* looks like a sentence start.
 
         Subclasses (e.g. en_es_zh) can override to recognise additional scripts
         such as CJK ideographs.
         """
-        return _next_nonspace_char_is_upper(text)
+        return _next_nonspace_char_is_upper(text, start)
+
+    @classmethod
+    def _sentence_start_accepts_offset(cls) -> bool:
+        with AbbreviationReplacer._cache_lock:
+            cached = AbbreviationReplacer._sentence_start_offset_cache.get(cls)
+            if cached is None:
+                try:
+                    inspect.signature(cls._is_likely_sentence_start).bind(object(), "", 0)
+                except TypeError:
+                    cached = False
+                else:
+                    cached = True
+                AbbreviationReplacer._sentence_start_offset_cache[cls] = cached
+            return cached
+
+    def _is_likely_sentence_start_at(self, text: str, start: int) -> bool:
+        if type(self)._sentence_start_accepts_offset():
+            return self._is_likely_sentence_start(text, start)
+        return self._is_likely_sentence_start(text[start:])
 
     def replace(self) -> str:
         self.text = apply_rules(
@@ -329,8 +353,7 @@ class AbbreviationReplacer:
         restore_source = self.text
 
         def restore_uppercase_initialism_boundary(match):
-            next_text = restore_source[match.end() :]
-            char = _next_nonspace_char(next_text)
+            char = _next_nonspace_char(restore_source, match.end())
             if not (char and char.isupper() and char.isascii()):
                 return match.group()
             # A run of single-letter initials (e.g. "F.J.G.", protected as
@@ -402,18 +425,21 @@ class AbbreviationReplacer:
 
     @classmethod
     def _get_boundary_regex(cls) -> re.Pattern[str] | None:
-        if cls not in cls._boundary_regex_cache:
-            boundary_abbr = "|".join(re.escape(abbr).replace(r"\.", r"[.∯]") for abbr in cls.SENTENCE_BOUNDARY_ABBREVIATIONS)
-            if not boundary_abbr:
-                cls._boundary_regex_cache[cls] = None
-            elif cls.SENTENCE_STARTERS:
-                sent_starters = "|".join(r"(?=\s{}\s)".format(re.escape(word)) for word in cls.SENTENCE_STARTERS)
-                cls._boundary_regex_cache[cls] = re.compile(
-                    r"(?<![A-Za-z0-9_∯])({})∯({})".format(boundary_abbr, sent_starters)
+        with AbbreviationReplacer._cache_lock:
+            if cls not in cls._boundary_regex_cache:
+                boundary_abbr = "|".join(
+                    re.escape(abbr).replace(r"\.", r"[.∯]") for abbr in cls.SENTENCE_BOUNDARY_ABBREVIATIONS
                 )
-            else:
-                cls._boundary_regex_cache[cls] = re.compile(r"(?<![A-Za-z0-9_∯])({})∯".format(boundary_abbr))
-        return cls._boundary_regex_cache[cls]
+                if not boundary_abbr:
+                    cls._boundary_regex_cache[cls] = None
+                elif cls.SENTENCE_STARTERS:
+                    sent_starters = "|".join(r"(?=\s{}\s)".format(re.escape(word)) for word in cls.SENTENCE_STARTERS)
+                    cls._boundary_regex_cache[cls] = re.compile(
+                        r"(?<![A-Za-z0-9_∯])({})∯({})".format(boundary_abbr, sent_starters)
+                    )
+                else:
+                    cls._boundary_regex_cache[cls] = re.compile(r"(?<![A-Za-z0-9_∯])({})∯".format(boundary_abbr))
+            return cls._boundary_regex_cache[cls]
 
     def replace_abbreviation_as_sentence_boundary(self) -> str:
         regex = type(self)._get_boundary_regex()
@@ -426,7 +452,7 @@ class AbbreviationReplacer:
         def mpa_replace(match):
             matched = match.group()
             parts = matched[:-1].split(".")
-            next_text = self.text[match.end() :]
+            next_start = match.end()
             protect_final_period = True
 
             # Keep sentence-final boundaries for mixed abbreviations like Ph.D.
@@ -437,12 +463,14 @@ class AbbreviationReplacer:
             # boundary (so "Ph.D. Smith" stays joined); 'aggressive' splits
             # before any likely sentence start, including pure initialisms
             # ("A.I. Systems …").
-            likely_start = self._is_likely_sentence_start(next_text)
+            likely_start = self._is_likely_sentence_start_at(self.text, next_start)
             # Greek/Cyrillic etc. (opt-in): a capital follower reliably starts a
             # new sentence, so a pure single-letter initialism ("π.Χ.", "Ε.Ε.")
             # ends the sentence before it even though _is_latin_upper ignored it.
             capital_boundary = (
-                self.NON_LATIN_CAPITAL_STARTS_SENTENCE and not likely_start and _next_nonspace_char(next_text).isupper()
+                self.NON_LATIN_CAPITAL_STARTS_SENTENCE
+                and not likely_start
+                and _next_nonspace_char(self.text, next_start).isupper()
             )
             # a.m./p.m. own their boundary decision later (with timezone
             # awareness), so the aggressive pure-initialism split skips them to
@@ -465,8 +493,7 @@ class AbbreviationReplacer:
         """Restore sentence boundaries after a.m./p.m. before non-ASCII capitals."""
 
         def _restore(match):
-            next_text = self.text[match.end() :]
-            if _next_nonspace_char_is_non_ascii_upper(next_text):
+            if _next_nonspace_char_is_non_ascii_upper(self.text, match.end()):
                 return f"{match.group(1)}."
             return match.group()
 

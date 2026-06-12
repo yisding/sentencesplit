@@ -6,7 +6,13 @@ from itertools import product
 
 from sentencesplit.exclamation_words import ExclamationWords
 from sentencesplit.language_profile import LanguageProfile
-from sentencesplit.utils import ZERO_WIDTH_CHARS, _next_nonspace_char_starts_sentence, apply_rules, split_mode_rank
+from sentencesplit.utils import (
+    ZERO_WIDTH_CHARS,
+    SplitMode,
+    _next_nonspace_char_starts_sentence,
+    apply_rules,
+    split_mode_rank,
+)
 
 # Pre-compiled patterns used on the hot path
 _ALPHA_ONLY_RE = re.compile(r"\A[a-zA-Z]*\Z")
@@ -143,8 +149,9 @@ _RESERVED_SENTINEL_SET = frozenset(_RESERVED_SENTINELS)
 # targets. Targets are chosen per call from this pool to be absent from the
 # input. If adversarial input occupies every single private-use character, the
 # escape target grows into a delimited private-use string token. The delimiter
-# is a noncharacter chosen absent from the input, which keeps restore matches
-# aligned to whole escape tokens instead of arbitrary private-use substrings.
+# is a noncharacter token chosen absent from the input, which keeps restore
+# matches aligned to whole escape tokens instead of arbitrary private-use
+# substrings.
 _PRIVATE_USE_RANGES = ((0xE000, 0xF8FF), (0xF0000, 0xFFFFD), (0x100000, 0x10FFFD))
 _NONCHARACTER_DELIMITER_RANGES = ((0xFDD0, 0xFDEF),) + tuple(
     (plane + 0xFFFE, plane + 0xFFFF) for plane in range(0, 0x110000, 0x10000)
@@ -171,12 +178,20 @@ def _iter_noncharacter_delimiters():
             yield chr(cp)
 
 
+def _iter_noncharacter_delimiter_tokens():
+    alphabet = tuple(_iter_noncharacter_delimiters())
+    width = 1
+    while alphabet:
+        for chars in product(alphabet, repeat=width):
+            yield "".join(chars)
+        width += 1
+
+
 def _absent_noncharacter_delimiter(text: str) -> str:
-    occupied = set(text)
-    for delimiter in _iter_noncharacter_delimiters():
-        if delimiter not in occupied:
+    for delimiter in _iter_noncharacter_delimiter_tokens():
+        if delimiter not in text:
             return delimiter
-    raise ValueError("At least one absent noncharacter delimiter is required")
+    raise ValueError("At least one noncharacter delimiter token is required")
 
 
 def _build_sentinel_escape_tables(
@@ -246,7 +261,7 @@ def _sub_symbols_fast(text: str, lang) -> str:
 
 
 class Processor:
-    def __init__(self, text: str | None, lang, split_mode: str = "balanced") -> None:
+    def __init__(self, text: str | None, lang, split_mode: SplitMode = "balanced") -> None:
         self.text = text
         self.lang = lang
         self.split_mode = split_mode

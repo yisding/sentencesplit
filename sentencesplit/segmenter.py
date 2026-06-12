@@ -5,9 +5,17 @@ import re
 import warnings
 
 from sentencesplit.cleaner import Cleaner
+from sentencesplit.exceptions import InvalidConfigurationError
 from sentencesplit.languages import Language
 from sentencesplit.processor import Processor
-from sentencesplit.utils import SPLIT_MODES, ZERO_WIDTH_CHARS, SegmentLookahead, TextSpan
+from sentencesplit.utils import (
+    SPLIT_MODES,
+    ZERO_WIDTH_CHARS,
+    DocType,
+    SegmentLookahead,
+    SplitMode,
+    TextSpan,
+)
 
 # Simple, common characters per script that won't trigger abbreviation rules.
 _DEFAULT_LOOKAHEAD_STEMS = ("a", "A")
@@ -84,9 +92,9 @@ class Segmenter:
         self,
         language: str = "en",
         clean: bool = False,
-        doc_type: str | None = None,
+        doc_type: DocType = None,
         char_span: bool = False,
-        split_mode: str = "balanced",
+        split_mode: SplitMode = "balanced",
     ) -> None:
         """Segments a text into a list of sentences
         with or without character offsets from original text
@@ -136,16 +144,18 @@ class Segmenter:
         if char_span:
             _warn_char_span_deprecated(stacklevel=3)
         if split_mode not in SPLIT_MODES:
-            raise ValueError("split_mode must be one of {}.".format(", ".join(repr(m) for m in SPLIT_MODES)))
+            raise InvalidConfigurationError("split_mode must be one of {}.".format(", ".join(repr(m) for m in SPLIT_MODES)))
         self.split_mode = split_mode
         if doc_type not in (None, "pdf"):
-            raise ValueError("doc_type must be None or 'pdf'.")
+            raise InvalidConfigurationError("doc_type must be None or 'pdf'.")
         if self.clean and self.char_span:
-            raise ValueError("char_span must be False if clean is True. Since `clean=True` will modify original text.")
+            raise InvalidConfigurationError(
+                "char_span must be False if clean is True. Since `clean=True` will modify original text."
+            )
         # when doctype is pdf then force user to clean the text
         # char_span func wont be provided with pdf doctype also
         elif self.doc_type == "pdf" and not self.clean:
-            raise ValueError(
+            raise InvalidConfigurationError(
                 "`doc_type='pdf'` should have `clean=True` & `char_span` should be False since original text will be modified."
             )
         self._cleaner_cls = getattr(self.language_module, "Cleaner", Cleaner)
@@ -432,7 +442,7 @@ class Segmenter:
         marks/RTL markers). Requires ``clean=False``.
         """
         if self.clean:
-            raise ValueError("segment_spans() requires clean=False.")
+            raise InvalidConfigurationError("segment_spans() requires clean=False.")
         if not text:
             return []
         processed_sents = self.processor(text).process()
