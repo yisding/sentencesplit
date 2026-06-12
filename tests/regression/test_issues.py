@@ -935,6 +935,13 @@ def test_glued_ellipsis_lowercase_rule_preserves_long_runon_protection():
             "CHISWICK PRESS:--CHARLES WHITTINGHAM AND CO. TOOKS COURT, CHANCERY LANE, LONDON.",
             ["CHISWICK PRESS:--CHARLES WHITTINGHAM AND CO. TOOKS COURT, CHANCERY LANE, LONDON."],
         ),
+        (
+            "CELLULAR COMMUNICATIONS INC. SOLD 1,550,000 COMMON SHARES.",
+            ["CELLULAR COMMUNICATIONS INC. SOLD 1,550,000 COMMON SHARES."],
+        ),
+        ("ACME CORP. ANNOUNCED RESULTS.", ["ACME CORP. ANNOUNCED RESULTS."]),
+        ("FOO LTD. LONDON.", ["FOO LTD. LONDON."]),
+        ("WARNER BROS. RELEASED TRAILERS.", ["WARNER BROS. RELEASED TRAILERS."]),
         # GUARD: mixed-case "Co." at a genuine boundary must still split
         # (Golden Rule 9) — the follower "It" is not an all-caps imprint word.
         (
@@ -951,6 +958,12 @@ def test_glued_ellipsis_lowercase_rule_preserves_long_runon_protection():
         (
             "Let's ask Jane and co. They should know.",
             ["Let's ask Jane and co.", "They should know."],
+        ),
+        # GUARD: unrelated all-caps abbreviations, such as months, can still end
+        # a sentence before an all-caps sentence starter.
+        (
+            "IT HAPPENED IN DEC. THE END.",
+            ["IT HAPPENED IN DEC.", "THE END."],
         ),
     ],
 )
