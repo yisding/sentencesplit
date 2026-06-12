@@ -548,6 +548,29 @@ def test_en_es_zh_number_abbreviation_before_unknown_placeholder(split_mode):
     assert [s.strip() for s in seg.segment("As shown in Fig. ??")] == ["As shown in Fig. ??"]
 
 
+@pytest.mark.parametrize("language", ["en", "en_es_zh"])
+@pytest.mark.parametrize(
+    "text,expected",
+    [
+        ("Fig. ?? is missing. Done.", ["Fig. ?? is missing.", "Done."]),
+        ("As shown in Fig. ??, the curve rises. Done.", ["As shown in Fig. ??, the curve rises.", "Done."]),
+    ],
+)
+def test_number_abbreviation_unknown_placeholder_continuations(language, text, expected):
+    seg = sentencesplit.Segmenter(language=language, clean=False)
+
+    assert [s.strip() for s in seg.segment(text)] == expected
+
+
+@pytest.mark.parametrize("language", ["en", "en_es_zh"])
+def test_number_abbreviation_does_not_partially_attach_long_question_run(language):
+    seg = sentencesplit.Segmenter(language=language, clean=False)
+    segments = [s.strip() for s in seg.segment("Fig. ???")]
+
+    assert segments[0] == "Fig."
+    assert "".join(segments[1:]) == "???"
+
+
 def test_greek_uppercase_not_treated_as_sentence_start():
     """Greek/Cyrillic uppercase (e.g. Δ) should not trigger sentence splits —
     only accented Latin uppercase (e.g. É) should."""

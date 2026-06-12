@@ -88,16 +88,18 @@ class EnglishSpanishChinese(CJKBoundaryProfile, Common, Standard):
                         # conservative: also protect before any capitalized
                         # follower ("Fig. Several"), matching the base dial.
                         txt = re.sub(
-                            rf"(?<=\s{am_escaped})\.(?=(?:\s\d|\s+\(|\s\?\?|\s[^\W\d_]|[\u3400-\u9FFF]))",
+                            rf"(?<=\s{am_escaped})\.(?=(?:\s\d|\s+\(|\s\?\?(?!\?)|\s[^\W\d_]|[\u3400-\u9FFF]))",
                             "∯",
                             txt,
                         )
                     else:
                         txt = re.sub(
-                            rf"(?<=\s{am_escaped})\.(?=(?:\s\d|\s+\(|\s\?\?|\s[IVXLCDM]+\b|[\u3400-\u9FFF]))",
+                            rf"(?<=\s{am_escaped})\.(?=(?:\s\d|\s+\(|\s\?\?(?!\?)|\s[IVXLCDM]+\b|[\u3400-\u9FFF]))",
                             "∯",
                             txt,
                         )
+                    txt = self._protect_number_abbr_unknown_placeholder(txt[1:], am_escaped, r"\s")
+                    txt = " " + txt
                 else:
                     txt = self.replace_period_of_abbr(txt[1:], am, am_escaped)
                     return txt
