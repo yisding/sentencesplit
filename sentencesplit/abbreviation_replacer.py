@@ -141,7 +141,6 @@ class AbbreviationReplacer:
     _boundary_regex_cache: dict[type, re.Pattern[str] | None] = {}
     _sentence_start_offset_cache: dict[type, bool] = {}
     _cache_lock = RLock()
-    SENTENCE_STARTERS = []
     SENTENCE_BOUNDARY_ABBREVIATIONS = ["U∯S", "U.S", "U∯K", "E∯U", "E.U", "U∯S∯A", "U.S.A", "I", "i.v", "I.V"]
     CAPITALIZED_FOLLOWER_IS_BOUNDARY_CUE: bool | None = None
     PROTECT_ALLCAPS_IMPRINT_SUFFIXES: bool | None = None
@@ -195,12 +194,14 @@ class AbbreviationReplacer:
     @property
     def _capitalized_follower_is_boundary_cue(self) -> bool:
         flag = self.CAPITALIZED_FOLLOWER_IS_BOUNDARY_CUE
-        return bool(self.SENTENCE_STARTERS) if flag is None else flag
+        # Compatibility for third-party profiles that used the old extension
+        # hook. Built-in profiles set the explicit flags instead.
+        return bool(getattr(type(self), "SENTENCE_STARTERS", ())) if flag is None else flag
 
     @property
     def _protect_allcaps_imprint_suffixes(self) -> bool:
         flag = self.PROTECT_ALLCAPS_IMPRINT_SUFFIXES
-        return bool(self.SENTENCE_STARTERS) if flag is None else flag
+        return bool(getattr(type(self), "SENTENCE_STARTERS", ())) if flag is None else flag
 
     # Articles/determiners that mark a following initialism as a noun
     # (e.g. "the S.A.T.", "un M.B.A."), not the initials of a personal name.

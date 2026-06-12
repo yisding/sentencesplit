@@ -199,22 +199,28 @@ you may copy it, give it away or re-use it under the terms of the this license
 ]
 
 
-@pytest.mark.parametrize("language", ["am", "hy", "my", "hi", "mr", "ur", "fr", "it", "pl", "es", "nl"])
-def test_non_english_empty_sentence_starter_profiles_do_not_inherit_english_starters(language):
-    """Profiles that intentionally use no boundary abbreviation starters must not
-    inherit Standard's English-only SENTENCE_STARTERS through the MRO."""
+@pytest.mark.parametrize("language", sorted(LANGUAGE_CODES))
+def test_builtin_profiles_do_not_define_sentence_starter_word_lists(language):
+    """Built-in profiles should route ambiguous starters through split_mode."""
     profile = LanguageProfile.from_language(LANGUAGE_CODES[language])
 
-    assert profile.abbreviation_replacer_cls.SENTENCE_STARTERS == []
+    assert "SENTENCE_STARTERS" not in vars(profile.abbreviation_replacer_cls)
 
 
 @pytest.mark.parametrize("language", ["mr", "fr", "it", "pl", "es", "nl"])
-def test_non_english_boundary_abbreviation_splits_without_english_starter(language):
-    """Latin-script non-English profiles should restore boundary abbreviations
-    before any following sentence, not only before English starter words."""
+def test_non_english_boundary_abbreviation_splits_by_default(language):
+    """Latin-script non-English profiles restore boundary abbreviations by default."""
     seg = sentencesplit.Segmenter(language=language, clean=False)
 
     assert [s.strip() for s in seg.segment("Je vois U.S. Il part.")] == ["Je vois U.S.", "Il part."]
+
+
+@pytest.mark.parametrize("language", ["fr", "es", "it", "nl"])
+def test_non_english_profiles_do_not_inherit_uppercase_abbreviation_heuristic(language):
+    """Removing empty overrides must not expose English-oriented Standard flags."""
+    seg = sentencesplit.Segmenter(language=language, clean=False)
+
+    assert [s.strip() for s in seg.segment("Voir fig. I maintenant.")] == ["Voir fig. I maintenant."]
 
 
 def test_fig_number_abbreviation():
@@ -506,7 +512,7 @@ def test_cjk_quote_splitting_not_gated_by_uppercase(language, text, expected):
 
 
 def test_compact_ampm_before_non_ascii_uppercase():
-    """Compact 6p.m. form should split before non-ASCII uppercase sentence starters."""
+    """Compact 6p.m. form should split before non-ASCII uppercase sentence starts."""
     seg = sentencesplit.Segmenter(language="en", clean=False, char_span=False)
     assert [s.strip() for s in seg.segment("He left at 6p.m. \u00c9lodie arrived.")] == [
         "He left at 6p.m.",
@@ -1057,7 +1063,7 @@ def test_glued_ellipsis_lowercase_rule_preserves_long_runon_protection():
             ["Let's ask Jane and co.", "They should know."],
         ),
         # GUARD: unrelated all-caps abbreviations, such as months, can still end
-        # a sentence before an all-caps sentence starter.
+        # a sentence before an all-caps sentence start.
         (
             "IT HAPPENED IN DEC. THE END.",
             ["IT HAPPENED IN DEC.", "THE END."],

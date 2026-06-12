@@ -32,10 +32,6 @@ class Danish(Common, Standard):
     class AbbreviationReplacer(AbbreviationReplacer):
         CAPITALIZED_FOLLOWER_IS_BOUNDARY_CUE = True
         PROTECT_ALLCAPS_IMPRINT_SUFFIXES = True
-        SENTENCE_STARTERS = (
-            "At De Dem Den Der Det Du En Et For Få Gjorde Han Hun Hvad Hvem"
-            " Hvilke Hvor Hvordan Hvorfor Hvorledes Hvornår I Jeg Mange Vi Være"
-        ).split(" ")
         # Consumed by the cached base _get_boundary_regex(), which escapes the
         # dots correctly. Replaces a hand-rolled override that rebuilt the regex
         # on every call with unescaped dots (i.v / s.u / s.U).

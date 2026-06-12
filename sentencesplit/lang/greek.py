@@ -11,6 +11,8 @@ class Greek(Common, Standard):
     Punctuations = [".", "!", ";", "?"]
 
     class AbbreviationReplacer(Standard.AbbreviationReplacer):
+        CAPITALIZED_FOLLOWER_IS_BOUNDARY_CUE = True
+        PROTECT_ALLCAPS_IMPRINT_SUFFIXES = True
         # Latin boundary abbreviations inside Greek text are commonly embedded
         # names ("U.S. Embassy"). Greek uppercase boundaries are handled by the
         # non-Latin multi-period rule below, so only aggressive mode splits

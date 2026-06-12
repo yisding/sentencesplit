@@ -205,11 +205,6 @@ class Deutsch(Common, Standard):
         NUMBER_ABBREVIATIONS = ["art", "ca", "no", "nos", "nr", "pp"]
 
     class AbbreviationReplacer(AbbreviationReplacer):
-        SENTENCE_STARTERS = (
-            "Am Auch Auf Bei Da Das Der Die Ein Eine Es Für Heute Ich Im In "
-            "Ist Jetzt Mein Mit Nach So Und Warum Was Wenn Wer Wie Wir"
-        ).split(" ")
-
         def replace(self):
             # Rubular: http://rubular.com/r/B4X33QKIL8
             SingleLowerCaseLetterRule = Rule(r"(?<=\s[a-z])\.(?=\s)", "∯")
