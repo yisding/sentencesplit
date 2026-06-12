@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 from __future__ import annotations
 
+import inspect
 import re
 from collections import deque
 from threading import RLock
@@ -138,6 +139,7 @@ class _AbbreviationData:
 class AbbreviationReplacer:
     _data_cache: dict[type, _AbbreviationData] = {}
     _boundary_regex_cache: dict[type, re.Pattern[str] | None] = {}
+    _sentence_start_offset_cache: dict[type, bool] = {}
     _cache_lock = RLock()
     SENTENCE_STARTERS = []
     SENTENCE_BOUNDARY_ABBREVIATIONS = ["U∯S", "U.S", "U∯K", "E∯U", "E.U", "U∯S∯A", "U.S.A", "I", "i.v", "I.V"]
@@ -308,6 +310,25 @@ class AbbreviationReplacer:
         """
         return _next_nonspace_char_is_upper(text, start)
 
+    @classmethod
+    def _sentence_start_accepts_offset(cls) -> bool:
+        with AbbreviationReplacer._cache_lock:
+            cached = AbbreviationReplacer._sentence_start_offset_cache.get(cls)
+            if cached is None:
+                try:
+                    inspect.signature(cls._is_likely_sentence_start).bind(object(), "", 0)
+                except TypeError:
+                    cached = False
+                else:
+                    cached = True
+                AbbreviationReplacer._sentence_start_offset_cache[cls] = cached
+            return cached
+
+    def _is_likely_sentence_start_at(self, text: str, start: int) -> bool:
+        if type(self)._sentence_start_accepts_offset():
+            return self._is_likely_sentence_start(text, start)
+        return self._is_likely_sentence_start(text[start:])
+
     def replace(self) -> str:
         self.text = apply_rules(
             self.text,
@@ -442,7 +463,7 @@ class AbbreviationReplacer:
             # boundary (so "Ph.D. Smith" stays joined); 'aggressive' splits
             # before any likely sentence start, including pure initialisms
             # ("A.I. Systems …").
-            likely_start = self._is_likely_sentence_start(self.text, next_start)
+            likely_start = self._is_likely_sentence_start_at(self.text, next_start)
             # Greek/Cyrillic etc. (opt-in): a capital follower reliably starts a
             # new sentence, so a pure single-letter initialism ("π.Χ.", "Ε.Ε.")
             # ends the sentence before it even though _is_latin_upper ignored it.
