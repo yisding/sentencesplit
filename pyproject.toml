@@ -133,8 +133,7 @@ xfail_strict = true
 # -ra: show a short summary of all non-passing outcomes.
 # --strict-config: error out on unknown/typo'd ini keys.
 # --import-mode=importlib: modern, isolated test-module imports.
-# --cov=sentencesplit: collect coverage by default (see [tool.coverage]).
-addopts = ["-ra", "--strict-config", "--import-mode=importlib", "--cov=sentencesplit"]
+addopts = ["-ra", "--strict-config", "--import-mode=importlib"]
 
 [tool.semantic_release]
 tag_format = "v{version}"
