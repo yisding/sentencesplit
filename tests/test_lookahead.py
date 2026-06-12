@@ -3,7 +3,7 @@ import pytest
 import sentencesplit
 from sentencesplit.languages import LANGUAGE_CODES
 from sentencesplit.segmenter import _DIGIT_LOOKAHEAD_STEM, _LANGUAGE_LOOKAHEAD_STEMS
-from sentencesplit.utils import SegmentLookahead
+from sentencesplit.utils import ZERO_WIDTH_CHARS, SegmentLookahead
 from tests.helpers import assert_span_contract, lookahead_sample_for_language
 
 
@@ -100,6 +100,51 @@ def test_segment_with_lookahead_handles_empty_and_none_inputs():
 
     assert seg.segment_with_lookahead("") == SegmentLookahead([], should_wait_for_more=False)
     assert seg.segment_with_lookahead(None) == SegmentLookahead([], should_wait_for_more=False)
+
+
+def test_segment_with_lookahead_ignores_zero_width_only_input():
+    seg = sentencesplit.Segmenter(language="en", clean=False, char_span=False)
+
+    assert seg.segment_with_lookahead("\u200b") == SegmentLookahead([], should_wait_for_more=False)
+    assert seg.should_wait_for_more("\u200b") is False
+
+
+@pytest.mark.parametrize("zero_width", ZERO_WIDTH_CHARS)
+def test_boundary_zero_width_after_stable_period_does_not_wait(zero_width):
+    seg = sentencesplit.Segmenter(language="en", clean=False, char_span=False)
+    text = f"This is the finale.{zero_width}"
+
+    assert seg.segment_with_lookahead(text) == SegmentLookahead(["This is the finale."], should_wait_for_more=False)
+    assert seg.segment(text) == ["This is the finale."]
+    assert_span_contract(text, seg.segment_spans(text))
+
+
+@pytest.mark.parametrize("zero_width", ZERO_WIDTH_CHARS)
+def test_boundary_zero_width_after_abbreviation_still_waits(zero_width):
+    seg = sentencesplit.Segmenter(language="en", clean=False, char_span=False)
+    text = f"Dr.{zero_width}"
+
+    assert seg.segment_with_lookahead(text) == SegmentLookahead(["Dr."], should_wait_for_more=True)
+    assert seg.should_wait_for_more(text) is True
+    assert_span_contract(text, seg.segment_spans(text))
+
+
+@pytest.mark.parametrize(
+    "text,expected",
+    [
+        ('What?\u200b"', ['What?"']),
+        ("He asked (what?\u200b)", ["He asked (what?)"]),
+    ],
+)
+def test_boundary_zero_width_before_sentence_closers(text, expected):
+    seg = sentencesplit.Segmenter(language="en", clean=False, char_span=False)
+
+    assert seg.segment_with_lookahead(text) == SegmentLookahead(expected, should_wait_for_more=False)
+    assert seg.segment(text) == expected
+    assert seg.should_wait_for_more(text) is False
+    spans = seg.segment_spans(text)
+    assert_span_contract(text, spans)
+    assert [span.sent for span in spans] == [text]
 
 
 @pytest.mark.parametrize(
