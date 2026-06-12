@@ -1,7 +1,10 @@
 # -*- coding: utf-8 -*-
+from time import perf_counter
+
 import pytest
 
 import sentencesplit
+from sentencesplit.lang.common.standard import Standard
 from sentencesplit.lists_item_replacer import ListItemReplacer
 from sentencesplit.utils import TextSpan
 
@@ -800,6 +803,35 @@ def test_chained_initials_before_capital_surname_no_split(language, text, expect
 
 
 @pytest.mark.parametrize(
+    "language,text,expected",
+    [
+        # EL: the Greek profile's Unicode MULTI_PERIOD_ABBREVIATION_REGEX absorbs a
+        # leading non-ASCII initial into the protected chain (e.g. "Δ.A.B.C." ->
+        # "Δ∯A∯B∯C∯"). The initials-name heuristic must keep the ASCII-only
+        # ([A-Za-z]) semantics of the original regex and stop walking left at the
+        # non-ASCII letter — otherwise it traverses back to the preceding "a"/"o"/"de"
+        # determiner and wrongly splits before the surname.
+        (
+            "el",
+            "a Δ.A.B.C. Smith arrived.",
+            ["a Δ.A.B.C. Smith arrived."],
+        ),
+        (
+            "el",
+            "die Ñ.A.B.C. Applications arrived.",
+            ["die Ñ.A.B.C. Applications arrived."],
+        ),
+    ],
+)
+def test_non_ascii_prefixed_initials_no_split(language, text, expected):
+    """A non-ASCII leading initial absorbed into the protected initials chain
+    (via the Greek Unicode MPA regex) must not cause the initials-name heuristic
+    to walk back to a preceding determiner and split before the surname."""
+    seg = sentencesplit.Segmenter(language=language, clean=False)
+    assert [s.strip() for s in seg.segment(text)] == expected
+
+
+@pytest.mark.parametrize(
     "text,expected",
     [
         # An acronym used as a noun (preceded by an article) before a new
@@ -816,6 +848,20 @@ def test_acronym_noun_before_new_sentence_still_splits(text, expected):
     seg = sentencesplit.Segmenter(language="en", clean=False)
     segments = [s.strip() for s in seg.segment(text)]
     assert segments == expected
+
+
+@pytest.mark.perf
+def test_repeated_initials_heuristic_is_linear_time():
+    """Repeated dotted initialisms should not rescan the full prefix per match."""
+    seg = sentencesplit.Segmenter(language="en", clean=False)
+    text = "A.B.C. X " * 4000
+
+    start = perf_counter()
+    segments = seg.segment(text)
+    elapsed = perf_counter() - start
+
+    assert segments
+    assert elapsed < 2.0
 
 
 @pytest.mark.parametrize(
@@ -855,6 +901,28 @@ def test_glued_ellipsis_lowercase_runon_not_split(text, expected):
     seg = sentencesplit.Segmenter(language="en", clean=False)
     segments = [s.strip() for s in seg.segment(text)]
     assert segments == expected
+
+
+@pytest.mark.perf
+def test_glued_ellipsis_lowercase_rule_handles_long_period_runs_linearly():
+    """The glued lowercase run-on protection must not rescan long period runs
+    from every period when the run is not followed by lowercase text."""
+    text = "a" + "." * 20_000 + "A"
+
+    start = perf_counter()
+    result = Standard.EllipsisRules.GluedLowercaseRunOnRule.regex.sub("∮", text)
+    elapsed = perf_counter() - start
+
+    assert result == text
+    assert elapsed < 0.25
+
+
+def test_glued_ellipsis_lowercase_rule_preserves_long_runon_protection():
+    """Runs longer than four periods still protect every dot before the
+    trailing ellipsis so no bare terminal period remains."""
+    result = Standard.EllipsisRules.GluedLowercaseRunOnRule.regex.sub("∮", "slides......they")
+
+    assert result == "slides∮∮∮...they"
 
 
 @pytest.mark.parametrize(
@@ -1114,3 +1182,32 @@ def test_multi_sentence_quotation_keeps_abbreviation_periods_joined():
         "They then discussed the strange case.",
         'The matter remained unresolved overnight."',
     ]
+
+
+# PR #41: the linear-time glued-lowercase-run-on scanner must reproduce the
+# original `(?<=\S)\.(?=\.{3,}[a-z])` regex, whose per-dot lookbehind protected
+# interior dots even when the run begins at index 0 or follows whitespace
+# (each interior dot is preceded by a literal '.', which is \S). A whole-run
+# guard that skips leading / whitespace-preceded runs over-fragments these on
+# the public clean=False path (used for span mapping).
+GLUED_LEADING_DOT_RUN_DATA = [
+    ("leading_run", ".....and then.", [".....and then."]),
+    ("leading_run_letter", ".....x is here.", [".....x is here."]),
+    ("ws_preceded_run", "ok. .....and then.", ["ok. ", ".", "....and then."]),
+    (
+        "ws_preceded_run_with_tail",
+        "Foo. .....and then. Bar.",
+        ["Foo. ", ".", "....and then. ", "Bar."],
+    ),
+    # CONTROLS: word-char-preceded mid-string runs must be unaffected.
+    ("glued_word", "slides......they", ["slides......they"]),
+    ("uppercase_tail", "Wait.... The end.", ["Wait.... ", "The end."]),
+]
+
+
+@pytest.mark.parametrize("case_id, text, expected", GLUED_LEADING_DOT_RUN_DATA)
+def test_glued_lowercase_run_on_protects_leading_dot_runs(case_id, text, expected):
+    """REGRESSION (PR #41): leading / whitespace-preceded 4+ period runs must
+    stay intact under clean=False, matching the original per-dot lookbehind."""
+    seg = sentencesplit.Segmenter(language="en", clean=False)
+    assert seg.segment(text) == expected

@@ -2,6 +2,9 @@
 from __future__ import annotations
 
 import importlib
+from threading import RLock
+
+from sentencesplit.exceptions import UnknownLanguageError
 
 _LANGUAGE_MODULES: dict[str, tuple[str, str]] = {
     "en": ("sentencesplit.lang.english", "English"),
@@ -38,6 +41,7 @@ _CLASS_NAME_TO_MODULE: dict[str, tuple[str, str]] = {
 }
 
 _loaded_cache: dict[str, type] = {}
+_LANGUAGE_LOCK = RLock()
 
 __all__ = [
     "LANGUAGE_CODES",
@@ -49,23 +53,28 @@ __all__ = [
 
 
 def _load_language(code: str) -> type:
-    if code in _loaded_cache:
-        return _loaded_cache[code]
-    mod_path, cls_name = _LANGUAGE_MODULES[code]
-    mod = importlib.import_module(mod_path)
-    klass = getattr(mod, cls_name)
-    _loaded_cache[code] = klass
-    return klass
+    with _LANGUAGE_LOCK:
+        if code in _loaded_cache:
+            return _loaded_cache[code]
+        mod_path, cls_name = _LANGUAGE_MODULES[code]
+        mod = importlib.import_module(mod_path)
+        klass = getattr(mod, cls_name)
+        _loaded_cache[code] = klass
+        return klass
 
 
 def __getattr__(name: str):
     """Allow ``from sentencesplit.languages import English`` etc. via lazy loading."""
     if name in _CLASS_NAME_TO_MODULE:
-        mod_path, cls_name = _CLASS_NAME_TO_MODULE[name]
-        mod = importlib.import_module(mod_path)
-        klass = getattr(mod, cls_name)
-        globals()[name] = klass
-        return klass
+        with _LANGUAGE_LOCK:
+            cached = globals().get(name)
+            if cached is not None:
+                return cached
+            mod_path, cls_name = _CLASS_NAME_TO_MODULE[name]
+            mod = importlib.import_module(mod_path)
+            klass = getattr(mod, cls_name)
+            globals()[name] = klass
+            return klass
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
@@ -79,98 +88,118 @@ class _LazyLanguageCodes(dict):
 
     def _materialize(self, code: str) -> None:
         """Ensure a built-in key is in the backing dict."""
-        if code in _LANGUAGE_MODULES and code not in self._removed and not dict.__contains__(self, code):
-            dict.__setitem__(self, code, _load_language(code))
+        with _LANGUAGE_LOCK:
+            if code in _LANGUAGE_MODULES and code not in self._removed and not dict.__contains__(self, code):
+                dict.__setitem__(self, code, _load_language(code))
 
     def __missing__(self, code: str) -> type:
-        if code in _LANGUAGE_MODULES and code not in self._removed:
-            klass = _load_language(code)
-            self[code] = klass
-            return klass
-        raise KeyError(code)
+        with _LANGUAGE_LOCK:
+            if code in _LANGUAGE_MODULES and code not in self._removed:
+                klass = _load_language(code)
+                self[code] = klass
+                return klass
+            raise KeyError(code)
 
     def __contains__(self, code: object) -> bool:
-        if isinstance(code, str) and code in self._removed:
-            return dict.__contains__(self, code)
-        return code in _LANGUAGE_MODULES or dict.__contains__(self, code)
+        with _LANGUAGE_LOCK:
+            if isinstance(code, str) and code in self._removed:
+                return dict.__contains__(self, code)
+            return code in _LANGUAGE_MODULES or dict.__contains__(self, code)
 
     def __setitem__(self, key, value):
-        self._removed.discard(key)
-        dict.__setitem__(self, key, value)
+        with _LANGUAGE_LOCK:
+            self._removed.discard(key)
+            dict.__setitem__(self, key, value)
 
     def __delitem__(self, key):
-        self._materialize(key)
-        dict.__delitem__(self, key)
-        if key in _LANGUAGE_MODULES:
-            self._removed.add(key)
-
-    def __iter__(self):
-        seen = set()
-        for code in _LANGUAGE_MODULES:
-            if code not in self._removed:
-                seen.add(code)
-                yield code
-        for code in dict.keys(self):
-            if code not in seen:
-                yield code
-
-    def __len__(self) -> int:
-        builtin_active = set(_LANGUAGE_MODULES) - self._removed
-        return len(builtin_active | set(dict.keys(self)))
-
-    def keys(self):
-        return dict(dict.fromkeys(list(self))).keys()
-
-    def values(self):
-        return [self[code] for code in self]
-
-    def items(self):
-        return [(code, self[code]) for code in self]
-
-    def get(self, key, default=None):
-        try:
-            return self[key]
-        except KeyError:
-            return default
-
-    def setdefault(self, key, default=None):
-        if key in self:
-            return self[key]
-        self[key] = default
-        return default
-
-    def pop(self, key, *args):
-        try:
+        with _LANGUAGE_LOCK:
             self._materialize(key)
-            value = dict.pop(self, key)
+            dict.__delitem__(self, key)
             if key in _LANGUAGE_MODULES:
                 self._removed.add(key)
-            return value
-        except KeyError:
-            if args:
-                return args[0]
-            raise
+
+    def __iter__(self):
+        with _LANGUAGE_LOCK:
+            seen = set()
+            codes = []
+            for code in _LANGUAGE_MODULES:
+                if code not in self._removed:
+                    seen.add(code)
+                    codes.append(code)
+            for code in dict.keys(self):
+                if code not in seen:
+                    codes.append(code)
+        yield from codes
+
+    def __len__(self) -> int:
+        with _LANGUAGE_LOCK:
+            builtin_active = set(_LANGUAGE_MODULES) - self._removed
+            return len(builtin_active | set(dict.keys(self)))
+
+    def keys(self):
+        with _LANGUAGE_LOCK:
+            return dict(dict.fromkeys(list(self))).keys()
+
+    def values(self):
+        with _LANGUAGE_LOCK:
+            return [self[code] for code in self]
+
+    def items(self):
+        with _LANGUAGE_LOCK:
+            return [(code, self[code]) for code in self]
+
+    def get(self, key, default=None):
+        with _LANGUAGE_LOCK:
+            try:
+                return self[key]
+            except KeyError:
+                return default
+
+    def setdefault(self, key, default=None):
+        with _LANGUAGE_LOCK:
+            if key in self:
+                return self[key]
+            self[key] = default
+            return default
+
+    def pop(self, key, *args):
+        with _LANGUAGE_LOCK:
+            try:
+                self._materialize(key)
+                value = dict.pop(self, key)
+                if key in _LANGUAGE_MODULES:
+                    self._removed.add(key)
+                return value
+            except KeyError:
+                if args:
+                    return args[0]
+                raise
 
     def copy(self) -> dict:
-        return dict(self.items())
+        with _LANGUAGE_LOCK:
+            return dict(self.items())
 
     def __repr__(self) -> str:
-        return repr(dict(self.items()))
+        with _LANGUAGE_LOCK:
+            return repr(dict(self.items()))
 
     def __eq__(self, other) -> bool:
         if not isinstance(other, dict):
             return NotImplemented
-        return dict(self.items()) == other
+        with _LANGUAGE_LOCK:
+            return dict(self.items()) == other
 
     def __or__(self, other):
-        result = dict(self.items())
-        result.update(other)
-        return result
+        with _LANGUAGE_LOCK:
+            result = dict(self.items())
+            result.update(other)
+            return result
 
     def __ror__(self, other):
-        result = dict(other)
-        result.update(self.items())
-        return result
+        with _LANGUAGE_LOCK:
+            result = dict(other)
+            result.update(self.items())
+            return result
 
 
 LANGUAGE_CODES = _LazyLanguageCodes()
@@ -179,31 +208,36 @@ LANGUAGE_CODES = _LazyLanguageCodes()
 def _evict_profile(code: str) -> None:
     """Drop any cached LanguageProfile for the class currently bound to ``code``
     so a re-registration (or override) is rebuilt fresh."""
-    from sentencesplit.language_profile import _PROFILE_CACHE
+    from sentencesplit.language_profile import _PROFILE_CACHE, _PROFILE_CACHE_LOCK
 
-    existing = LANGUAGE_CODES.get(code)
+    with _LANGUAGE_LOCK:
+        existing = LANGUAGE_CODES.get(code)
     if existing is not None:
-        _PROFILE_CACHE.pop(existing, None)
+        with _PROFILE_CACHE_LOCK:
+            _PROFILE_CACHE.pop(existing, None)
 
 
 def register_language(code: str, language_cls: type) -> None:
     """Register (or override) a language class for an ISO 639-1 ``code``.
 
-    ``LANGUAGE_CODES`` is a process-global, non-thread-safe registry shared by
-    every ``Segmenter``. Register custom languages once at import time, before
-    any concurrent segmentation, rather than mutating it from worker threads.
+    ``LANGUAGE_CODES`` is a process-global registry shared by every
+    ``Segmenter``. Registry mutations are locked, but callers should still
+    register custom languages during startup so concurrent workers see a stable
+    language set.
     """
-    _evict_profile(code)
-    LANGUAGE_CODES[code] = language_cls
+    with _LANGUAGE_LOCK:
+        _evict_profile(code)
+        LANGUAGE_CODES[code] = language_cls
 
 
 def unregister_language(code: str) -> None:
     """Remove a registered (or built-in) language ``code`` if present."""
-    _evict_profile(code)
-    try:
-        del LANGUAGE_CODES[code]
-    except KeyError:
-        pass
+    with _LANGUAGE_LOCK:
+        _evict_profile(code)
+        try:
+            del LANGUAGE_CODES[code]
+        except KeyError:
+            pass
 
 
 def list_languages() -> list[str]:
@@ -228,7 +262,7 @@ class Language:
     def get_language_code(cls, code: str):
         try:
             return LANGUAGE_CODES[code]
-        except KeyError:
-            raise ValueError(
+        except KeyError as err:
+            raise UnknownLanguageError(
                 "Provide valid language ID i.e. ISO code. Available codes are : {}".format(sorted(LANGUAGE_CODES.keys()))
-            )
+            ) from err

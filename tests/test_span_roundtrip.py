@@ -29,6 +29,7 @@ import pytest
 import sentencesplit
 from sentencesplit.languages import LANGUAGE_CODES
 from sentencesplit.utils import TextSpan
+from tests.helpers import assert_span_contract
 
 try:
     from hypothesis import given, settings
@@ -112,34 +113,6 @@ def _text_strategy(code: str) -> st.SearchStrategy[str]:
     return st.lists(char_st, min_size=0, max_size=24).map("".join)
 
 
-def _assert_span_contract(text: str, spans: list[TextSpan]) -> None:
-    """Assert the full N5 span contract for ``spans`` against ``text``."""
-    # Every span is an exact slice of the source.
-    for span in spans:
-        assert isinstance(span, TextSpan)
-        assert text[span.start : span.end] == span.sent
-
-    if not spans:
-        # The only valid empty result is an empty source.
-        assert text == ""
-        return
-
-    # Bounds: 0 <= start < end <= len(text) for every span (no empty spans).
-    for span in spans:
-        assert 0 <= span.start < span.end <= len(text)
-
-    # No gaps, no overlaps: contiguous tiling that covers the whole source.
-    assert spans[0].start == 0
-    assert spans[-1].end == len(text)
-    prev_end = 0
-    for span in spans:
-        assert span.start == prev_end  # no gap and no overlap
-        prev_end = span.end
-
-    # Byte-for-byte reassembly.
-    assert "".join(span.sent for span in spans) == text
-
-
 # --------------------------------------------------------------------------- #
 # 1. Property-based round-trip across every registered language.
 # --------------------------------------------------------------------------- #
@@ -150,7 +123,7 @@ def test_segment_spans_roundtrip_property(code, data):
     text = data.draw(_text_strategy(code))
     seg = sentencesplit.Segmenter(language=code, clean=False, char_span=False)
     spans = seg.segment_spans(text)
-    _assert_span_contract(text, spans)
+    assert_span_contract(text, spans)
 
 
 @settings(max_examples=400, deadline=None)
@@ -159,7 +132,7 @@ def test_segment_spans_roundtrip_arbitrary_unicode(text):
     """Unconstrained Unicode (any code point) must still round-trip exactly."""
     seg = sentencesplit.Segmenter(language="en", clean=False, char_span=False)
     spans = seg.segment_spans(text)
-    _assert_span_contract(text, spans)
+    assert_span_contract(text, spans)
 
 
 @settings(max_examples=300, deadline=None)
@@ -171,7 +144,7 @@ def test_char_span_true_matches_segment_spans(text):
     canonical = plain_seg.segment_spans(text)
     via_flag = span_seg.segment(text)
     assert via_flag == canonical
-    _assert_span_contract(text, via_flag)
+    assert_span_contract(text, via_flag)
 
 
 # --------------------------------------------------------------------------- #
@@ -205,7 +178,7 @@ _DIRTY_FIXTURES = [
 def test_segment_spans_dirty_input_contract(text):
     seg = sentencesplit.Segmenter(language="en", clean=False, char_span=False)
     spans = seg.segment_spans(text)
-    _assert_span_contract(text, spans)
+    assert_span_contract(text, spans)
 
 
 @pytest.mark.parametrize("text", _DIRTY_FIXTURES)
@@ -213,7 +186,7 @@ def test_segment_spans_dirty_input_contract(text):
 def test_segment_spans_dirty_input_contract_multilang(code, text):
     seg = sentencesplit.Segmenter(language=code, clean=False, char_span=False)
     spans = seg.segment_spans(text)
-    _assert_span_contract(text, spans)
+    assert_span_contract(text, spans)
 
 
 # --------------------------------------------------------------------------- #
@@ -260,7 +233,7 @@ def test_plain_segment_strips_zero_width_only_segment():
     seg = sentencesplit.Segmenter(language="en", clean=False, char_span=False)
     assert seg.segment(text) == []
     spans = seg.segment_spans(text)
-    _assert_span_contract(text, spans)
+    assert_span_contract(text, spans)
     assert spans == [TextSpan(ZWSP, 0, 1)]
 
 
@@ -272,7 +245,7 @@ def test_plain_segment_strips_zero_width_only_segment():
 def test_segment_spans_whitespace_only_roundtrips(code, text):
     seg = sentencesplit.Segmenter(language=code, clean=False, char_span=False)
     spans = seg.segment_spans(text)
-    _assert_span_contract(text, spans)
+    assert_span_contract(text, spans)
 
 
 # --------------------------------------------------------------------------- #
