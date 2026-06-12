@@ -1099,3 +1099,18 @@ def test_multi_sentence_quotation_splits_before_non_ascii_capital(language, text
     capital (accented Latin, Greek, or Cyrillic) must split, like the ASCII case."""
     seg = sentencesplit.Segmenter(language=language, clean=False)
     assert [s.strip() for s in seg.segment(text)] == expected
+
+
+def test_multi_sentence_quotation_keeps_abbreviation_periods_joined():
+    """Quote resplitting must not turn restored abbreviation periods into boundaries."""
+    seg = sentencesplit.Segmenter(language="en", clean=False)
+    text = (
+        '"He very gladly met Dr. Watson and Sherlock talked at noon. '
+        "They then discussed the strange case. "
+        'The matter remained unresolved overnight."'
+    )
+    assert [s.strip() for s in seg.segment(text)] == [
+        '"He very gladly met Dr. Watson and Sherlock talked at noon.',
+        "They then discussed the strange case.",
+        'The matter remained unresolved overnight."',
+    ]
