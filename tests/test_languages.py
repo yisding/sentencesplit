@@ -2,11 +2,24 @@ from collections import Counter
 
 import pytest
 
-from sentencesplit.languages import LANGUAGE_CODES, Language, list_languages
+import sentencesplit
+from sentencesplit.lang.common import Common, Standard
+from sentencesplit.language_profile import LanguageProfile
+from sentencesplit.languages import LANGUAGE_CODES, Language, list_languages, register_language, unregister_language
 
 
 class _Stub:
     """Sentinel class used in mutation tests to stand in for a real language."""
+
+
+class _DemoLanguageA(Common, Standard):
+    iso_code = "zz"
+    LATIN_UPPERCASE_RESPLIT = False
+
+
+class _DemoLanguageB(Common, Standard):
+    iso_code = "zz"
+    LATIN_UPPERCASE_RESPLIT = True
 
 
 # All registered languages should have duplicate-free, whitespace-trimmed
@@ -39,6 +52,30 @@ def test_list_languages_reflects_runtime_registration(restore_language_codes):
     assert "zz" in list_languages()
     del LANGUAGE_CODES["en"]
     assert "en" not in list_languages()
+
+
+def test_register_and_unregister_language_helpers_reflect_in_public_api(restore_language_codes):
+    register_language("zz", _DemoLanguageA)
+
+    assert Language.get_language_code("zz") is _DemoLanguageA
+    assert "zz" in list_languages()
+    assert sentencesplit.Segmenter(language="zz").language_module is _DemoLanguageA
+
+    unregister_language("zz")
+
+    assert "zz" not in list_languages()
+    with pytest.raises(ValueError, match="Provide valid language ID"):
+        Language.get_language_code("zz")
+
+
+def test_register_language_override_uses_new_profile(restore_language_codes):
+    register_language("zz", _DemoLanguageA)
+    assert LanguageProfile.from_language(Language.get_language_code("zz")).latin_uppercase_resplit is False
+
+    register_language("zz", _DemoLanguageB)
+
+    assert Language.get_language_code("zz") is _DemoLanguageB
+    assert LanguageProfile.from_language(Language.get_language_code("zz")).latin_uppercase_resplit is True
 
 
 @pytest.mark.parametrize("code", DEDUPED_ABBREVIATION_LANGUAGE_CODES)
