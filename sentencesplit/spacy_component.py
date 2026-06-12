@@ -3,11 +3,19 @@ from __future__ import annotations
 
 import re
 
+from sentencesplit.languages import LANGUAGE_CODES
+
+_DEFAULT_COMPONENT_NAME = "sentencesplit"
+
 
 class SentenceSplitFactory:
     """sentencesplit as a spacy component through entrypoints"""
 
-    def __init__(self, nlp, name: str = "sentencesplit", language: str = "en") -> None:
+    def __init__(self, nlp, name: str = _DEFAULT_COMPONENT_NAME, language: str = "en") -> None:
+        if language == "en" and name != _DEFAULT_COMPONENT_NAME and name in LANGUAGE_CODES:
+            language = name
+            name = _DEFAULT_COMPONENT_NAME
+
         self.nlp = nlp
         self.name = name
         # Deferred import avoids circular dependency with sentencesplit.__init__
