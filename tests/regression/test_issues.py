@@ -279,8 +279,7 @@ def test_hyphen_prefixed_numbered_period_paren_list_items_split():
 
 def test_german_consecutive_ordinals_not_treated_as_numbered_list():
     """Two nearby ascending ordinals embedded in prose ('19. ... 20. Jahrhunderts')
-    must not be promoted to a numbered list. A real list item begins with an
-    uppercase word; an ordinal followed by a lowercase word ('19. und') is prose."""
+    must not be promoted to a numbered list."""
     seg = sentencesplit.Segmenter(language="de", clean=False)
     text = "Im Laufe des 19. und frühen 20. Jahrhunderts entwickelte sich Berlin zur weltweit drittgrößten Stadt."
     segments = [s.strip() for s in seg.segment(text)]
@@ -288,13 +287,28 @@ def test_german_consecutive_ordinals_not_treated_as_numbered_list():
 
 
 def test_consecutive_ordinals_followed_by_lowercase_not_a_list():
-    """Embedded ordinals followed by lowercase words are not list markers, so
+    """Embedded ordinals followed by prose connectors are not list markers, so
     no line break ('\\r') is inserted to split them into list items. The ordinal
     periods are still protected (replaced with the placeholder), which keeps the
     text from splitting downstream."""
     text = "Im Laufe des 19. und frühen 20. Jahrhunderts entwickelte sich Berlin."
     result = ListItemReplacer(text).add_line_break()
     assert "\r" not in result and "\n" not in result
+
+
+def test_lowercase_numbered_list_items_split():
+    """Lowercase item text is still a real numbered list, not prose ordinal text."""
+    text = "1. apple 2. banana"
+    assert ListItemReplacer(text).add_line_break() == "1∯ apple\r2∯ banana"
+
+    seg = sentencesplit.Segmenter(language="en", clean=False)
+    assert [s.strip() for s in seg.segment(text)] == ["1. apple", "2. banana"]
+
+
+def test_lowercase_numbered_list_item_does_not_suppress_later_boundaries():
+    """A lowercase item at the start must not globally suppress every list break."""
+    text = "1. apple 2. Banana 3. Cherry"
+    assert ListItemReplacer(text).add_line_break() == "1∯ apple\r2∯ Banana\r3∯ Cherry"
 
 
 def test_common_abbreviations_no_false_split():
