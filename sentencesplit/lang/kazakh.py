@@ -325,7 +325,7 @@ class Kazakh(Common, Standard):
         NUMBER_ABBREVIATIONS = []
 
     class AbbreviationReplacer(AbbreviationReplacer):
-        def replace(self):
+        def replace(self) -> str:
             SingleUpperCaseCyrillicLetterAtStartOfLineRule = Rule(r"(?<=^[А-ЯЁ])\.(?=\s)", "∯")
             SingleUpperCaseCyrillicLetterRule = Rule(r"(?<=\s[А-ЯЁ])\.(?=\s)", "∯")
             self.text = apply_rules(
@@ -333,5 +333,14 @@ class Kazakh(Common, Standard):
                 SingleUpperCaseCyrillicLetterAtStartOfLineRule,
                 SingleUpperCaseCyrillicLetterRule,
             )
-            self.replace_multi_period_abbreviations()
-            return self.text
+            self.replace_single_period_abbreviations()
+            return super().replace()
+
+        def replace_single_period_abbreviations(self) -> None:
+            for abbreviation in self.lang.Abbreviation.ABBREVIATIONS:
+                abbreviation = abbreviation.strip()
+                if abbreviation.endswith(".") and abbreviation.count(".") == 1:
+                    abbreviation_without_period = abbreviation[:-1]
+                    self.text = self.replace_period_of_abbr(
+                        self.text, abbreviation_without_period, re.escape(abbreviation_without_period)
+                    )

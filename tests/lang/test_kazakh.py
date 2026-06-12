@@ -68,3 +68,9 @@ def test_kk_sbd(kk_default_fixture, text, expected_sents):
     segments = kk_default_fixture.segment(text)
     segments = [s.strip() for s in segments]
     assert segments == expected_sents
+
+
+def test_kk_single_period_abbreviations_do_not_split_before_numeric_continuation(kk_default_fixture):
+    segments = kk_default_fixture.segment("обл. 2014 жылы тех. (жаңа) қызмет ашылды.")
+
+    assert segments == ["обл. 2014 жылы тех. (жаңа) қызмет ашылды."]
