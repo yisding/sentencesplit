@@ -138,6 +138,11 @@ addopts = ["-ra", "--strict-config", "--import-mode=importlib"]
 markers = [
   "perf: timing-sensitive performance regression guards",
 ]
+filterwarnings = [
+  # Many span-contract tests intentionally exercise the deprecated char_span
+  # alias. The dedicated regression tests still assert the warning fires.
+  "ignore:char_span is deprecated; use segment_spans\\(\\):DeprecationWarning",
+]
 
 [tool.semantic_release]
 tag_format = "v{version}"

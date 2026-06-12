@@ -3,15 +3,8 @@ import pytest
 import sentencesplit
 from sentencesplit.languages import LANGUAGE_CODES
 from sentencesplit.segmenter import _DIGIT_LOOKAHEAD_STEM, _LANGUAGE_LOOKAHEAD_STEMS
-from sentencesplit.utils import SegmentLookahead, TextSpan
-
-_LOOKAHEAD_TEST_TOKENS = {
-    "ar": "ا",
-    "hy": "Ա",
-    "ja": "あ",
-    "zh": "甲",
-}
-_LOOKAHEAD_TEST_PUNCTUATION = ("។", "。", "؟", "։", "՜", "?", "!", "？", "！", ".")
+from sentencesplit.utils import SegmentLookahead
+from tests.helpers import assert_span_contract, lookahead_sample_for_language
 
 
 @pytest.mark.parametrize(
@@ -93,10 +86,11 @@ def test_lookahead_probes_are_normalized_for_supported_languages(language_code):
 
 def test_segment_with_lookahead_char_span_returns_textspans():
     seg = sentencesplit.Segmenter(language="en", clean=False, char_span=True)
+    text = "Hello. The model is GPT 3."
 
-    result = seg.segment_with_lookahead("Hello. The model is GPT 3.")
+    result = seg.segment_with_lookahead(text)
 
-    assert all(isinstance(span, TextSpan) for span in result.segments)
+    assert_span_contract(text, result.segments)
     assert [span.sent for span in result.segments] == ["Hello. ", "The model is GPT 3."]
     assert result.should_wait_for_more is True
 
@@ -136,17 +130,9 @@ def test_should_wait_for_more_pdf_mode_period_sentence():
     assert seg.should_wait_for_more("This is the finale.\n") is False
 
 
-def _lookahead_sample_for_language(code, language_module):
-    token = _LOOKAHEAD_TEST_TOKENS.get(code, "A")
-    punct = next(
-        (p for p in _LOOKAHEAD_TEST_PUNCTUATION if p in language_module.Punctuations), language_module.Punctuations[0]
-    )
-    return token, punct
-
-
 @pytest.mark.parametrize("language_code", sorted(LANGUAGE_CODES))
 def test_segment_with_lookahead_across_all_languages(language_code):
-    token, punct = _lookahead_sample_for_language(language_code, LANGUAGE_CODES[language_code])
+    token, punct = lookahead_sample_for_language(language_code)
     seg = sentencesplit.Segmenter(language=language_code, clean=False, char_span=False)
 
     closed_text = token + punct
@@ -169,7 +155,7 @@ def test_segment_with_lookahead_across_all_languages(language_code):
 def test_segmentation_is_nondestructive_across_all_languages(language_code):
     """clean=False segmentation must reproduce the original text exactly for a
     script-appropriate sample in every registered language."""
-    token, punct = _lookahead_sample_for_language(language_code, LANGUAGE_CODES[language_code])
+    token, punct = lookahead_sample_for_language(language_code)
     text = f"{token}{punct} {token}{punct}"
 
     seg = sentencesplit.Segmenter(language=language_code, clean=False, char_span=False)
@@ -180,15 +166,9 @@ def test_segmentation_is_nondestructive_across_all_languages(language_code):
 def test_char_spans_tile_original_text_across_all_languages(language_code):
     """char_span output must contiguously tile the original text (no gaps,
     overlaps, or dropped characters) for every registered language."""
-    token, punct = _lookahead_sample_for_language(language_code, LANGUAGE_CODES[language_code])
+    token, punct = lookahead_sample_for_language(language_code)
     text = f"{token}{punct} {token}{punct}"
 
     seg = sentencesplit.Segmenter(language=language_code, clean=False, char_span=True)
     spans = seg.segment(text)
-    prev_end = 0
-    for span in spans:
-        assert span.start == prev_end
-        assert text[span.start : span.end] == span.sent
-        prev_end = span.end
-    assert prev_end == len(text)
-    assert "".join(s.sent for s in spans) == text
+    assert_span_contract(text, spans)
