@@ -111,21 +111,41 @@ class Russian(Common, Standard):
             "фр",
             "чуваш",
         }
+        _SR_STANDALONE_FOLLOWERS = {"он", "она", "оно", "они", "это", "эта", "этот", "эти"}
 
         @staticmethod
-        def _starts_with_cyrillic_upper(text):
-            for char in text:
+        def _starts_with_cyrillic_upper(text, start=0):
+            for index in range(start, len(text)):
+                char = text[index]
                 if char.isspace():
                     continue
                 return char.isupper() and unicodedata.name(char, "").startswith("CYRILLIC")
             return False
 
+        @staticmethod
+        def _next_word_lower(text, start=0):
+            index = start
+            while index < len(text) and text[index].isspace():
+                index += 1
+            word_start = index
+            while index < len(text) and text[index].isalpha():
+                index += 1
+            return text[word_start:index].lower()
+
         def replace_period_of_abbr(self, txt, abbr, escaped=None):
             abbr = abbr.strip()
             escaped = escaped or re.escape(abbr)
+            abbr_lower = abbr.lower()
 
             def replacement(match):
-                if abbr.lower() in self.SENTENCE_FINAL_ABBREVIATIONS and self._starts_with_cyrillic_upper(txt[match.end() :]):
+                match_end = match.end()
+                if abbr_lower == "ср" and self._next_word_lower(txt, match_end) in self._SR_STANDALONE_FOLLOWERS:
+                    return match.group()
+                if (
+                    abbr_lower != "ср"
+                    and abbr_lower in self.SENTENCE_FINAL_ABBREVIATIONS
+                    and self._starts_with_cyrillic_upper(txt, match_end)
+                ):
                     return match.group()
                 return match.group()[:-1] + "∯"
 
