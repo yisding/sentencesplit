@@ -541,6 +541,13 @@ def test_en_es_zh_number_abbreviations_before_lowercase(text, expected):
     assert [s.strip() for s in seg.segment(text)] == expected
 
 
+@pytest.mark.parametrize("split_mode", ["conservative", "balanced", "aggressive"])
+def test_en_es_zh_number_abbreviation_before_unknown_placeholder(split_mode):
+    seg = sentencesplit.Segmenter(language="en_es_zh", clean=False, char_span=False, split_mode=split_mode)
+
+    assert [s.strip() for s in seg.segment("As shown in Fig. ??")] == ["As shown in Fig. ??"]
+
+
 def test_greek_uppercase_not_treated_as_sentence_start():
     """Greek/Cyrillic uppercase (e.g. Δ) should not trigger sentence splits —
     only accented Latin uppercase (e.g. É) should."""
