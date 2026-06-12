@@ -325,7 +325,10 @@ class Kazakh(Common, Standard):
         NUMBER_ABBREVIATIONS = []
 
     class AbbreviationReplacer(AbbreviationReplacer):
-        def replace(self):
+        SENTENCE_BOUNDARY_ABBREVIATIONS = []
+        _LOWERCASE_CONTINUATION_CHARS = "a-zа-яёәғқңөұүһі"
+
+        def replace(self) -> str:
             SingleUpperCaseCyrillicLetterAtStartOfLineRule = Rule(r"(?<=^[А-ЯЁ])\.(?=\s)", "∯")
             SingleUpperCaseCyrillicLetterRule = Rule(r"(?<=\s[А-ЯЁ])\.(?=\s)", "∯")
             self.text = apply_rules(
@@ -333,5 +336,34 @@ class Kazakh(Common, Standard):
                 SingleUpperCaseCyrillicLetterAtStartOfLineRule,
                 SingleUpperCaseCyrillicLetterRule,
             )
-            self.replace_multi_period_abbreviations()
+            self.replace_single_period_abbreviations()
+            self.text = super().replace()
+            self.protect_multi_period_abbreviations_before_parenthesis()
             return self.text
+
+        def replace_single_period_abbreviations(self) -> None:
+            for abbreviation in self.lang.Abbreviation.ABBREVIATIONS:
+                abbreviation = abbreviation.strip()
+                if abbreviation.endswith(".") and abbreviation.count(".") == 1:
+                    abbreviation_without_period = abbreviation[:-1]
+                    self.text = self.replace_period_of_kazakh_abbr(abbreviation_without_period)
+
+        def replace_period_of_kazakh_abbr(self, abbreviation: str) -> str:
+            text = " " + self.text
+            escaped = rf"(?i:{re.escape(abbreviation)})"
+            boundary = self._data.boundary_class
+            lowercase = self._LOWERCASE_CONTINUATION_CHARS
+            text = re.sub(
+                rf"(?<=[{boundary}]{escaped})\.(?=(?:\.|:|-|\?|,|\s(?:[{lowercase}]|I\s|I'm|I'll|\d|[(])))",
+                "∯",
+                text,
+            )
+            return text[1:]
+
+        def protect_multi_period_abbreviations_before_parenthesis(self) -> None:
+            for abbreviation in self.lang.Abbreviation.ABBREVIATIONS:
+                abbreviation = abbreviation.strip()
+                if not (abbreviation.endswith(".") and abbreviation.count(".") > 1):
+                    continue
+                body = re.escape(abbreviation[:-1]).replace(r"\.", r"[.∯]").replace(r"\ ", r"\s*")
+                self.text = re.sub(rf"(?i:({body}))\.(?=\s*[(])", r"\1∯", self.text)
