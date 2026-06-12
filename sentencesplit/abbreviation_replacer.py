@@ -488,7 +488,7 @@ class AbbreviationReplacer:
             # balanced/aggressive: protect only before Roman numerals (Vol. IV).
             # Exclude lone "I" to avoid false joins with the pronoun "I".
             return _replace_with_escape(txt, am_escaped, r"\.(?=\s(?:[IVXLCDM]{2,}|[VXLCDM])\b)", "∯", boundary)
-        return _replace_with_escape(txt, am_escaped, r"\.(?=(\s\d|\s+\(|\s[IVXLCDM]+\b))", "∯", boundary)
+        return _replace_with_escape(txt, am_escaped, r"\.(?=(\s\d|\s+\(|\s\?\?|\s[IVXLCDM]+\b))", "∯", boundary)
 
     def _prepositive_suffix(self, am_lower: str, upper: bool, char: str) -> str:
         """Return the regex suffix pattern for protecting a prepositive abbreviation."""
