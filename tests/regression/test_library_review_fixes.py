@@ -158,6 +158,7 @@ def test_escaped_html_rule_strips_tags_with_entities_in_attributes():
     assert Cleaner("&lt;p data-x=&#39;1&#39;&gt;Z&lt;/p&gt;", en).clean() == "Z"
 
 
+@pytest.mark.perf
 def test_escaped_html_rule_not_redos_on_entity_packed_unclosed_run():
     """The entity-crossing alternation must stay linear: an unclosed escaped tag
     packed with entities (many '&lt;' starts) would be quadratic if a run could
@@ -183,6 +184,7 @@ def test_table_of_contents_rule_does_not_eat_ellipsis_prose():
     assert Cleaner("wait.... 42 things happened", en).clean() == "wait.... 42 things happened"
 
 
+@pytest.mark.perf
 def test_table_of_contents_rule_not_redos_on_failed_line_anchor():
     import time
 
@@ -292,6 +294,7 @@ def test_cjk_abbreviation_period_before_cjk_stays_joined(language, text):
 # (the old HTMLTagRule had catastrophic backtracking on untrusted clean=True
 # input). We assert correctness + a generous wall-clock ceiling.
 # ---------------------------------------------------------------------------
+@pytest.mark.perf
 def test_html_tag_rule_is_not_redos_vulnerable():
     import time
 
@@ -379,6 +382,7 @@ def test_sentinel_restore_is_overlap_safe_for_adjacent_multichar_tokens(monkeypa
     assert clean.segment_clean(multi) == ["Pair ♭∯ here.", "And more."]
 
 
+@pytest.mark.perf
 def test_escaped_html_rule_is_not_redos_vulnerable():
     import time
 
@@ -389,6 +393,7 @@ def test_escaped_html_rule_is_not_redos_vulnerable():
     assert time.perf_counter() - start < 2.0
 
 
+@pytest.mark.perf
 def test_html_tag_rule_not_redos_on_long_unclosed_run():
     import time
 
@@ -399,6 +404,7 @@ def test_html_tag_rule_not_redos_on_long_unclosed_run():
     assert time.perf_counter() - start < 2.0
 
 
+@pytest.mark.perf
 def test_html_tag_rule_not_quadratic_on_many_unclosed_openers():
     import time
 
@@ -430,6 +436,7 @@ def test_html_tag_rule_strips_lt_inside_quoted_attribute():
     assert Cleaner("<span data-x='1 < 2'>Text</span>", en).clean() == "Text"
 
 
+@pytest.mark.perf
 def test_html_tag_rule_not_quadratic_with_lt_permissive_quoted_run():
     """The '<'-inside-quotes fix must not reintroduce the quadratic blow-up on
     many unclosed openers that the perf hardening killed."""

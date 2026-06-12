@@ -3,6 +3,7 @@ from __future__ import annotations
 import re
 import weakref
 from dataclasses import dataclass
+from threading import RLock
 
 from sentencesplit.abbreviation_replacer import AbbreviationReplacer
 from sentencesplit.between_punctuation import BetweenPunctuation
@@ -14,6 +15,7 @@ from sentencesplit.utils import Rule, ensure_compiled
 # WeakKeyDictionary lets a dynamically registered+unregistered language class be
 # garbage-collected instead of being pinned forever by the cache.
 _PROFILE_CACHE: "weakref.WeakKeyDictionary[type, LanguageProfile]" = weakref.WeakKeyDictionary()
+_PROFILE_CACHE_LOCK = RLock()
 
 
 @dataclass(frozen=True)
@@ -41,12 +43,13 @@ class LanguageProfile:
         # A language's hooks are immutable class attributes, so the resolved
         # profile is fully determined by the class — cache it to avoid rebuilding
         # one (and re-running getattr/regex resolution) on every Segmenter call.
-        cached = _PROFILE_CACHE.get(lang)
-        if cached is not None:
-            return cached
-        profile = cls._build(lang)
-        _PROFILE_CACHE[lang] = profile
-        return profile
+        with _PROFILE_CACHE_LOCK:
+            cached = _PROFILE_CACHE.get(lang)
+            if cached is not None:
+                return cached
+            profile = cls._build(lang)
+            _PROFILE_CACHE[lang] = profile
+            return profile
 
     @classmethod
     def _build(cls, lang) -> LanguageProfile:

@@ -5,6 +5,14 @@ from __future__ import annotations
 import re
 import unicodedata
 from dataclasses import dataclass
+from typing import Literal, Optional, get_args
+
+# Mode parameter type aliases. The runtime ``*_MODES`` tuples below remain the
+# source of truth for validation; these Literal aliases let type checkers catch
+# mode typos at call sites without touching any runtime behaviour.
+SplitMode = Literal["conservative", "balanced", "aggressive"]
+DocType = Optional[Literal["pdf"]]
+BufferingMode = Literal["conservative", "balanced", "aggressive"]
 
 # Zero-width / format characters that ``str.isspace()`` / ``str.strip()`` do not
 # flag or remove (ZWSP, ZWNJ, ZWJ, BOM). A lone one at a sentence boundary (e.g. a
@@ -29,7 +37,7 @@ class Rule:
 # split-leaning (over-split). "balanced" is the default and reproduces the
 # library's historically tuned behaviour; "conservative" leans every tunable
 # ambiguity toward keeping text joined, "aggressive" toward splitting it.
-SPLIT_MODES = ("conservative", "balanced", "aggressive")
+SPLIT_MODES = get_args(SplitMode)
 _SPLIT_MODE_RANK = {mode: rank for rank, mode in enumerate(SPLIT_MODES)}
 
 
