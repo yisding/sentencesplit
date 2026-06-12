@@ -32,14 +32,14 @@ jobs:
 
       - name: Lint with ruff
         run: |
-          uv run ruff check .
-          uv run ruff format --check .
+          uv run --python ${{ matrix.python-version }} ruff check .
+          uv run --python ${{ matrix.python-version }} ruff format --check .
 
       - name: Type-check public surface with mypy
-        run: uv run mypy
+        run: uv run --python ${{ matrix.python-version }} mypy
 
       - name: Test with pytest
-        run: uv run pytest --cov=sentencesplit tests/ --color yes
+        run: uv run --python ${{ matrix.python-version }} pytest --cov=sentencesplit tests/ --color yes
 
   free-threaded-test:
     runs-on: ubuntu-latest
@@ -60,7 +60,7 @@ jobs:
 
       - name: Verify free-threaded runtime
         run: |
-          uv run python - <<'PY'
+          uv run --python 3.14t python - <<'PY'
           import sys
           import sysconfig
 
@@ -70,7 +70,7 @@ jobs:
           PY
 
       - name: Test with pytest
-        run: uv run pytest --cov=sentencesplit tests/ --color yes
+        run: uv run --python 3.14t pytest --cov=sentencesplit tests/ --color yes
 
   build:
     runs-on: ubuntu-latest
@@ -92,7 +92,7 @@ jobs:
 
       - name: Assert wheel contents
         run: |
-          uv run python - <<'PY'
+          uv run --python 3.13 python - <<'PY'
           import glob
           import sys
           import zipfile
