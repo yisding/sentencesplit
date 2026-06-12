@@ -65,6 +65,7 @@ _PERIOD_BEFORE_COMMA_RE = re.compile(r"\.(?=\s*,(?!,))")
 _QUOTE_PAIRS = (("“", "”"), ('"', '"'), ("«", "»"))
 _QUOTE_PAIR_BY_OPENER = {opener: closer for opener, closer in _QUOTE_PAIRS}
 _LEADING_QUOTE_RE = re.compile(r"\A[\s_]*([“\"«])")
+_QUOTE_ABBREVIATION_SCAN_TRANS = str.maketrans({char: " " for char in "".join(_QUOTE_PAIR_BY_OPENER) + "([{"})
 # Any quotation character — used to reject quotes with nested quotes/attribution.
 _ANY_QUOTE_CHARS = frozenset("“”\"«»‘’'")
 # Interior boundary inside a restored (already de-protected) quoted segment: a
@@ -87,16 +88,23 @@ _QUOTE_MIN_INTERIOR_SENTENCES = 3
 _QUOTE_MIN_WORDS = 5
 
 
+def _quote_abbreviation_scan_text(text: str) -> str:
+    return text.translate(_QUOTE_ABBREVIATION_SCAN_TRANS)
+
+
 def _resplit_multi_sentence_quote(
     text: str,
     min_interior_sentences: int = _QUOTE_MIN_INTERIOR_SENTENCES,
     min_words: int = _QUOTE_MIN_WORDS,
+    protected_text: str | None = None,
 ) -> list[str] | None:
     """Re-split a self-contained quotation at its interior period boundaries.
 
     *min_interior_sentences* / *min_words* are the split-bias thresholds (lower =
-    more eager to split). Returns the split pieces, or ``None`` when *text*
-    should be left intact.
+    more eager to split). When provided, *protected_text* is the same segment with
+    abbreviation periods protected as sentinels so restored abbreviations are not
+    treated as quote-internal sentence boundaries. Returns the split pieces, or
+    ``None`` when *text* should be left intact.
     """
     match = _LEADING_QUOTE_RE.match(text)
     if match is None:
@@ -112,6 +120,7 @@ def _resplit_multi_sentence_quote(
     if any(char in _ANY_QUOTE_CHARS for char in inner):
         return None
 
+    protected = protected_text if protected_text is not None and len(protected_text) == len(text) else text
     spans = []
     last = 0
     for boundary in _QUOTE_INTERIOR_BOUNDARY_RE.finditer(text):
@@ -119,6 +128,8 @@ def _resplit_multi_sentence_quote(
         # letter itself. Split only before an uppercase letter (any cased script);
         # skip a lowercase or caseless follower so the boundary count stays exact.
         if not text[boundary.end() : boundary.end() + 1].isupper():
+            continue
+        if protected[boundary.start() - 1 : boundary.start()] == "∯":
             continue
         spans.append(text[last : boundary.start()])
         last = boundary.end()
@@ -420,7 +431,14 @@ class Processor:
                 parts = (
                     _split_on_uppercase_boundary(pps, _LATIN_RESPLIT_RE)
                     or _split_on_uppercase_boundary(pps, _MULTI_TERMINATOR_RESPLIT_RE)
-                    or (quote_thresholds is not None and _resplit_multi_sentence_quote(pps, *quote_thresholds))
+                    or (
+                        quote_thresholds is not None
+                        and _resplit_multi_sentence_quote(
+                            pps,
+                            *quote_thresholds,
+                            protected_text=self.replace_abbreviations(_quote_abbreviation_scan_text(pps)),
+                        )
+                    )
                     or None
                 )
                 if parts is None:
