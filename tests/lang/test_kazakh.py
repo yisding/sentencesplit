@@ -74,3 +74,9 @@ def test_kk_single_period_abbreviations_do_not_split_before_numeric_continuation
     segments = kk_default_fixture.segment("обл. 2014 жылы тех. (жаңа) қызмет ашылды.")
 
     assert segments == ["обл. 2014 жылы тех. (жаңа) қызмет ашылды."]
+
+
+def test_kk_capitalized_single_period_abbreviations_do_not_split_before_numeric_continuation(kk_default_fixture):
+    segments = kk_default_fixture.segment("Обл. 2014 жылы ашылды.")
+
+    assert segments == ["Обл. 2014 жылы ашылды."]

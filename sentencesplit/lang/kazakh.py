@@ -342,5 +342,7 @@ class Kazakh(Common, Standard):
                 if abbreviation.endswith(".") and abbreviation.count(".") == 1:
                     abbreviation_without_period = abbreviation[:-1]
                     self.text = self.replace_period_of_abbr(
-                        self.text, abbreviation_without_period, re.escape(abbreviation_without_period)
+                        self.text,
+                        abbreviation_without_period,
+                        rf"(?i:{re.escape(abbreviation_without_period)})",
                     )
