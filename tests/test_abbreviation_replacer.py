@@ -56,5 +56,29 @@ def test_legacy_sentence_starters_still_enable_base_helper_flags():
             "See Fig. Several panels follow."
         ]
         assert [s.strip() for s in conservative.segment("ACME CORP. ANNOUNCED RESULTS.")] == ["ACME CORP. ANNOUNCED RESULTS."]
+        balanced = sentencesplit.Segmenter(language="demo_legacy_starters", clean=False, split_mode="balanced")
+        assert [s.strip() for s in balanced.segment("I live in the U.S. Several agencies joined.")] == [
+            "I live in the U.S.",
+            "Several agencies joined.",
+        ]
     finally:
         unregister_language("demo_legacy_starters")
+
+
+def test_legacy_sentence_starters_work_on_subclasses_of_builtin_replacers():
+    class DemoAbbreviationReplacer(English.AbbreviationReplacer):
+        SENTENCE_STARTERS = ["Several"]
+
+    class Demo(Common, Standard):
+        iso_code = "demo_legacy_english_starters"
+        AbbreviationReplacer = DemoAbbreviationReplacer
+
+    register_language("demo_legacy_english_starters", Demo)
+    try:
+        seg = sentencesplit.Segmenter(language="demo_legacy_english_starters", clean=False, split_mode="balanced")
+        assert [s.strip() for s in seg.segment("I live in the U.S. Several agencies joined.")] == [
+            "I live in the U.S.",
+            "Several agencies joined.",
+        ]
+    finally:
+        unregister_language("demo_legacy_english_starters")

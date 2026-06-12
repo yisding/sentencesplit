@@ -71,9 +71,9 @@ def test_abbreviation_decoy_occurrence_does_not_flip_split_en_legal():
     seg = sentencesplit.Segmenter(language="en_legal")
     isolated = [s.strip() for s in seg.segment("The 9th Cir. The panel reversed.")]
     with_decoy = [s.strip() for s in seg.segment("The 9th Cir held. The 9th Cir. The panel reversed.")]
-    assert isolated == ["The 9th Cir.", "The panel reversed."]
+    assert isolated == ["The 9th Cir. The panel reversed."]
     # The decoy "Cir held" must not change how the real "Cir." is handled.
-    assert with_decoy == ["The 9th Cir held.", "The 9th Cir.", "The panel reversed."]
+    assert with_decoy == ["The 9th Cir held.", "The 9th Cir. The panel reversed."]
 
 
 def test_abbreviation_decoy_occurrence_does_not_flip_split_en():

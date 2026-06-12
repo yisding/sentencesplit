@@ -149,8 +149,7 @@ TESTS_WITH_CLEAN = [
     (
         "There were 500 cases in the U.S. The U.S. Commission asked the U.S. Government to give their opinion on the issue.",
         [
-            "There were 500 cases in the U.S.",
-            "The U.S. Commission asked the U.S. Government to give their opinion on the issue.",
+            "There were 500 cases in the U.S. The U.S. Commission asked the U.S. Government to give their opinion on the issue.",
         ],
     ),
     (
@@ -256,11 +255,11 @@ TESTS_WITH_CLEAN = [
     ('<bpt i="0" type="bold">&lt;b&gt;</bpt>J1.txt<ept i="1">&lt;/b&gt;</ept>', ["J1.txt"]),
     (
         "On Jan. 20, former Sen. Barack Obama became the 44th President of the U.S. Millions attended the Inauguration.",
-        ["On Jan. 20, former Sen. Barack Obama became the 44th President of the U.S.", "Millions attended the Inauguration."],
+        ["On Jan. 20, former Sen. Barack Obama became the 44th President of the U.S. Millions attended the Inauguration."],
     ),
     (
         "The U.K. Panel on enivronmental issues said it was true. Finally he left the U.K. He went to a new location.",
-        ["The U.K. Panel on enivronmental issues said it was true.", "Finally he left the U.K.", "He went to a new location."],
+        ["The U.K. Panel on enivronmental issues said it was true.", "Finally he left the U.K. He went to a new location."],
     ),
     (
         "He left at 6 P.M. Travelers who didn't get the warning at 5 P.M. left later.",
@@ -401,10 +400,8 @@ TESTS_WITH_CLEAN = [
         "The nurse gave him the i.v. in his vein. She gave him the i.v. It was a great I.V. that she gave him. She gave him the I.V. It was night.",
         [
             "The nurse gave him the i.v. in his vein.",
-            "She gave him the i.v.",
-            "It was a great I.V. that she gave him.",
-            "She gave him the I.V.",
-            "It was night.",
+            "She gave him the i.v. It was a great I.V. that she gave him.",
+            "She gave him the I.V. It was night.",
         ],
     ),
     (

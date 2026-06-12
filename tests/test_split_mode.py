@@ -116,14 +116,14 @@ def test_split_mode_controls_russian_sr_abbreviation():
 def test_split_mode_controls_boundary_abbreviations_without_starter_words(language, boundary_text, ambiguous_text):
     """Capitalized followers after U.S./E.U. are structural ambiguity.
 
-    Conservative keeps the abbreviation joined; balanced and aggressive split.
+    Conservative and balanced keep the abbreviation joined; aggressive splits.
     This replaces exact starter-word vocabulary with the global split dial.
     """
-    assert _segments(language, boundary_text, "conservative") == [boundary_text]
-    assert _segments(language, ambiguous_text, "conservative") == [ambiguous_text]
-    for mode in ("balanced", "aggressive"):
-        assert len(_segments(language, boundary_text, mode)) == 2
-        assert len(_segments(language, ambiguous_text, mode)) == 2
+    for mode in ("conservative", "balanced"):
+        assert _segments(language, boundary_text, mode) == [boundary_text]
+        assert _segments(language, ambiguous_text, mode) == [ambiguous_text]
+    assert len(_segments(language, boundary_text, "aggressive")) == 2
+    assert len(_segments(language, ambiguous_text, "aggressive")) == 2
 
 
 def test_split_mode_handles_i_boundary_without_royal_name_split():
@@ -167,17 +167,59 @@ def test_split_mode_disambiguates_initialisms_from_names_without_starter_words(t
 def test_boundary_abbreviation_mode_handles_non_ascii_and_custom_cases(text):
     language = "de" if text.startswith("Er ") else "da"
 
-    assert _segments(language, text, "conservative") == [text]
-    for mode in ("balanced", "aggressive"):
-        assert len(_segments(language, text, mode)) == 2
+    for mode in ("conservative", "balanced"):
+        assert _segments(language, text, mode) == [text]
+    assert len(_segments(language, text, "aggressive")) == 2
 
 
 def test_danish_custom_boundary_abbreviation_before_unlisted_capital_continuation():
     text = "Han bor i s.u. Embassy i dag."
 
-    assert _segments("da", text, "conservative") == [text]
+    for mode in ("conservative", "balanced"):
+        assert _segments("da", text, mode) == [text]
+    assert _segments("da", text, "aggressive") == ["Han bor i s.u.", "Embassy i dag."]
+
+
+@pytest.mark.parametrize(
+    "language,text,expected",
+    [
+        ("en", "I live in the U.S. How about you?", ["I live in the U.S.", "How about you?"]),
+        ("da", "Jeg bor i E.U. Hvad med dig?", ["Jeg bor i E.U.", "Hvad med dig?"]),
+    ],
+)
+def test_boundary_abbreviation_splits_before_structural_question(language, text, expected):
+    assert _segments(language, text, "conservative") == [text]
     for mode in ("balanced", "aggressive"):
-        assert _segments("da", text, mode) == ["Han bor i s.u.", "Embassy i dag."]
+        assert _segments(language, text, mode) == expected
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "The U.S. 'Who Wants to Be a Millionaire?' audience grew.",
+        'The U.S. "Who Wants to Be a Millionaire?" audience grew.',
+    ],
+)
+def test_boundary_abbreviation_question_cue_ignores_quoted_title_continuation(text):
+    expected_split = text.replace("The U.S. ", "", 1)
+
+    for mode in ("conservative", "balanced"):
+        assert _segments("en", text, mode) == [text]
+    assert _segments("en", text, "aggressive") == ["The U.S.", expected_split]
+
+
+@pytest.mark.parametrize(
+    "text,expected",
+    [
+        ('I live in the U.S. "How about you?" she asked.', '"How about you?" she asked.'),
+        ("I live in the U.S. 'How about you?' she asked.", "'How about you?' she asked."),
+    ],
+)
+def test_boundary_abbreviation_question_cue_keeps_quoted_dialogue_boundary(text, expected):
+
+    assert _segments("en", text, "conservative") == [text]
+    for mode in ("balanced", "aggressive"):
+        assert _segments("en", text, mode) == ["I live in the U.S.", expected]
 
 
 def test_allcaps_imprint_behavior_independent_of_sentence_starter_words():
@@ -188,9 +230,11 @@ def test_allcaps_imprint_behavior_independent_of_sentence_starter_words():
 
 @pytest.mark.parametrize("language", ["fr", "es", "it", "pl", "nl"])
 def test_non_english_profiles_use_split_mode_for_boundary_abbreviation(language):
-    assert _segments(language, "Je vois U.S. Il part.", "conservative") == ["Je vois U.S. Il part."]
-    for mode in ("balanced", "aggressive"):
-        assert _segments(language, "Je vois U.S. Il part.", mode) == ["Je vois U.S.", "Il part."]
+    text = "Je vois U.S. Il part."
+
+    for mode in ("conservative", "balanced"):
+        assert _segments(language, text, mode) == [text]
+    assert _segments(language, text, "aggressive") == ["Je vois U.S.", "Il part."]
 
 
 def test_no_sentence_starter_profile_keeps_uppercase_continuation_joined():

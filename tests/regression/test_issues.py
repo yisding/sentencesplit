@@ -208,11 +208,15 @@ def test_builtin_profiles_do_not_define_sentence_starter_word_lists(language):
 
 
 @pytest.mark.parametrize("language", ["mr", "fr", "it", "pl", "es", "nl"])
-def test_non_english_boundary_abbreviation_splits_by_default(language):
-    """Latin-script non-English profiles restore boundary abbreviations by default."""
-    seg = sentencesplit.Segmenter(language=language, clean=False)
+def test_non_english_boundary_abbreviation_follows_split_mode(language):
+    """Latin-script non-English profiles route boundary abbreviations through split_mode."""
+    text = "Je vois U.S. Il part."
 
-    assert [s.strip() for s in seg.segment("Je vois U.S. Il part.")] == ["Je vois U.S.", "Il part."]
+    for mode in ("conservative", "balanced"):
+        seg = sentencesplit.Segmenter(language=language, clean=False, split_mode=mode)
+        assert [s.strip() for s in seg.segment(text)] == [text]
+    seg = sentencesplit.Segmenter(language=language, clean=False, split_mode="aggressive")
+    assert [s.strip() for s in seg.segment(text)] == ["Je vois U.S.", "Il part."]
 
 
 @pytest.mark.parametrize("language", ["fr", "es", "it", "nl"])
@@ -542,12 +546,12 @@ def test_boundary_abbreviation_before_non_ascii_uppercase_follows_split_mode():
     """Boundary abbreviations no longer depend on exact starter-word lists."""
     text = "He moved from the U.S. \u00c9lodie arrived."
 
-    conservative = sentencesplit.Segmenter(language="en", clean=False, char_span=False, split_mode="conservative")
-    assert [s.strip() for s in conservative.segment(text)] == [text]
-
-    for mode in ("balanced", "aggressive"):
+    for mode in ("conservative", "balanced"):
         seg = sentencesplit.Segmenter(language="en", clean=False, char_span=False, split_mode=mode)
-        assert [s.strip() for s in seg.segment(text)] == ["He moved from the U.S.", "\u00c9lodie arrived."]
+        assert [s.strip() for s in seg.segment(text)] == [text]
+
+    aggressive = sentencesplit.Segmenter(language="en", clean=False, char_span=False, split_mode="aggressive")
+    assert [s.strip() for s in aggressive.segment(text)] == ["He moved from the U.S.", "\u00c9lodie arrived."]
 
 
 @pytest.mark.parametrize(

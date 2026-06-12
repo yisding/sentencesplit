@@ -167,9 +167,10 @@ class AbbreviationReplacer:
     # a following title/name ("Bankr. Court") but can also end a sentence
     # ("The 9th Cir. The panel reversed."). split_mode resolves that ambiguity.
     STARTER_AWARE_PREPOSITIVE: frozenset[str] = frozenset()
-    BOUNDARY_ABBREVIATION_SPLIT_MIN_RANK = 1
+    BOUNDARY_ABBREVIATION_SPLIT_MIN_RANK = 2
     _UNKNOWN_PLACEHOLDER = "&ᓷ&&ᓷ&"
     _SENTENCE_START_OPENERS = frozenset("\"'“‘«([")
+    _QUESTION_CLOSERS = frozenset("\"'”’»)]")
 
     def __init__(self, text: str, lang, split_mode: str = "balanced") -> None:
         self.text = text
@@ -309,6 +310,8 @@ class AbbreviationReplacer:
             return False
         prev_word = self._previous_whitespace_token(text, chain_start)
         if prev_word.lower() in self._INITIALS_NAME_DETERMINERS:
+            return False
+        if self._legacy_sentence_starter_matches(text, sep_index + 1):
             return False
         return True
 
@@ -479,6 +482,10 @@ class AbbreviationReplacer:
             return False
         if self._is_i_name_continuation(match):
             return self._leans_split
+        if self._legacy_sentence_starter_matches(self.text, content_offset):
+            return not self._leans_join
+        if self._follower_is_question_clause(self.text, content_offset):
+            return not self._leans_join
         return split_mode_rank(self.split_mode) >= self.BOUNDARY_ABBREVIATION_SPLIT_MIN_RANK
 
     @staticmethod
@@ -497,6 +504,42 @@ class AbbreviationReplacer:
         if self._is_i_name_continuation(match):
             return False
         return self._follower_is_likely_sentence_start(self.text, match.end())
+
+    def _legacy_sentence_starter_matches(self, text: str, start: int) -> bool:
+        starters = ()
+        for cls in type(self).__mro__:
+            if "SENTENCE_STARTERS" in vars(cls):
+                starters = vars(cls)["SENTENCE_STARTERS"]
+                break
+        if not starters:
+            return False
+        follower = self._next_whitespace_token(text, start).rstrip(",.;:")
+        return follower in starters
+
+    def _follower_is_question_clause(self, text: str, start: int) -> bool:
+        for index, char in enumerate(text[start:], start):
+            if char == "?":
+                next_index = index + 1
+                saw_closer = False
+                while next_index < len(text) and (text[next_index].isspace() or text[next_index] in self._QUESTION_CLOSERS):
+                    saw_closer = saw_closer or text[next_index] in self._QUESTION_CLOSERS
+                    next_index += 1
+                if (
+                    saw_closer
+                    and next_index < len(text)
+                    and text[next_index].islower()
+                    and self._quoted_question_looks_like_title(text[start:index])
+                ):
+                    return False
+                return True
+            if char in ".!":
+                return False
+        return False
+
+    @staticmethod
+    def _quoted_question_looks_like_title(content: str) -> bool:
+        tokens = re.findall(r"[^\W\d_][^\s!?.,;:]*", content, re.UNICODE)
+        return sum(token[0].isupper() for token in tokens[1:]) >= 1
 
     def replace_multi_period_abbreviations(self) -> None:
         def mpa_replace(match):

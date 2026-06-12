@@ -165,8 +165,7 @@ CHALLENGING_EN_TEST_CASES = [
     (
         "She received her M.B.A. from H.B.S. She then joined McKinsey & Co.",
         [
-            "She received her M.B.A. from H.B.S.",
-            "She then joined McKinsey & Co.",
+            "She received her M.B.A. from H.B.S. She then joined McKinsey & Co.",
         ],
     ),
     # ===== Decimal / number edge cases =====
@@ -249,8 +248,7 @@ CHALLENGING_EN_TEST_CASES = [
     (
         "He visited the U.S.; however, he preferred the U.K. The weather was better.",
         [
-            "He visited the U.S.; however, he preferred the U.K.",
-            "The weather was better.",
+            "He visited the U.S.; however, he preferred the U.K. The weather was better.",
         ],
     ),
     # 85) Colon introducing a list, not a boundary
