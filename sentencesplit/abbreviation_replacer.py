@@ -297,13 +297,13 @@ class AbbreviationReplacer:
                 return False
         return True
 
-    def _is_likely_sentence_start(self, text: str) -> bool:
+    def _is_likely_sentence_start(self, text: str, start: int = 0) -> bool:
         """Check if the next non-space character in *text* looks like a sentence start.
 
         Subclasses (e.g. en_es_zh) can override to recognise additional scripts
         such as CJK ideographs.
         """
-        return _next_nonspace_char_is_upper(text)
+        return _next_nonspace_char_is_upper(text, start)
 
     def replace(self) -> str:
         self.text = apply_rules(
@@ -329,8 +329,7 @@ class AbbreviationReplacer:
         restore_source = self.text
 
         def restore_uppercase_initialism_boundary(match):
-            next_text = restore_source[match.end() :]
-            char = _next_nonspace_char(next_text)
+            char = _next_nonspace_char(restore_source, match.end())
             if not (char and char.isupper() and char.isascii()):
                 return match.group()
             # A run of single-letter initials (e.g. "F.J.G.", protected as
@@ -426,7 +425,7 @@ class AbbreviationReplacer:
         def mpa_replace(match):
             matched = match.group()
             parts = matched[:-1].split(".")
-            next_text = self.text[match.end() :]
+            next_start = match.end()
             protect_final_period = True
 
             # Keep sentence-final boundaries for mixed abbreviations like Ph.D.
@@ -437,12 +436,14 @@ class AbbreviationReplacer:
             # boundary (so "Ph.D. Smith" stays joined); 'aggressive' splits
             # before any likely sentence start, including pure initialisms
             # ("A.I. Systems …").
-            likely_start = self._is_likely_sentence_start(next_text)
+            likely_start = self._is_likely_sentence_start(self.text, next_start)
             # Greek/Cyrillic etc. (opt-in): a capital follower reliably starts a
             # new sentence, so a pure single-letter initialism ("π.Χ.", "Ε.Ε.")
             # ends the sentence before it even though _is_latin_upper ignored it.
             capital_boundary = (
-                self.NON_LATIN_CAPITAL_STARTS_SENTENCE and not likely_start and _next_nonspace_char(next_text).isupper()
+                self.NON_LATIN_CAPITAL_STARTS_SENTENCE
+                and not likely_start
+                and _next_nonspace_char(self.text, next_start).isupper()
             )
             # a.m./p.m. own their boundary decision later (with timezone
             # awareness), so the aggressive pure-initialism split skips them to
@@ -465,8 +466,7 @@ class AbbreviationReplacer:
         """Restore sentence boundaries after a.m./p.m. before non-ASCII capitals."""
 
         def _restore(match):
-            next_text = self.text[match.end() :]
-            if _next_nonspace_char_is_non_ascii_upper(next_text):
+            if _next_nonspace_char_is_non_ascii_upper(self.text, match.end()):
                 return f"{match.group(1)}."
             return match.group()
 
