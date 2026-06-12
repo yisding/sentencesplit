@@ -56,7 +56,7 @@ The language specific *Golden Rules Set* are hand-constructed rules, designed to
 You would need the following steps to add new language support:
 
 1. **New Language Specific *Golden Rules Set***</br>
-You would need to create a *Golden Rule Set* representing basic to complex sentence boundary variations as a test set. Create a new file at `tests/lang/test_<language_name>.py` and enlist input text and expected output in the same way existing languages are supported. You may want to refer to [adding tests](#adding-tests) for more details. Next, run the tests using `pytest` and let them deliberately fail.
+You would need to create a *Golden Rule Set* representing basic to complex sentence boundary variations as a test set. Create a new file at `tests/lang/test_<language_name>.py` and enlist input text and expected output in the same way existing languages are supported. You may want to refer to [adding tests](#adding-tests) for more details. Next, run the tests using `uv run pytest` and let them deliberately fail.
 
 2. **Add your language module**</br>
 Create a new file at `sentencesplit/lang/<language_name>.py` and define a new class `LanguageName` which should inherit from two base classes - `Common, Standard` - involving basic rules common across the majority of languages. Try running tests to see if your GRS passes. If it fails, you would need to override `SENTENCE_BOUNDARY_REGEX`, `Punctuations` class variables and `AbbreviationReplacer` class to support your language-specific punctuations and sentence boundaries.
@@ -82,7 +82,7 @@ We emphasize Test-Driven Development [(TDD)](https://testdriven.io/test-driven-d
 
 1. Make sure you have a proper development environment [setup](#getting-started)
 2. Depending on your type of contribution, your test script would vary between [feature-specific](#add-new-language-support) / [bugfix-specific](#fix-bugs).
-3. (Red) Once you add those tests, run `pytest` to make sure they fail deliberately.
+3. (Red) Once you add those tests, run `uv run pytest` to make sure they fail deliberately.
 4. (Green) Write just enough code to pass the specific test that failed earlier.
 5. Once it passes, run all the tests to see if your added code doesn't break existing code.
 6. (Refactor) Do necessary refactoring & cleaning to keep tests green.

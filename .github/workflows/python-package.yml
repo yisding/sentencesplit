@@ -6,6 +6,9 @@ on:
   pull_request:
     branches: [main]
 
+permissions:
+  contents: read
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -29,15 +32,49 @@ jobs:
 
       - name: Lint with ruff
         run: |
-          uv run ruff check .
-          uv run ruff format --check .
+          uv run --python ${{ matrix.python-version }} ruff check .
+          uv run --python ${{ matrix.python-version }} ruff format --check .
+
+      - name: Type-check public surface with mypy
+        run: uv run --python ${{ matrix.python-version }} mypy
 
       - name: Test with pytest
-        run: uv run pytest --cov=sentencesplit tests/ --color yes
+        run: uv run --python ${{ matrix.python-version }} pytest --cov=sentencesplit tests/ --color yes
+
+  free-threaded-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+
+      - name: Set up Python 3.14 free-threaded
+        run: uv python install 3.14t
+
+      - name: Install dependencies
+        run: uv sync --python 3.14t --group dev
+
+      - name: Verify free-threaded runtime
+        run: |
+          uv run --python 3.14t python - <<'PY'
+          import sys
+          import sysconfig
+
+          assert sysconfig.get_config_var("Py_GIL_DISABLED") == 1
+          assert sys._is_gil_enabled() is False
+          print(sys.version)
+          PY
+
+      - name: Test with pytest
+        run: uv run --python 3.14t pytest --cov=sentencesplit tests/ --color yes
 
   build:
     runs-on: ubuntu-latest
-    needs: test
+    needs: [test, free-threaded-test]
 
     steps:
       - uses: actions/checkout@v6
@@ -52,3 +89,51 @@ jobs:
 
       - name: Build distribution artifacts
         run: uv build
+
+      - name: Assert wheel contents
+        run: |
+          uv run --python 3.13 python - <<'PY'
+          import glob
+          import sys
+          import zipfile
+
+          wheels = sorted(glob.glob("dist/*.whl"))
+          if not wheels:
+              sys.exit("No wheel found in dist/ — did `uv build` run?")
+          wheel = wheels[-1]
+          with zipfile.ZipFile(wheel) as zf:
+              names = set(zf.namelist())
+
+          errors = []
+
+          # (a) py.typed must ship so installed users get type information.
+          if "sentencesplit/py.typed" not in names:
+              errors.append("missing sentencesplit/py.typed")
+
+          # (b) every on-disk language module must be present in the wheel.
+          expected = sorted(
+              glob.glob("sentencesplit/lang/*.py")
+              + glob.glob("sentencesplit/lang/common/*.py")
+          )
+          for path in expected:
+              arc = path.replace("\\", "/")
+              if arc not in names:
+                  errors.append(f"missing language module {arc}")
+
+          # (c) no test/analysis/benchmark files may leak into the wheel.
+          for name in sorted(names):
+              if name.startswith(("tests/", "analysis/", "benchmarks/")):
+                  errors.append(f"leaked non-shipping path {name}")
+
+          if errors:
+              print(f"Wheel contents assertion FAILED for {wheel}:")
+              for err in errors:
+                  print(f"  - {err}")
+              sys.exit(1)
+
+          print(f"Wheel contents OK: {wheel}")
+          print(
+              f"  py.typed shipped, {len(expected)} language modules present, "
+              "no test/analysis/benchmark leakage"
+          )
+          PY

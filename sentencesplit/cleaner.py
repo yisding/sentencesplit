@@ -39,7 +39,7 @@ class CleanRules:
     # Anchor the page number to end-of-line (newlines are already "\r" at this
     # stage) so a dot-leader TOC entry ("About Me....5") is split but ordinary
     # prose with an ellipsis followed by a number ("wait.... 42 things") is not.
-    TableOfContentsRule = Rule(r"\.{4,}\s*\d+-*\d*(?=\s*(?:\r|\n|$))", "\r")
+    TableOfContentsRule = Rule(r"(?<!\.)\.{4,}+[^\S\r\n]*+\d++-*+\d*+(?=[^\S\r\n]*(?:\r|\n|$))", "\r")
 
     # Rubular: http://rubular.com/r/DwNSuZrNtk
     ConsecutivePeriodsRule = Rule(r"\.{5,}", " ")
@@ -75,12 +75,15 @@ cr = CleanRules
 class HTML:
     # Rubular: http://rubular.com/r/9d0OVOEJWj
     # Tag matcher: "<", optional "/", a tag name, then attribute content up to the
-    # closing ">", allowing ">" inside a quoted attribute value. Possessive
-    # quantifiers (\w++ / *+ — Python 3.11+) forbid the backtracking that made the
-    # earlier patterns ReDoS-vulnerable on untrusted clean=True input (an unclosed
-    # tag with a long run was quadratic). Still strips <em>, <p class="x">,
-    # <img src="y">, self-closing <br/>, and <a title="a>b">.
-    HTMLTagRule = Rule(r"""<\/?\w++(?:"[^"]*"|'[^']*'|[^>"'])*+>""", "")
+    # closing ">". A quoted attribute run is self-terminating at its closing quote
+    # and cannot cross another tag, so both "<" and ">" are allowed inside quoted
+    # runs. Only the *unquoted* run is bounded at a raw "<" so inputs with many
+    # unclosed tag starts don't force the regex engine to rescan the remaining
+    # suffix at each opener. Possessive quantifiers (\w++ / *+ — Python 3.11+)
+    # forbid the backtracking that made earlier patterns ReDoS-vulnerable on
+    # untrusted clean=True input. Still strips <em>, <p class="x">, <img src="y">,
+    # self-closing <br/>, <a title="a>b">, and <span data-x="1 < 2">.
+    HTMLTagRule = Rule(r"""<\/?\w++(?:"[^"]*"|'[^']*'|[^<>"'])*+>""", "")
 
     # Rubular: http://rubular.com/r/XZVqMPJhea
     # Match an escaped tag &lt;tag ...&gt; — the inner content must start with a
