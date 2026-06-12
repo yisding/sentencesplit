@@ -379,6 +379,22 @@ def test_sentinel_restore_is_overlap_safe_for_adjacent_multichar_tokens(monkeypa
     assert clean.segment_clean(multi) == ["Pair ♭∯ here.", "And more."]
 
 
+def test_sentinel_restore_does_not_match_across_original_private_use_boundary(monkeypatch):
+    """Delimited fallback tokens must not restore a substring that straddles an
+    original private-use character and an escaped reserved sentinel."""
+    from sentencesplit import processor as _proc
+    from sentencesplit.languages import Language
+
+    monkeypatch.setattr(_proc, "_PRIVATE_USE_RANGES", ((0xE000, 0xE001),))
+
+    en = Language.get_language_code("en")
+    clean = sentencesplit.Segmenter(language="en", clean=True)
+    text = "Has \ue000∯ here. And more."
+
+    assert _proc.Processor(text, en).process() == ["Has \ue000∯ here.", "And more."]
+    assert clean.segment_clean(text) == ["Has \ue000∯ here.", "And more."]
+
+
 def test_escaped_html_rule_is_not_redos_vulnerable():
     import time
 
