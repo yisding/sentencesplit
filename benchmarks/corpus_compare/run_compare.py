@@ -324,9 +324,9 @@ def main():
         f"agreement={scoreboard_doc['agreement']['agreement_rate_pct']}% "
         f"emitted_cases={len(selected)} (dropped {manifest['dropped']})"
     )
-    print(f"  scoreboard:   {_RESULTS / 'scoreboard.json'}")
-    print(f"  divergences:  {_RESULTS / 'divergences.json'}")
-    print(f"  case files:   {_CASES}/case_*.json")
+    print(f"  scoreboard:   {(_RESULTS / 'scoreboard.json').relative_to(_HERE)}")
+    print(f"  divergences:  {(_RESULTS / 'divergences.json').relative_to(_HERE)}")
+    print(f"  case files:   {_CASES.relative_to(_HERE)}/case_*.json")
 
 
 if __name__ == "__main__":

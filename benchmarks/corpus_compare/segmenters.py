@@ -26,8 +26,8 @@ from pathlib import Path
 warnings.filterwarnings("ignore")
 
 _HERE = Path(__file__).resolve().parent
-_POSIX_PATH_RE = re.compile(r"(?<![:/])/(?:[^\s:'\",;()<>]+/)+[^\s:'\",;()<>]*")
-_WINDOWS_PATH_RE = re.compile(r"\b[A-Za-z]:[\\/](?:[^\s:'\",;()<>]+[\\/])*[^\s:'\",;()<>]*")
+_POSIX_PATH_RE = re.compile(r"(?<![:/])/(?:[^\r\n:'\",;()<>]+/)+[^\r\n:'\",;()<>]*")
+_WINDOWS_PATH_RE = re.compile(r"\b[A-Za-z]:[\\/](?:[^\r\n:'\",;()<>]+[\\/])*[^\r\n:'\",;()<>]*")
 
 
 def _redact_environment_paths(message: str) -> str:

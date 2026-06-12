@@ -37,3 +37,15 @@ def test_segmenter_redacts_unavailable_reason_paths():
     assert "C:" not in adapter.unavailable_reason
     assert "alice" not in adapter.unavailable_reason
     assert "<path>" in adapter.unavailable_reason
+
+
+def test_redacts_absolute_paths_with_spaces():
+    reason = segmenters._redact_environment_paths(
+        "OSError: /Users/Alice Smith/Code/sentencesplit/virtualenv/pkg.so: failed; "
+        r"ImportError: C:\Users\Alice Smith\Code\sentencesplit\virtualenv\pkg.pyd failed"
+    )
+
+    assert "Alice Smith" not in reason
+    assert "/Users" not in reason
+    assert "C:" not in reason
+    assert reason.count("<path>") == 2
