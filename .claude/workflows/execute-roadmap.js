@@ -24,14 +24,45 @@ try {
 } catch {
   opts = {}
 }
-const ITEMS_THIS_RUN = (opts.items || (opts.item ? [opts.item] : ['N2'])).map((s) => String(s))
 const SLUGS = { N2: 'regression-gate', N5: 'span-roundtrip', N4: 'stream-segmenter', N1b: 'extra-abbreviations' }
-const BRANCH =
-  opts.branch ||
-  (ITEMS_THIS_RUN.length === 1 && SLUGS[ITEMS_THIS_RUN[0]]
-    ? `feat/${SLUGS[ITEMS_THIS_RUN[0]]}`
-    : `feat/roadmap-${ITEMS_THIS_RUN.map((s) => s.toLowerCase()).join('-')}`)
-const BASE = opts.base || 'origin/main'
+
+function parseItems(value, fallback) {
+  const raw = value === undefined ? fallback : value
+  return (Array.isArray(raw) ? raw : [raw]).map((item) => String(item))
+}
+
+function validateGitRef(name, label) {
+  const ref = String(name)
+  if (ref.length === 0 || ref.length > 200) {
+    throw new Error(`${label} must be a non-empty Git ref shorter than 201 characters`)
+  }
+  if (ref.startsWith('-')) {
+    throw new Error(`${label} must not start with '-'`)
+  }
+  if (!/^[A-Za-z0-9][A-Za-z0-9._/-]*$/.test(ref)) {
+    throw new Error(`${label} contains characters outside the safe Git ref allowlist`)
+  }
+  if (
+    ref.includes('..') ||
+    ref.includes('@{') ||
+    ref.includes('//') ||
+    ref.endsWith('/') ||
+    ref.endsWith('.') ||
+    ref.includes('.lock/')
+  ) {
+    throw new Error(`${label} is not an allowed Git ref`)
+  }
+  for (const part of ref.split('/')) {
+    if (part === '' || part.startsWith('.') || part.endsWith('.lock')) {
+      throw new Error(`${label} contains an invalid Git ref path component`)
+    }
+  }
+  return ref
+}
+
+function shellQuote(value) {
+  return `'${String(value).replaceAll("'", "'\\''")}'`
+}
 
 // ── The roadmap, distilled from analysis/LEVEL_UP_PLAN.md (§4). ─────────────────
 // kind: infra | dev-tests | additive | additive-api | behavior-change | integration | lang | domain | docs
@@ -135,6 +166,23 @@ segmentation emerges (e.g. doc_type='markdown' requests).`,
   },
 }
 
+const ITEMS_THIS_RUN = parseItems(opts.items, opts.item ? [opts.item] : ['N2'])
+if (ITEMS_THIS_RUN.length === 0) {
+  throw new Error('At least one roadmap item is required')
+}
+const unknownItems = ITEMS_THIS_RUN.filter((id) => !Object.hasOwn(ROADMAP, id))
+if (unknownItems.length > 0) {
+  throw new Error(`Unknown roadmap item(s): ${unknownItems.join(', ')}`)
+}
+
+const defaultBranch =
+  ITEMS_THIS_RUN.length === 1 && SLUGS[ITEMS_THIS_RUN[0]]
+    ? `feat/${SLUGS[ITEMS_THIS_RUN[0]]}`
+    : `feat/roadmap-${ITEMS_THIS_RUN.map((s) => s.toLowerCase()).join('-')}`
+const BRANCH = validateGitRef(opts.branch || defaultBranch, 'branch')
+const BASE = validateGitRef(opts.base || 'origin/main', 'base')
+const CHECKOUT_COMMAND = `git checkout -b ${shellQuote(BRANCH)} ${shellQuote(BASE)}`
+
 const GUARD = `GUARDRAILS (follow exactly):
 - Work in ${ROOT} on the already-checked-out branch \`${BRANCH}\`. NEVER push. NEVER touch main/origin.
 - TEST-FIRST: write the test(s) before the implementation and confirm they fail (red) first where applicable.
@@ -228,7 +276,7 @@ log(`Implementing this run: ${ITEMS_THIS_RUN.join(', ')} on branch ${BRANCH} (ba
 const setup = await agent(
   `${CONTEXT}\n\nPrepare an isolated branch. In ${ROOT}:
 1. \`git fetch origin\` then \`git rev-parse --abbrev-ref HEAD\` (note the current branch).
-2. Create and switch to branch \`${BRANCH}\` based on \`${BASE}\`: \`git checkout -b ${BRANCH} ${BASE}\` (if it already exists, check it out and report that — do NOT reset it). Untracked files (analysis/, benchmark harness) will follow; leave them.
+2. Create and switch to branch \`${BRANCH}\` based on \`${BASE}\`: \`${CHECKOUT_COMMAND}\` (if it already exists, check it out and report that — do NOT reset it). Untracked files (analysis/, benchmark harness) will follow; leave them.
 3. Confirm a GREEN baseline before any change (exclude the spaCy test, which crashes this aarch64 box):
    \`uv run pytest -q --ignore=tests/test_spacy_component.py\` — report only the final summary line.
 4. Capture the Golden Rules baseline count with the one-liner from the guardrails.
