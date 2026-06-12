@@ -1,0 +1,22 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite the upstream pySBD paper (see references)."
+title: "sentencesplit"
+type: software
+authors:
+  - family-names: "Sadvilkar"
+    given-names: "Nipun"
+  - family-names: "Ding"
+    given-names: "Yi"
+repository-code: "https://github.com/yisding/sentencesplit"
+license: MIT
+references:
+  - type: article
+    title: "PySBD: Pragmatic Sentence Boundary Disambiguation"
+    authors:
+      - family-names: "Sadvilkar"
+        given-names: "Nipun"
+      - family-names: "Neumann"
+        given-names: "Mark"
+    year: 2020
+    collection-title: "Proceedings of the Second Workshop for NLP Open Source Software (NLP-OSS), EMNLP 2020"
+    url: "https://www.aclweb.org/anthology/2020.nlposs-1.15"

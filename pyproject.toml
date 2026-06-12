@@ -4,7 +4,7 @@ build-backend = "uv_build"
 
 [project]
 name = "sentencesplit"
-version = "0.0.4"
+version = "0.0.5"
 description = "sentencesplit is a rule-based sentence boundary detection library, derived from pySBD (Python Sentence Boundary Disambiguation), that works out-of-the-box across many languages."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -43,12 +43,16 @@ classifiers = [
   "Programming Language :: Python :: 3.12",
   "Programming Language :: Python :: 3.13",
   "Programming Language :: Python :: 3.14",
+  "Programming Language :: Python :: Free Threading :: 2 - Beta",
   "Typing :: Typed",
 ]
 dependencies = []
 
 [project.urls]
+Homepage = "https://github.com/yisding/sentencesplit"
 Repository = "https://github.com/yisding/sentencesplit"
+Issues = "https://github.com/yisding/sentencesplit/issues"
+Changelog = "https://github.com/yisding/sentencesplit/blob/main/CHANGELOG.md"
 
 [project.optional-dependencies]
 spacy = ["spacy>=3.8"]
@@ -75,6 +79,7 @@ dev = [
   # tests/test_span_roundtrip.py). DEV-ONLY: the zero-dependency core must
   # never import Hypothesis — guarded by tests/test_zero_dependencies.py.
   "hypothesis>=6.0",
+  "mypy>=1.11",
 ]
 
 [tool.uv.build-backend]
@@ -94,20 +99,50 @@ mccabe.max-complexity = 10
 "sentencesplit/about.py" = ["E501"]
 "sentencesplit/exclamation_words.py" = ["E501"]
 "sentencesplit/lists_item_replacer.py" = ["E501"]
-"sentencesplit/processor.py" = ["C901"]
 "benchmarks/english_golden_rules.py" = ["E501"]
 "analysis/analyze_disagreements_v1.py" = ["C901"]
 "analysis/analyze_disagreements_v2.py" = ["C901"]
 "analysis/compare_pysbd_vs_punkt.py" = ["C901"]
 "analysis/assign_verdicts.py" = ["C901"]
 "benchmarks/corpus_compare/run_compare.py" = ["C901"]
-"examples/test_timing_script.py" = ["E501", "E402"]
+"benchmarks/timing_script.py" = ["E501", "E402"]
+
+[tool.mypy]
+python_version = "3.11"
+files = [
+  "sentencesplit/segmenter.py",
+  "sentencesplit/stream_segmenter.py",
+  "sentencesplit/utils.py",
+  "sentencesplit/language_profile.py",
+  "sentencesplit/exceptions.py",
+  "sentencesplit/__init__.py",
+]
+warn_redundant_casts = true
+warn_unused_ignores = true
+no_implicit_optional = true
+
+[[tool.mypy.overrides]]
+module = ["spacy", "spacy.*"]
+ignore_missing_imports = true
 
 [tool.pytest.ini_options]
+minversion = "8.0"
 testpaths = ["tests"]
 # Fail the suite if an xfail-marked test starts passing, so a fixed bug's stale
 # xfail can't silently rot as an xpass.
 xfail_strict = true
+# -ra: show a short summary of all non-passing outcomes.
+# --strict-config: error out on unknown/typo'd ini keys.
+# --import-mode=importlib: modern, isolated test-module imports.
+addopts = ["-ra", "--strict-config", "--import-mode=importlib"]
+markers = [
+  "perf: timing-sensitive performance regression guards",
+]
+filterwarnings = [
+  # Many span-contract tests intentionally exercise the deprecated char_span
+  # alias. The dedicated regression tests still assert the warning fires.
+  "ignore:char_span is deprecated; use segment_spans\\(\\):DeprecationWarning",
+]
 
 [tool.semantic_release]
 tag_format = "v{version}"
@@ -120,7 +155,16 @@ git add uv.lock
 uv build
 """
 
+[tool.coverage.run]
+branch = true
+source = ["sentencesplit"]
+
 [tool.coverage.report]
+show_missing = true
+# Conservative ratchet: floor(measured TOTAL %) minus 3. Branch coverage and
+# the intentional char_span deprecation path keep this comfortably below the
+# observed ~95% so the gate is non-flaky.
+fail_under = 93
 exclude_lines = [
   "pragma: no cover",
   "def __repr__",

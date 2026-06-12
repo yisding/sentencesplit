@@ -63,3 +63,23 @@ GREEK_ABBREVIATION_BOUNDARY_CASES = [
 def test_greek_multi_period_abbreviation_boundary_before_capital(case_id, text, expected):
     seg = sentencesplit.Segmenter(language="el")
     assert [s.strip() for s in seg.segment(text)] == expected
+
+
+GREEK_LATIN_BOUNDARY_ABBREVIATION_CASES = [
+    (
+        "us_embassy",
+        "Η U.S. Embassy άνοιξε. Ήταν πρωί.",
+        ["Η U.S. Embassy άνοιξε.", "Ήταν πρωί."],
+    ),
+    (
+        "eu_commission",
+        "Η E.U. Commission άνοιξε. Ήταν πρωί.",
+        ["Η E.U. Commission άνοιξε.", "Ήταν πρωί."],
+    ),
+]
+
+
+@pytest.mark.parametrize("case_id,text,expected", GREEK_LATIN_BOUNDARY_ABBREVIATION_CASES)
+def test_greek_preserves_standard_sentence_starters_for_latin_boundary_abbreviations(case_id, text, expected):
+    seg = sentencesplit.Segmenter(language="el")
+    assert [s.strip() for s in seg.segment(text)] == expected

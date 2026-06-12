@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import re
 from collections import deque
+from threading import RLock
 
 from sentencesplit.utils import (
     _next_nonspace_char,
@@ -137,6 +138,7 @@ class _AbbreviationData:
 class AbbreviationReplacer:
     _data_cache: dict[type, _AbbreviationData] = {}
     _boundary_regex_cache: dict[type, re.Pattern[str] | None] = {}
+    _cache_lock = RLock()
     SENTENCE_STARTERS = []
     SENTENCE_BOUNDARY_ABBREVIATIONS = ["U∯S", "U.S", "U∯K", "E∯U", "E.U", "U∯S∯A", "U.S.A", "I", "i.v", "I.V"]
 
@@ -169,9 +171,10 @@ class AbbreviationReplacer:
         self.lang = lang
         abbr_class = lang.Abbreviation
         self.split_mode = split_mode
-        if abbr_class not in AbbreviationReplacer._data_cache:
-            AbbreviationReplacer._data_cache[abbr_class] = _AbbreviationData(lang.Abbreviation)
-        self._data = AbbreviationReplacer._data_cache[abbr_class]
+        with AbbreviationReplacer._cache_lock:
+            if abbr_class not in AbbreviationReplacer._data_cache:
+                AbbreviationReplacer._data_cache[abbr_class] = _AbbreviationData(lang.Abbreviation)
+            self._data = AbbreviationReplacer._data_cache[abbr_class]
 
     @property
     def _leans_split(self) -> bool:
@@ -402,18 +405,21 @@ class AbbreviationReplacer:
 
     @classmethod
     def _get_boundary_regex(cls) -> re.Pattern[str] | None:
-        if cls not in cls._boundary_regex_cache:
-            boundary_abbr = "|".join(re.escape(abbr).replace(r"\.", r"[.∯]") for abbr in cls.SENTENCE_BOUNDARY_ABBREVIATIONS)
-            if not boundary_abbr:
-                cls._boundary_regex_cache[cls] = None
-            elif cls.SENTENCE_STARTERS:
-                sent_starters = "|".join(r"(?=\s{}\s)".format(re.escape(word)) for word in cls.SENTENCE_STARTERS)
-                cls._boundary_regex_cache[cls] = re.compile(
-                    r"(?<![A-Za-z0-9_∯])({})∯({})".format(boundary_abbr, sent_starters)
+        with AbbreviationReplacer._cache_lock:
+            if cls not in cls._boundary_regex_cache:
+                boundary_abbr = "|".join(
+                    re.escape(abbr).replace(r"\.", r"[.∯]") for abbr in cls.SENTENCE_BOUNDARY_ABBREVIATIONS
                 )
-            else:
-                cls._boundary_regex_cache[cls] = re.compile(r"(?<![A-Za-z0-9_∯])({})∯".format(boundary_abbr))
-        return cls._boundary_regex_cache[cls]
+                if not boundary_abbr:
+                    cls._boundary_regex_cache[cls] = None
+                elif cls.SENTENCE_STARTERS:
+                    sent_starters = "|".join(r"(?=\s{}\s)".format(re.escape(word)) for word in cls.SENTENCE_STARTERS)
+                    cls._boundary_regex_cache[cls] = re.compile(
+                        r"(?<![A-Za-z0-9_∯])({})∯({})".format(boundary_abbr, sent_starters)
+                    )
+                else:
+                    cls._boundary_regex_cache[cls] = re.compile(r"(?<![A-Za-z0-9_∯])({})∯".format(boundary_abbr))
+            return cls._boundary_regex_cache[cls]
 
     def replace_abbreviation_as_sentence_boundary(self) -> str:
         regex = type(self)._get_boundary_regex()
