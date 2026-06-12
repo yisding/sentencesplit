@@ -66,7 +66,7 @@ regardless of mode.
 from __future__ import annotations
 
 from sentencesplit.exceptions import InvalidConfigurationError
-from sentencesplit.segmenter import Segmenter, _strip_zero_width
+from sentencesplit.segmenter import Segmenter
 from sentencesplit.utils import BufferingMode, SplitMode, TextSpan
 
 BUFFERING_MODES = ("conservative", "balanced", "aggressive")
@@ -238,7 +238,7 @@ class StreamSegmenter:
             return items
         out: list[str] = []
         for span in items:
-            text = _strip_zero_width(span.sent)
+            text = self._segmenter._strip_zero_width(span.sent)
             if text.strip():
                 out.append(text)
         return out

@@ -166,6 +166,24 @@ def test_pending_text_tracks_unemitted_tail():
     assert stream.pending_text() == ""
 
 
+def test_boundary_zero_width_after_stable_period_emits():
+    stream = StreamSegmenter(language="en")
+
+    stream.feed("This is the finale.\u200b")
+
+    assert stream.get_completed_sentences() == ["This is the finale."]
+    assert stream.pending_text() == ""
+
+
+def test_boundary_zero_width_before_sentence_closer_emits():
+    stream = StreamSegmenter(language="en")
+
+    stream.feed('What?\u200b"')
+
+    assert stream.get_completed_sentences() == ['What?"']
+    assert stream.pending_text() == ""
+
+
 def test_is_complete_reflects_tail_stability():
     stream = StreamSegmenter(language="en")
     assert stream.is_complete() is True  # empty buffer is trivially complete

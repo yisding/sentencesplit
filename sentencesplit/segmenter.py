@@ -44,9 +44,10 @@ _TRAILING_SENTENCE_CLOSERS = frozenset("\"')]}»”’）】》」』")
 # and is otherwise emitted as a phantom sentence or folded into the next one.
 _ZERO_WIDTH_CHARS = frozenset(ZERO_WIDTH_CHARS)
 _ZERO_WIDTH_TRANSLATION = {ord(c): None for c in _ZERO_WIDTH_CHARS}
+_ZERO_WIDTH_CLASS = re.escape("".join(_ZERO_WIDTH_CHARS))
 
 
-def _strip_zero_width(text: str) -> str:
+def _strip_zero_width(text: str, punctuations=None) -> str:
     """Drop boundary zero-width/format characters from a (plain, non-span) segment.
 
     Only the leading/trailing run of whitespace-or-zero-width is cleaned, and
@@ -66,7 +67,34 @@ def _strip_zero_width(text: str) -> str:
         end -= 1
     lead = text[:start].translate(_ZERO_WIDTH_TRANSLATION)
     trail = text[end:].translate(_ZERO_WIDTH_TRANSLATION)
-    return lead + text[start:end] + trail
+    core = text[start:end]
+    if punctuations:
+        core = _strip_zero_width_before_sentence_closers(core, punctuations)
+    return lead + core + trail
+
+
+def _strip_zero_width_before_sentence_closers(text: str, punctuations) -> str:
+    def previous_non_zero_width(index: int) -> str:
+        while index >= 0 and text[index] in _ZERO_WIDTH_CHARS:
+            index -= 1
+        return text[index] if index >= 0 else ""
+
+    def next_non_zero_width(index: int) -> str:
+        while index < len(text) and text[index] in _ZERO_WIDTH_CHARS:
+            index += 1
+        return text[index] if index < len(text) else ""
+
+    chars = []
+    punctuation_set = frozenset(punctuations)
+    for index, char in enumerate(text):
+        if (
+            char in _ZERO_WIDTH_CHARS
+            and previous_non_zero_width(index - 1) in punctuation_set
+            and next_non_zero_width(index + 1) in _TRAILING_SENTENCE_CLOSERS
+        ):
+            continue
+        chars.append(char)
+    return "".join(chars)
 
 
 # ``char_span`` is soft-deprecated in favour of ``segment_spans()`` but retained
@@ -185,9 +213,17 @@ class Segmenter:
             return self.cleaner(text).clean()
         return text
 
+    def _strip_zero_width(self, text: str) -> str:
+        return _strip_zero_width(text, self.language_module.Punctuations)
+
+    def _processor_text(self, text: str) -> str:
+        if self.clean:
+            return text
+        return self._strip_zero_width(text)
+
     def _terminal_punctuation(self, text: str) -> tuple[int, str] | None:
         idx = len(text) - 1
-        while idx >= 0 and text[idx] in _TRAILING_SENTENCE_CLOSERS:
+        while idx >= 0 and (text[idx] in _TRAILING_SENTENCE_CLOSERS or text[idx] in _ZERO_WIDTH_CHARS):
             idx -= 1
         if idx < 0:
             return None
@@ -219,7 +255,7 @@ class Segmenter:
         return tuple(dict.fromkeys(probes))
 
     def _comparison_segments_from_analysis_text(self, analysis_text: str) -> list[str]:
-        processed_sents = self.processor(analysis_text).process()
+        processed_sents = self.processor(self._processor_text(analysis_text)).process()
         if self.clean:
             return processed_sents
         return [s for s, _, _ in self._match_spans(processed_sents, analysis_text)]
@@ -266,7 +302,7 @@ class Segmenter:
 
         original_text = text
         analysis_text = self._analysis_text(text)
-        processed_sents = self.processor(analysis_text).process()
+        processed_sents = self.processor(self._processor_text(analysis_text)).process()
 
         if self.clean:
             return analysis_text, processed_sents, processed_sents
@@ -281,7 +317,7 @@ class Segmenter:
             return analysis_text, spans, comparison_segments
         # Plain segments drop zero-width/format chars that str.strip() leaves
         # behind, so a lone U+200B reference marker is not emitted as text.
-        plain_segments = [seg for seg in (_strip_zero_width(s) for s in comparison_segments) if seg.strip()]
+        plain_segments = [seg for seg in (self._strip_zero_width(s) for s in comparison_segments) if seg.strip()]
         return analysis_text, plain_segments, comparison_segments
 
     def _wait_for_last_segment(self, analysis_text: str, comparison_segments: list[str]) -> bool:
@@ -289,11 +325,12 @@ class Segmenter:
             return False
 
         last_segment = comparison_segments[-1]
-        terminal_text = last_segment.rstrip()
+        lookahead_segment = self._strip_zero_width(last_segment) if not self.clean else last_segment
+        terminal_text = lookahead_segment.rstrip()
         if not terminal_text:
             return False
 
-        has_trailing_whitespace = terminal_text != last_segment
+        has_trailing_whitespace = terminal_text != lookahead_segment
         punct_info = self._terminal_punctuation(terminal_text)
         if punct_info is None:
             return True
@@ -314,7 +351,8 @@ class Segmenter:
         # rfind returns the correct (rightmost) occurrence.
         start_index = analysis_text.rfind(last_segment)
         if start_index != -1:
-            return self._wait_with_tail_probe(analysis_text[start_index:], last_segment, probe_suffixes)
+            probe_tail = self._strip_zero_width(analysis_text[start_index:]) if not self.clean else analysis_text[start_index:]
+            return self._wait_with_tail_probe(probe_tail, lookahead_segment, probe_suffixes)
 
         return self._wait_with_full_probe(analysis_text, comparison_segments, last_segment, probe_suffixes)
 
@@ -329,11 +367,24 @@ class Segmenter:
         whitespace_flexible = re.escape(sent).replace(r"\ ", r"\s*")
         match = re.search(whitespace_flexible, original_text[prior_end:])
         if match is None:
+            match = re.search(self._zero_width_flexible_pattern(sent), original_text[prior_end:])
+        if match is None:
             return None
 
         start_idx = prior_end + match.start()
         end_idx = prior_end + match.end()
         return start_idx, end_idx
+
+    def _zero_width_flexible_pattern(self, sent: str) -> str:
+        joiner = rf"[{_ZERO_WIDTH_CLASS}]*"
+        parts = []
+        for char in sent:
+            if char.isspace():
+                parts.append(rf"[\s{_ZERO_WIDTH_CLASS}]*")
+            else:
+                parts.append(re.escape(char))
+            parts.append(joiner)
+        return "".join(parts)
 
     def _next_sentence_start(self, sentences: list[str], start_at: int, original_text: str, prior_end: int):
         """Find start index for the next matchable sentence after ``start_at``."""
@@ -445,7 +496,7 @@ class Segmenter:
             raise InvalidConfigurationError("segment_spans() requires clean=False.")
         if not text:
             return []
-        processed_sents = self.processor(text).process()
+        processed_sents = self.processor(self._processor_text(text)).process()
         return [TextSpan(s, start, end) for s, start, end in self._match_spans(processed_sents, text)]
 
     def segment_clean(self, text: str | None) -> list[str]:
