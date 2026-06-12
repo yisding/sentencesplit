@@ -297,6 +297,30 @@ def test_german_ordinal_range_not_treated_as_numbered_list(split_mode):
     assert [s.strip() for s in seg.segment(text)] == [text]
 
 
+def test_german_ordinal_range_before_later_list_does_not_split_inside_range():
+    text = "Die Sammlung umfasst Werke vom 19. bis 20. Jahrhundert. 1. apple 2. banana"
+    seg = sentencesplit.Segmenter(language="de", clean=False)
+
+    assert [s.strip() for s in seg.segment(text)] == [
+        "Die Sammlung umfasst Werke vom 19. bis 20. Jahrhundert.",
+        "1. apple",
+        "2. banana",
+    ]
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "Die Ausstellung zeigt Werke des 19. sowie 20. Jahrhunderts.",
+        "Die Ausstellung zeigt Werke des 19. bzw. 20. Jahrhunderts.",
+    ],
+)
+def test_german_ordinal_prose_connectors_not_treated_as_numbered_lists(text):
+    seg = sentencesplit.Segmenter(language="de", clean=False)
+
+    assert [s.strip() for s in seg.segment(text)] == [text]
+
+
 def test_consecutive_ordinals_followed_by_lowercase_not_a_list():
     """Embedded ordinals followed by prose connectors are not list markers, so
     no line break ('\\r') is inserted to split them into list items. The ordinal
@@ -309,11 +333,11 @@ def test_consecutive_ordinals_followed_by_lowercase_not_a_list():
 
 def test_lowercase_numbered_list_items_split():
     """Lowercase item text is still a real numbered list, not prose ordinal text."""
-    text = "1. apple 2. banana"
-    assert ListItemReplacer(text).add_line_break() == "1∯ apple\r2∯ banana"
+    for text in ("1. apple 2. banana", "1. and gates 2. or gates"):
+        assert ListItemReplacer(text).add_line_break().count("\r") == 1
 
-    seg = sentencesplit.Segmenter(language="en", clean=False)
-    assert [s.strip() for s in seg.segment(text)] == ["1. apple", "2. banana"]
+        seg = sentencesplit.Segmenter(language="en", clean=False)
+        assert [s.strip() for s in seg.segment(text)] == [text.split(" 2. ")[0], "2. " + text.split(" 2. ")[1]]
 
 
 def test_lowercase_numbered_list_item_does_not_suppress_later_boundaries():

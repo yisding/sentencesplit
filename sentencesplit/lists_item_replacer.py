@@ -53,10 +53,10 @@ class ListItemReplacer:
 
     # A false-positive guard for numbered lists. Some adjacent ordinals are
     # prose, not list items (e.g. English "for 1. above ... 2. above" or German
-    # "des 19. und ... 20. Jahrhunderts"). Keep this narrow so regular
-    # lowercase list items like "1. apple 2. banana" still split. Languages may
-    # override this (or set it to None to disable the guard).
-    NUMBERED_LIST_FALSE_POSITIVE_REGEX = r"\d{1,2}♨\s+(?:above|and|below|or|bis|und|oder)\b"
+    # "des 19. und ... 20. Jahrhunderts"). The connector must bridge two
+    # numbered markers so real lists like "1. and gates 2. or gates" still split.
+    # Languages may override this (or set it to None to disable the guard).
+    NUMBERED_LIST_FALSE_POSITIVE_REGEX = r"\d{1,2}♨\s+(?:above|and|below|or|bis|bzw|sowie|und|oder)\b[^♨\r\n]{0,80}\s\d{1,2}♨"
 
     def __init__(self, text: str, split_mode: str = "balanced") -> None:
         self.text = text
@@ -131,6 +131,15 @@ class ListItemReplacer:
 
         self.text = re.sub(regex, partial(replace_item, val=each, strip=strip, repl=replacement), self.text)
 
+    @staticmethod
+    def _is_embedded_numbered_marker(text: str, marker_start: int) -> bool:
+        index = marker_start - 1
+        while index >= 0 and text[index].isspace():
+            index -= 1
+        if index < 0:
+            return False
+        return text[index] not in ".:;!?([{\r\n"
+
     def add_line_breaks_for_numbered_list_with_periods(self):
         false_positive = self.NUMBERED_LIST_FALSE_POSITIVE_REGEX
         if split_mode_rank(self.split_mode) >= 2:
@@ -141,7 +150,15 @@ class ListItemReplacer:
 
         text_for_breaks = self.text
         if false_positive is not None:
-            text_for_breaks = re.sub(false_positive, lambda match: match.group().replace("♨", "∯", 1), text_for_breaks)
+            text_for_breaks = re.sub(
+                false_positive,
+                lambda match: (
+                    match.group().replace("♨", "∯")
+                    if self._is_embedded_numbered_marker(text_for_breaks, match.start())
+                    else match.group()
+                ),
+                text_for_breaks,
+            )
 
         if (text_for_breaks.count("♨") >= 2) and (not re.search("♨.+(\n|\r).+♨", text_for_breaks)):
             self.text = apply_rules(
