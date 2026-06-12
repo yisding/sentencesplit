@@ -41,9 +41,40 @@ jobs:
       - name: Test with pytest
         run: uv run pytest --cov=sentencesplit tests/ --color yes
 
+  free-threaded-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+
+      - name: Set up Python 3.14 free-threaded
+        run: uv python install 3.14t
+
+      - name: Install dependencies
+        run: uv sync --python 3.14t --group dev
+
+      - name: Verify free-threaded runtime
+        run: |
+          uv run python - <<'PY'
+          import sys
+          import sysconfig
+
+          assert sysconfig.get_config_var("Py_GIL_DISABLED") == 1
+          assert sys._is_gil_enabled() is False
+          print(sys.version)
+          PY
+
+      - name: Test with pytest
+        run: uv run pytest --cov=sentencesplit tests/ --color yes
+
   build:
     runs-on: ubuntu-latest
-    needs: test
+    needs: [test, free-threaded-test]
 
     steps:
       - uses: actions/checkout@v6
