@@ -316,6 +316,11 @@ def test_clean_true_disallows_char_span():
         StreamSegmenter(language="en", clean=True, char_span=True)
 
 
+def test_clean_true_is_not_supported():
+    with pytest.raises(ValueError, match="does not support clean=True"):
+        StreamSegmenter(language="en", clean=True)
+
+
 # --------------------------------------------------------------------------- #
 # Edge cases
 # --------------------------------------------------------------------------- #
@@ -354,6 +359,12 @@ def test_max_buffer_size_force_flushes_pending():
     # Overflow forces the pending tail out so the buffer cannot grow unbounded.
     assert forced  # feed returns the force-flushed sentences on overflow
     assert len(stream.pending_text()) <= 20
+
+
+@pytest.mark.parametrize("max_buffer_size", [0, -1])
+def test_invalid_max_buffer_size_raises(max_buffer_size):
+    with pytest.raises(ValueError, match="max_buffer_size must be a positive integer or None"):
+        StreamSegmenter(language="en", max_buffer_size=max_buffer_size)
 
 
 def test_feed_returns_none_when_no_max_buffer_size():
@@ -413,6 +424,7 @@ def test_overflow_does_not_drop_or_duplicate_text():
     assert "".join(collected) == full
 
 
+@pytest.mark.perf
 def test_per_token_cost_is_flat_not_quadratic():
     # Regression: feed() re-segmented the entire growing buffer every call, so
     # per-token cost doubled as the stream doubled (O(n^2) total). Compaction

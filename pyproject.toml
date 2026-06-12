@@ -105,7 +105,7 @@ mccabe.max-complexity = 10
 "analysis/compare_pysbd_vs_punkt.py" = ["C901"]
 "analysis/assign_verdicts.py" = ["C901"]
 "benchmarks/corpus_compare/run_compare.py" = ["C901"]
-"examples/test_timing_script.py" = ["E501", "E402"]
+"benchmarks/timing_script.py" = ["E501", "E402"]
 
 [tool.mypy]
 python_version = "3.11"
@@ -135,6 +135,9 @@ xfail_strict = true
 # --strict-config: error out on unknown/typo'd ini keys.
 # --import-mode=importlib: modern, isolated test-module imports.
 addopts = ["-ra", "--strict-config", "--import-mode=importlib"]
+markers = [
+  "perf: timing-sensitive performance regression guards",
+]
 
 [tool.semantic_release]
 tag_format = "v{version}"
