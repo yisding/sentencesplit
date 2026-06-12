@@ -26,25 +26,20 @@ The EM/boundary-F1 scoring is reused from the cross-library harness
 from __future__ import annotations
 
 import json
-import sys
 from pathlib import Path
 
 import pytest
 
-_HERE = Path(__file__).resolve().parent
-_GATE_DIR = _HERE / "gate"
-_BASELINE = _GATE_DIR / "baseline.json"
-
-if str(_GATE_DIR) not in sys.path:
-    sys.path.insert(0, str(_GATE_DIR))
-
-from gate_scoring import (  # noqa: E402
+from .gate.gate_scoring import (
     DEFAULT_EM_TOLERANCE,
     F1_TOLERANCE,
     load_gold_corpora,
     score_corpus,
     tolerance_for,
 )
+
+_GATE_DIR = Path(__file__).resolve().parent / "gate"
+_BASELINE = _GATE_DIR / "baseline.json"
 
 
 def _load_baseline() -> dict:

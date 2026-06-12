@@ -65,8 +65,9 @@ regardless of mode.
 
 from __future__ import annotations
 
+from sentencesplit.exceptions import InvalidConfigurationError
 from sentencesplit.segmenter import Segmenter, _strip_zero_width
-from sentencesplit.utils import TextSpan
+from sentencesplit.utils import BufferingMode, SplitMode, TextSpan
 
 BUFFERING_MODES = ("conservative", "balanced", "aggressive")
 
@@ -93,20 +94,22 @@ class StreamSegmenter:
         language: str = "en",
         clean: bool = False,
         char_span: bool = False,
-        split_mode: str = "balanced",
-        buffering_mode: str = "conservative",
+        split_mode: SplitMode = "balanced",
+        buffering_mode: BufferingMode = "conservative",
         max_buffer_size: int | None = None,
     ) -> None:
         if clean:
-            raise ValueError(
+            raise InvalidConfigurationError(
                 "StreamSegmenter does not support clean=True: text cleaning is a whole-document "
                 "operation that does not compose with incremental streaming. Clean the text "
                 "upstream, then stream the cleaned text."
             )
         if buffering_mode not in BUFFERING_MODES:
-            raise ValueError("buffering_mode must be one of {}.".format(", ".join(repr(m) for m in BUFFERING_MODES)))
+            raise InvalidConfigurationError(
+                "buffering_mode must be one of {}.".format(", ".join(repr(m) for m in BUFFERING_MODES))
+            )
         if max_buffer_size is not None and max_buffer_size <= 0:
-            raise ValueError("max_buffer_size must be a positive integer or None.")
+            raise InvalidConfigurationError("max_buffer_size must be a positive integer or None.")
         # The wrapped Segmenter validates language/split_mode and emits the
         # one-time char_span DeprecationWarning itself (clean is fixed to False).
         # segment_spans()/should_wait_for_more() are char_span-independent, so the
@@ -278,12 +281,19 @@ class StreamSegmenter:
         cut = 0
         for index, span in enumerate(spans):
             is_final = index == last_index
-            # A non-final span whose boundary is immediately followed by more
-            # terminal punctuation may sit inside an as-yet-incomplete cluster
-            # (e.g. "Wait." inside a "Wait..." still arriving). segment_spans()
-            # will re-merge it once the rest of the cluster lands, so the
-            # boundary is not stable yet — hold it rather than emit a fragment.
-            if not is_final and span.end < len(self._buffer) and self._buffer[span.end] in _CLUSTER_TERMINALS:
+            # A non-final span whose boundary falls between terminal punctuation
+            # characters may sit inside an as-yet-incomplete cluster (e.g.
+            # "Wait." inside a "Wait..." still arriving). segment_spans() will
+            # re-merge it once the rest of the cluster lands, so the boundary is
+            # not stable yet — hold it rather than emit a fragment. A terminal
+            # punctuation mark starting the next span ("One. !Two.") is not part
+            # of the previous boundary and must not prevent buffer compaction.
+            if (
+                not is_final
+                and 0 < span.end < len(self._buffer)
+                and self._buffer[span.end - 1] in _CLUSTER_TERMINALS
+                and self._buffer[span.end] in _CLUSTER_TERMINALS
+            ):
                 break
             if not self._emittable(span, is_final, self._last_should_wait):
                 break  # this span (the volatile final) and nothing after it yet
