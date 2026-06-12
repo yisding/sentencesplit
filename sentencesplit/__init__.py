@@ -18,7 +18,7 @@ __all__ = [
 _LAZY_METADATA = {"__version__", "__author__", "__email__", "__uri__"}
 
 
-def __getattr__(name):
+def __getattr__(name: str) -> str:
     """Lazily resolve package metadata so importing the package stays cheap."""
     if name in _LAZY_METADATA:
         from . import about
@@ -27,5 +27,5 @@ def __getattr__(name):
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
-def __dir__():
+def __dir__() -> list[str]:
     return sorted([*globals().keys(), "__version__", "__author__", "__email__", "__uri__"])

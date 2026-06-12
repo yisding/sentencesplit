@@ -10,6 +10,7 @@ the pytest process already imported.
 import subprocess
 import sys
 import textwrap
+from pathlib import Path
 
 
 def _run(snippet: str) -> str:
@@ -46,3 +47,35 @@ def test_version_is_a_nonempty_string_when_read():
         """
     )
     assert out
+
+
+def test_lazy_metadata_preserves_typed_public_surface(tmp_path: Path):
+    config = tmp_path / "mypy.ini"
+    config.write_text("[mypy]\npython_version = 3.11\n", encoding="utf-8")
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "mypy",
+            "--config-file",
+            str(config),
+            "-c",
+            textwrap.dedent(
+                """
+                import sentencesplit
+
+                reveal_type(sentencesplit.__version__)
+                from sentencesplit import no_such_attr
+                """
+            ),
+        ],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    output = result.stdout + result.stderr
+    assert result.returncode == 1, output
+    assert 'Revealed type is "str"' in output
+    assert 'Module "sentencesplit" has no attribute "no_such_attr"' in output
