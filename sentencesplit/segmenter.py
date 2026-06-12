@@ -279,11 +279,12 @@ class Segmenter:
             return False
 
         last_segment = comparison_segments[-1]
-        terminal_text = last_segment.rstrip()
+        lookahead_segment = _strip_zero_width(last_segment) if not self.clean else last_segment
+        terminal_text = lookahead_segment.rstrip()
         if not terminal_text:
             return False
 
-        has_trailing_whitespace = terminal_text != last_segment
+        has_trailing_whitespace = terminal_text != lookahead_segment
         punct_info = self._terminal_punctuation(terminal_text)
         if punct_info is None:
             return True

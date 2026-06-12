@@ -209,6 +209,13 @@ def test_segment_with_lookahead_handles_empty_and_none_inputs():
     assert seg.segment_with_lookahead(None) == SegmentLookahead([], should_wait_for_more=False)
 
 
+def test_segment_with_lookahead_ignores_zero_width_only_input():
+    seg = sentencesplit.Segmenter(language="en", clean=False, char_span=False)
+
+    assert seg.segment_with_lookahead("\u200b") == SegmentLookahead([], should_wait_for_more=False)
+    assert seg.should_wait_for_more("\u200b") is False
+
+
 @pytest.mark.parametrize(
     "language,text,expected",
     [
