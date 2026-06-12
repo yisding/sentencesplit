@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import re
+from collections import deque
 from itertools import product
 
 from sentencesplit.exclamation_words import ExclamationWords
@@ -189,20 +190,46 @@ def _iter_noncharacter_delimiters():
             yield chr(cp)
 
 
-def _iter_noncharacter_delimiter_tokens():
-    alphabet = tuple(_iter_noncharacter_delimiters())
-    width = 1
-    while alphabet:
-        for chars in product(alphabet, repeat=width):
-            yield "".join(chars)
-        width += 1
-
-
 def _absent_noncharacter_delimiter(text: str) -> str:
-    for delimiter in _iter_noncharacter_delimiter_tokens():
-        if delimiter not in text:
-            return delimiter
-    raise ValueError("At least one noncharacter delimiter token is required")
+    """Return a noncharacter delimiter token absent from *text* in linear time.
+
+    The adversarial fallback path can receive text that contains every short
+    delimiter candidate. Avoid testing each candidate with ``delimiter not in
+    text`` because that repeats a full substring search for every occupied
+    token. Instead, collect the delimiter-only substrings that actually occur at
+    each width with one pass over the input, then choose a candidate outside
+    that set.
+    """
+    alphabet = tuple(_iter_noncharacter_delimiters())
+    if not alphabet:
+        raise ValueError("At least one noncharacter delimiter token is required")
+
+    alphabet_set = frozenset(alphabet)
+    width = 1
+    while True:
+        present = set()
+        total_candidates = len(alphabet) ** width
+        window: deque[str] = deque(maxlen=width)
+        run_len = 0
+        for ch in text:
+            if ch in alphabet_set:
+                window.append(ch)
+                run_len += 1
+                if run_len >= width:
+                    present.add("".join(window))
+                    if len(present) == total_candidates:
+                        break
+            else:
+                window.clear()
+                run_len = 0
+
+        if len(present) < total_candidates:
+            for chars in product(alphabet, repeat=width):
+                delimiter = "".join(chars)
+                if delimiter not in present:
+                    return delimiter
+
+        width += 1
 
 
 def _build_sentinel_escape_tables(

@@ -420,6 +420,33 @@ def test_sentinel_escape_all_single_noncharacter_delimiters_falls_back_to_multic
 
 
 @pytest.mark.perf
+def test_sentinel_delimiter_selection_stays_linear_when_short_tokens_are_occupied():
+    """Choosing an absent noncharacter delimiter must not repeatedly scan the
+    whole input for every occupied candidate.
+
+    The crafted prefix contains every one-, two-, and three-codepoint delimiter
+    token from the real alphabet. The fix should still find a four-codepoint
+    delimiter with a small number of linear passes over the input.
+    """
+    import time
+    from itertools import product
+
+    from sentencesplit import processor as _proc
+
+    alphabet = tuple(_proc._iter_noncharacter_delimiters())
+    occupied = "".join("".join(chars) for width in range(1, 4) for chars in product(alphabet, repeat=width))
+    text = f"∯{occupied}" + ("x" * 100000)
+
+    start = time.perf_counter()
+    delimiter = _proc._absent_noncharacter_delimiter(text)
+    elapsed = time.perf_counter() - start
+
+    assert len(delimiter) == 4
+    assert delimiter not in text
+    assert elapsed < 5.0
+
+
+@pytest.mark.perf
 def test_escaped_html_rule_is_not_redos_vulnerable():
     import time
 
