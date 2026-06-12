@@ -65,6 +65,7 @@ _PERIOD_BEFORE_COMMA_RE = re.compile(r"\.(?=\s*,(?!,))")
 _QUOTE_PAIRS = (("“", "”"), ('"', '"'), ("«", "»"))
 _QUOTE_PAIR_BY_OPENER = {opener: closer for opener, closer in _QUOTE_PAIRS}
 _LEADING_QUOTE_RE = re.compile(r"\A[\s_]*([“\"«])")
+_QUOTE_ABBREVIATION_SCAN_TRANS = str.maketrans({char: " " for char in "".join(_QUOTE_PAIR_BY_OPENER) + "([{"})
 # Any quotation character — used to reject quotes with nested quotes/attribution.
 _ANY_QUOTE_CHARS = frozenset("“”\"«»‘’'")
 # Interior boundary inside a restored (already de-protected) quoted segment: a
@@ -85,6 +86,10 @@ _QUOTE_INTERIOR_BOUNDARY_RE = re.compile(r"(?<=[.])\s+(?=[^\W\d_])")
 # speech act (e.g. the gold-kept "...at tea-time. Dinah, my dear, I wish...").
 _QUOTE_MIN_INTERIOR_SENTENCES = 3
 _QUOTE_MIN_WORDS = 5
+
+
+def _quote_abbreviation_scan_text(text: str) -> str:
+    return text.translate(_QUOTE_ABBREVIATION_SCAN_TRANS)
 
 
 def _resplit_multi_sentence_quote(
@@ -404,7 +409,9 @@ class Processor:
                     or (
                         quote_thresholds is not None
                         and _resplit_multi_sentence_quote(
-                            pps, *quote_thresholds, protected_text=self.replace_abbreviations(pps)
+                            pps,
+                            *quote_thresholds,
+                            protected_text=self.replace_abbreviations(_quote_abbreviation_scan_text(pps)),
                         )
                     )
                     or None

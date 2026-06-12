@@ -1272,6 +1272,33 @@ def test_multi_sentence_quotation_keeps_abbreviation_periods_joined():
     ]
 
 
+def test_multi_sentence_quotation_ignores_quote_initial_abbreviation_period():
+    """A quote-initial title abbreviation must not count as an interior sentence."""
+    seg = sentencesplit.Segmenter(language="en", clean=False)
+    text = '"Dr. Smith was present today. They discussed the strange case at noon. The matter remained unresolved overnight."'
+    assert [s.strip() for s in seg.segment(text)] == [
+        '"Dr. Smith was present today.',
+        "They discussed the strange case at noon.",
+        'The matter remained unresolved overnight."',
+    ]
+
+
+@pytest.mark.parametrize("opener, closer", [("(", ")"), ("[", "]")])
+def test_multi_sentence_quotation_ignores_delimited_abbreviation_period(opener, closer):
+    """An abbreviation after an opening delimiter must not become a quote split."""
+    seg = sentencesplit.Segmenter(language="en", clean=False)
+    text = (
+        f'"The witness greeted our old friend {opener}Dr. John Hamish Watson visited warmly today{closer}. '
+        "They discussed the strange case at noon. "
+        'The matter remained unresolved overnight."'
+    )
+    assert [s.strip() for s in seg.segment(text)] == [
+        f'"The witness greeted our old friend {opener}Dr. John Hamish Watson visited warmly today{closer}.',
+        "They discussed the strange case at noon.",
+        'The matter remained unresolved overnight."',
+    ]
+
+
 # PR #41: the linear-time glued-lowercase-run-on scanner must reproduce the
 # original `(?<=\S)\.(?=\.{3,}[a-z])` regex, whose per-dot lookbehind protected
 # interior dots even when the run begins at index 0 or follows whitespace
