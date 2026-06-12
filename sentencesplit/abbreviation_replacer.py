@@ -337,6 +337,7 @@ class AbbreviationReplacer:
     # another all-caps word (2+ letters). Used to detect imprint/colophon runs
     # like "CHARLES WHITTINGHAM AND CO. TOOKS COURT".
     _ALLCAPS_IMPRINT_RE = re.compile(r"(?<![A-Za-z0-9])([A-Z]{2,})\.(?=\s+[A-Z]{2,}\b)")
+    _ALLCAPS_IMPRINT_COMPANY_ABBREVIATIONS = frozenset({"co"})
 
     def protect_allcaps_imprint_abbreviations(self) -> str:
         """Keep a known abbreviation's period non-terminal inside an all-caps run.
@@ -344,16 +345,16 @@ class AbbreviationReplacer:
         In an all-caps imprint/colophon (e.g. "...AND CO. TOOKS COURT, LONDON.")
         a company-style abbreviation such as "CO." is a name continuation, not a
         sentence end, even though the following all-caps token would normally be
-        read as a sentence start. Only known multi-letter abbreviations flanked
-        by all-caps tokens are protected, so ordinary all-caps words that end a
-        sentence ("THE END. THE BEGINNING.") still split.
+        read as a sentence start. Only the narrow set of company suffixes that
+        motivated this heuristic is protected, so ordinary all-caps sentence
+        boundaries after other abbreviations ("IT HAPPENED IN DEC. THE END.")
+        still split.
         """
         if not self.SENTENCE_STARTERS:
             return self.text
-        abbr_set = self._data.abbr_set
 
         def _protect(match):
-            if match.group(1).lower() not in abbr_set:
+            if match.group(1).lower() not in self._ALLCAPS_IMPRINT_COMPANY_ABBREVIATIONS:
                 return match.group()
             return match.group(1) + "∯"
 

@@ -884,6 +884,12 @@ def test_glued_ellipsis_lowercase_runon_not_split(text, expected):
             "Let's ask Jane and co. They should know.",
             ["Let's ask Jane and co.", "They should know."],
         ),
+        # GUARD: unrelated all-caps abbreviations, such as months, can still end
+        # a sentence before an all-caps sentence starter.
+        (
+            "IT HAPPENED IN DEC. THE END.",
+            ["IT HAPPENED IN DEC.", "THE END."],
+        ),
     ],
 )
 def test_allcaps_imprint_company_abbreviation_no_false_split(text, expected):
