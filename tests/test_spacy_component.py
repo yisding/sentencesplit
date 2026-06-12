@@ -36,6 +36,20 @@ def test_create_sentencesplit_preserves_spacy_name_and_language():
     assert factory.seg.language == "fr"
 
 
+def test_spacy_component_preserves_explicit_english_with_language_code_name():
+    factory = SentenceSplitFactory(None, "fr", "en")
+
+    assert factory.name == "fr"
+    assert factory.seg.language == "en"
+
+
+def test_create_sentencesplit_preserves_explicit_english_with_language_code_name():
+    factory = create_sentencesplit(None, "fr", "en")
+
+    assert factory.name == "fr"
+    assert factory.seg.language == "en"
+
+
 def test_spacy_component_reads_doc_text():
     doc = FakeDoc("Hello. World.", [0, 1, 7])
     factory = SentenceSplitFactory(None)
