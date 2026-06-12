@@ -67,6 +67,28 @@ def test_split_mode_number_abbrev_dial_applies_to_en_es_zh_override():
         assert len(sentencesplit.Segmenter(language="en_es_zh", split_mode=mode).segment("See Vol. IV for details.")) == 1
 
 
+def test_split_mode_controls_russian_sr_abbreviation():
+    ambiguous = "Ср. Она важна."
+    assert [s.strip() for s in sentencesplit.Segmenter(language="ru", split_mode="conservative").segment(ambiguous)] == [
+        ambiguous
+    ]
+    for mode in ("balanced", "aggressive"):
+        assert [s.strip() for s in sentencesplit.Segmenter(language="ru", split_mode=mode).segment(ambiguous)] == [
+            "Ср.",
+            "Она важна.",
+        ]
+
+    compare_phrase = "Ср. Пушкина и Лермонтова."
+    for mode in ("conservative", "balanced"):
+        assert [s.strip() for s in sentencesplit.Segmenter(language="ru", split_mode=mode).segment(compare_phrase)] == [
+            compare_phrase
+        ]
+    assert [s.strip() for s in sentencesplit.Segmenter(language="ru", split_mode="aggressive").segment(compare_phrase)] == [
+        "Ср.",
+        "Пушкина и Лермонтова.",
+    ]
+
+
 @pytest.mark.parametrize(
     "text,joined,split",
     [
