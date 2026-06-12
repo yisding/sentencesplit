@@ -74,26 +74,26 @@ def _strip_zero_width(text: str, punctuations=None) -> str:
 
 
 def _strip_zero_width_before_sentence_closers(text: str, punctuations) -> str:
-    def previous_non_zero_width(index: int) -> str:
-        while index >= 0 and text[index] in _ZERO_WIDTH_CHARS:
-            index -= 1
-        return text[index] if index >= 0 else ""
-
-    def next_non_zero_width(index: int) -> str:
-        while index < len(text) and text[index] in _ZERO_WIDTH_CHARS:
-            index += 1
-        return text[index] if index < len(text) else ""
-
     chars = []
     punctuation_set = frozenset(punctuations)
-    for index, char in enumerate(text):
-        if (
-            char in _ZERO_WIDTH_CHARS
-            and previous_non_zero_width(index - 1) in punctuation_set
-            and next_non_zero_width(index + 1) in _TRAILING_SENTENCE_CLOSERS
-        ):
+    index = 0
+    text_len = len(text)
+    while index < text_len:
+        char = text[index]
+        if char not in _ZERO_WIDTH_CHARS:
+            chars.append(char)
+            index += 1
             continue
-        chars.append(char)
+
+        run_start = index
+        while index < text_len and text[index] in _ZERO_WIDTH_CHARS:
+            index += 1
+
+        previous_char = chars[-1] if chars else ""
+        next_char = text[index] if index < text_len else ""
+        if previous_char in punctuation_set and next_char in _TRAILING_SENTENCE_CLOSERS:
+            continue
+        chars.append(text[run_start:index])
     return "".join(chars)
 
 

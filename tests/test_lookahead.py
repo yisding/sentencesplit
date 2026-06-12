@@ -2,7 +2,7 @@ import pytest
 
 import sentencesplit
 from sentencesplit.languages import LANGUAGE_CODES
-from sentencesplit.segmenter import _DIGIT_LOOKAHEAD_STEM, _LANGUAGE_LOOKAHEAD_STEMS
+from sentencesplit.segmenter import _DIGIT_LOOKAHEAD_STEM, _LANGUAGE_LOOKAHEAD_STEMS, _strip_zero_width_before_sentence_closers
 from sentencesplit.utils import ZERO_WIDTH_CHARS, SegmentLookahead
 from tests.helpers import assert_span_contract, lookahead_sample_for_language
 
@@ -145,6 +145,23 @@ def test_boundary_zero_width_before_sentence_closers(text, expected):
     spans = seg.segment_spans(text)
     assert_span_contract(text, spans)
     assert [span.sent for span in spans] == [text]
+
+
+def test_boundary_zero_width_before_sentence_closers_is_linear():
+    class CountingStr(str):
+        def __new__(cls, value):
+            instance = super().__new__(cls, value)
+            instance.getitem_calls = 0
+            return instance
+
+        def __getitem__(self, key):
+            self.getitem_calls += 1
+            return super().__getitem__(key)
+
+    text = CountingStr("?" + "\u200b" * 2000 + '"')
+
+    assert _strip_zero_width_before_sentence_closers(text, {"?"}) == '?"'
+    assert text.getitem_calls < len(text) * 4
 
 
 @pytest.mark.parametrize(
