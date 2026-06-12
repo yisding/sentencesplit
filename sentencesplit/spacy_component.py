@@ -3,20 +3,34 @@ from __future__ import annotations
 
 import re
 
+from sentencesplit.languages import LANGUAGE_CODES
+
+_DEFAULT_COMPONENT_NAME = "sentencesplit"
+_DEFAULT_LANGUAGE = object()
+
 
 class SentenceSplitFactory:
     """sentencesplit as a spacy component through entrypoints"""
 
-    def __init__(self, nlp, name: str = "sentencesplit", language: str = "en") -> None:
+    def __init__(self, nlp, name: str = _DEFAULT_COMPONENT_NAME, language: str | object = _DEFAULT_LANGUAGE) -> None:
+        if language is _DEFAULT_LANGUAGE:
+            if name != _DEFAULT_COMPONENT_NAME and name in LANGUAGE_CODES:
+                language_code = name
+                name = _DEFAULT_COMPONENT_NAME
+            else:
+                language_code = "en"
+        else:
+            language_code = language
+
         self.nlp = nlp
         self.name = name
         # Deferred import avoids circular dependency with sentencesplit.__init__
         from sentencesplit import Segmenter
 
-        self.seg = Segmenter(language=language, clean=False, char_span=True)
+        self.seg = Segmenter(language=language_code, clean=False)
 
     def __call__(self, doc):
-        sents_char_spans = self.seg.segment(doc.text)
+        sents_char_spans = self.seg.segment_spans(doc.text)
         tokens = list(doc)
         start_token_ids = _sentence_start_token_indices(tokens, sents_char_spans)
         for token in tokens:

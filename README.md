@@ -343,6 +343,23 @@ Release steps:
 
 `python-semantic-release` uses Conventional Commits to generate changelog entries, so commit messages like `fix: ...`, `feat: ...`, and `feat!: ...` are recommended.
 
+## Versioning & output stability
+
+**Public API.** The supported surface is the names exported in `sentencesplit.__all__`
+(`Segmenter`, `StreamSegmenter`, `SentenceSplitError`, `list_languages`, `TextSpan`,
+`SegmentLookahead`, `__version__`), plus `register_language` / `unregister_language`
+from `sentencesplit.languages` and the documented ISO 639-1 language codes (see
+[Supported languages](#supported-languages)). Everything else — internal modules,
+`Processor` internals, and the nested language hooks — is private and may change
+without notice.
+
+**Output stability.** Sentence segmentation output is *not* part of the frozen API.
+It MAY change in minor or patch releases when the change is a net accuracy
+improvement; any such output change is recorded in [CHANGELOG.md](CHANGELOG.md).
+
+**SemVer.** The library follows [Semantic Versioning](https://semver.org/) for its
+public API. While pre-1.0, the API may still evolve.
+
 ## Contributing
 
 If you want to contribute new feature/language support or found a text that is incorrectly segmented, then please head to [CONTRIBUTING.md](CONTRIBUTING.md) to know more and follow these steps.
