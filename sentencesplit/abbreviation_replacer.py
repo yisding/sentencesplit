@@ -167,6 +167,7 @@ class AbbreviationReplacer:
     # splits, while "Bankr. Court approved the plan." stays joined.
     # Only effective when SENTENCE_STARTERS is non-empty.
     STARTER_AWARE_PREPOSITIVE: frozenset[str] = frozenset()
+    _UNKNOWN_PLACEHOLDER = "&ᓷ&&ᓷ&"
 
     def __init__(self, text: str, lang, split_mode: str = "balanced") -> None:
         self.text = text
@@ -401,6 +402,7 @@ class AbbreviationReplacer:
     # another all-caps word (2+ letters). Used to detect imprint/colophon runs
     # like "CHARLES WHITTINGHAM AND CO. TOOKS COURT".
     _ALLCAPS_IMPRINT_RE = re.compile(r"(?<![A-Za-z0-9])([A-Z]{2,})\.(?=\s+[A-Z]{2,}\b)")
+    _ALLCAPS_IMPRINT_COMPANY_ABBREVIATIONS = frozenset({"bros", "co", "corp", "inc", "ltd"})
 
     def protect_allcaps_imprint_abbreviations(self) -> str:
         """Keep a known abbreviation's period non-terminal inside an all-caps run.
@@ -408,16 +410,16 @@ class AbbreviationReplacer:
         In an all-caps imprint/colophon (e.g. "...AND CO. TOOKS COURT, LONDON.")
         a company-style abbreviation such as "CO." is a name continuation, not a
         sentence end, even though the following all-caps token would normally be
-        read as a sentence start. Only known multi-letter abbreviations flanked
-        by all-caps tokens are protected, so ordinary all-caps words that end a
-        sentence ("THE END. THE BEGINNING.") still split.
+        read as a sentence start. Only the narrow set of company suffixes that
+        motivated this heuristic is protected, so ordinary all-caps sentence
+        boundaries after other abbreviations ("IT HAPPENED IN DEC. THE END.")
+        still split.
         """
         if not self.SENTENCE_STARTERS:
             return self.text
-        abbr_set = self._data.abbr_set
 
         def _protect(match):
-            if match.group(1).lower() not in abbr_set:
+            if match.group(1).lower() not in self._ALLCAPS_IMPRINT_COMPANY_ABBREVIATIONS:
                 return match.group()
             return match.group(1) + "∯"
 
@@ -556,7 +558,13 @@ class AbbreviationReplacer:
             # balanced/aggressive: protect only before Roman numerals (Vol. IV).
             # Exclude lone "I" to avoid false joins with the pronoun "I".
             return _replace_with_escape(txt, am_escaped, r"\.(?=\s(?:[IVXLCDM]{2,}|[VXLCDM])\b)", "∯", boundary)
-        return _replace_with_escape(txt, am_escaped, r"\.(?=(\s\d|\s+\(|\s[IVXLCDM]+\b))", "∯", boundary)
+        txt = _replace_with_escape(txt, am_escaped, r"\.(?=(\s\d|\s+\(|\s\?\?(?!\?)|\s[IVXLCDM]+\b))", "∯", boundary)
+        return self._protect_number_abbr_unknown_placeholder(txt, am_escaped, boundary)
+
+    def _protect_number_abbr_unknown_placeholder(self, txt: str, am_escaped: str, boundary: str) -> str:
+        txt = " " + txt
+        txt = re.sub(rf"(?<=[{boundary}]{am_escaped}∯)\s\?\?(?!\?)", f" {self._UNKNOWN_PLACEHOLDER}", txt)
+        return txt[1:]
 
     def _prepositive_suffix(self, am_lower: str, upper: bool, char: str) -> str:
         """Return the regex suffix pattern for protecting a prepositive abbreviation."""
