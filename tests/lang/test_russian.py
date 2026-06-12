@@ -115,3 +115,20 @@ def test_ru_sbd_more_examples(ru_default_fixture, text, expected_sents):
     segments = ru_default_fixture.segment(text)
     segments = [s.strip() for s in segments]
     assert segments == expected_sents
+
+
+@pytest.mark.parametrize(
+    "text,expected_sents",
+    [
+        ("Это литература и др. Она важна.", ["Это литература и др.", "Она важна."]),
+        ("Он читал англ. Он ушел.", ["Он читал англ.", "Он ушел."]),
+        ("Ср. Она важна.", ["Ср.", "Она важна."]),
+        ("Он говорит рус. Он ушел.", ["Он говорит рус.", "Он ушел."]),
+        ("Он читал англ. Moscow.", ["Он читал англ. Moscow."]),
+        ("Это литература и др. книги важны.", ["Это литература и др. книги важны."]),
+    ],
+)
+def test_ru_abbreviations_split_before_cyrillic_sentence_start(ru_default_fixture, text, expected_sents):
+    segments = ru_default_fixture.segment(text)
+    segments = [s.strip() for s in segments]
+    assert segments == expected_sents
