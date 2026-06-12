@@ -11,7 +11,7 @@ export const meta = {
   ],
 }
 
-const ROOT = '/home/yi/Code/sentencesplit'
+const ROOT = process.env.SENTENCESPLIT_ROOT || process.cwd()
 const REVIEW = `${ROOT}/analysis/REVIEW_NOW.md`
 const BRANCH = 'feat/now-all' // the integration of all work so far; fixes land here
 

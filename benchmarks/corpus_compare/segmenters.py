@@ -17,6 +17,7 @@ with a reason and excluded rather than crashing the run.
 from __future__ import annotations
 
 import json
+import re
 import subprocess
 import warnings
 from dataclasses import dataclass, field
@@ -25,6 +26,21 @@ from pathlib import Path
 warnings.filterwarnings("ignore")
 
 _HERE = Path(__file__).resolve().parent
+_POSIX_PATH_RE = re.compile(r"(?<![:/])/(?:[^\s:'\",;()<>]+/)+[^\s:'\",;()<>]*")
+_WINDOWS_PATH_RE = re.compile(r"\b[A-Za-z]:[\\/](?:[^\s:'\",;()<>]+[\\/])*[^\s:'\",;()<>]*")
+
+
+def _redact_environment_paths(message: str) -> str:
+    """Redact absolute filesystem paths from import failure messages.
+
+    Availability reasons are written to benchmark artifacts that may be
+    committed or published. Keep the useful exception text while avoiding
+    disclosure of usernames, checkout locations, virtualenvs, or Python paths.
+    """
+    if not message:
+        return ""
+    message = _WINDOWS_PATH_RE.sub("<path>", message)
+    return _POSIX_PATH_RE.sub("<path>", message)
 
 
 def _norm(sentences) -> list[str]:
@@ -52,6 +68,7 @@ def _probe_import(module: str) -> tuple[bool, str]:
     if proc.returncode < 0:
         return False, f"crashed importing {module} (signal {-proc.returncode}; native/ARM incompatibility)"
     tail = (proc.stderr.strip().splitlines() or [""])[-1]
+    tail = _redact_environment_paths(tail)
     return False, f"import {module} failed (exit {proc.returncode}): {tail[:140]}"
 
 
@@ -65,6 +82,9 @@ class Segmenter:
     unavailable_reason: str = ""
     # ISO 639-1 codes the adapter will attempt. None => "any language".
     languages: set[str] | None = None
+
+    def __post_init__(self) -> None:
+        self.unavailable_reason = _redact_environment_paths(self.unavailable_reason)
 
     def supports(self, language: str) -> bool:
         if not self.available:

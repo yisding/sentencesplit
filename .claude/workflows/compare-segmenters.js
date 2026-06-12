@@ -9,7 +9,7 @@ export const meta = {
   ],
 }
 
-const ROOT = '/home/yi/Code/sentencesplit'
+const ROOT = process.env.SENTENCESPLIT_ROOT || process.cwd()
 const CC = `${ROOT}/benchmarks/corpus_compare`
 const CAP = (args && args.cap) || 120
 

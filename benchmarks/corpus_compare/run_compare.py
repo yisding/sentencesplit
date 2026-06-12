@@ -20,7 +20,7 @@ from collections import Counter, defaultdict
 from pathlib import Path
 
 from corpora import load_all
-from segmenters import build_registry
+from segmenters import _redact_environment_paths, build_registry
 
 _HERE = Path(__file__).resolve().parent
 _RESULTS = _HERE / "results"
@@ -268,7 +268,7 @@ def main():
                 "kind": s.kind,
                 "description": s.description,
                 "available": s.available,
-                "unavailable_reason": s.unavailable_reason,
+                "unavailable_reason": _redact_environment_paths(s.unavailable_reason),
                 "languages": "any" if s.languages is None else sorted(s.languages),
             }
             for s in registry

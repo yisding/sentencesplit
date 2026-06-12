@@ -12,10 +12,12 @@ export const meta = {
 // ---------------------------------------------------------------------------
 // Shared grounding context handed to every agent.
 // ---------------------------------------------------------------------------
+const ROOT = process.env.SENTENCESPLIT_ROOT || process.cwd()
+
 const ARCH = `
 PROJECT: sentencesplit — a rule-based sentence boundary detection library (derived from pySBD /
 Pragmatic Segmenter) supporting 24 languages. Pure Python, ZERO runtime dependencies (only the
-stdlib \`re\` module). Python 3.11+. Repo root: /home/yi/Code/sentencesplit.
+stdlib \`re\` module). Python 3.11+. Repo root: ${ROOT}.
 
 PIPELINE: Segmenter -> Processor -> sentence list.
 - sentencesplit/segmenter.py: public API. Params: language (ISO 639-1), clean, doc_type, char_span,
@@ -158,7 +160,7 @@ const DIMENSIONS = [
   {
     key: 'tests',
     label: 'Test coverage & quality',
-    scope: 'tests/ (all). You MAY run: `cd /home/yi/Code/sentencesplit && uv run pytest --cov=sentencesplit --cov-report=term-missing tests/ -q` to get real coverage numbers. There is also a stale .coverage file you can ignore.',
+    scope: 'tests/ (all). You MAY run: `cd ${ROOT} && uv run pytest --cov=sentencesplit --cov-report=term-missing tests/ -q` to get real coverage numbers. There is also a stale .coverage file you can ignore.',
     focus: `Test discipline. Look for: modules/branches with low or zero coverage (report file + missing
       lines from the coverage run); public API behaviors that are documented but untested (lookahead,
       split_mode, spans, clean, doc_type); regression-test discipline (does tests/regression/test_issues.py
