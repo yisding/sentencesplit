@@ -161,6 +161,8 @@ class EnglishLegal(Common, Standard):
         NUMBER_ABBREVIATIONS = sorted(set(Standard.Abbreviation.NUMBER_ABBREVIATIONS + LEGAL_NUMBER_ABBREVIATIONS))
 
     class AbbreviationReplacer(AbbreviationReplacer):
+        CAPITALIZED_FOLLOWER_IS_BOUNDARY_CUE = True
+        PROTECT_ALLCAPS_IMPRINT_SUFFIXES = True
         SENTENCE_STARTERS = English.AbbreviationReplacer.SENTENCE_STARTERS + [
             "After",
             "Although",
