@@ -148,9 +148,14 @@ _RESERVED_SENTINEL_SET = frozenset(_RESERVED_SENTINELS)
 # Private-use codepoints (BMP + both supplementary planes) used as escape
 # targets. Targets are chosen per call from this pool to be absent from the
 # input. If adversarial input occupies every single private-use character, the
-# escape target grows into a private-use string token that is absent from the
-# input, preserving a clean bijection without raising from segmentation.
+# escape target grows into a delimited private-use string token. The delimiter
+# is a noncharacter token chosen absent from the input, which keeps restore
+# matches aligned to whole escape tokens instead of arbitrary private-use
+# substrings.
 _PRIVATE_USE_RANGES = ((0xE000, 0xF8FF), (0xF0000, 0xFFFFD), (0x100000, 0x10FFFD))
+_NONCHARACTER_DELIMITER_RANGES = ((0xFDD0, 0xFDEF),) + tuple(
+    (plane + 0xFFFE, plane + 0xFFFF) for plane in range(0, 0x110000, 0x10000)
+)
 
 
 def _iter_private_use_chars():
@@ -159,23 +164,34 @@ def _iter_private_use_chars():
             yield chr(cp)
 
 
-def _iter_private_use_tokens(token_len: int):
-    if token_len == 1:
-        yield from _iter_private_use_chars()
-        return
+def _iter_delimited_private_use_tokens(body_len: int, delimiter: str):
     alphabet = tuple(_iter_private_use_chars())
-    if len(alphabet) < 2:
+    if not alphabet:
         return
-    for chars in product(alphabet, repeat=token_len):
-        yield "".join(chars)
+    for chars in product(alphabet, repeat=body_len):
+        yield delimiter + "".join(chars) + delimiter
 
 
-def _private_use_substrings(text: str, token_len: int) -> set[str]:
-    if token_len == 1:
-        return set(text)
-    if len(text) < token_len:
-        return set()
-    return {text[i : i + token_len] for i in range(len(text) - token_len + 1)}
+def _iter_noncharacter_delimiters():
+    for lo, hi in _NONCHARACTER_DELIMITER_RANGES:
+        for cp in range(lo, hi + 1):
+            yield chr(cp)
+
+
+def _iter_noncharacter_delimiter_tokens():
+    alphabet = tuple(_iter_noncharacter_delimiters())
+    width = 1
+    while alphabet:
+        for chars in product(alphabet, repeat=width):
+            yield "".join(chars)
+        width += 1
+
+
+def _absent_noncharacter_delimiter(text: str) -> str:
+    for delimiter in _iter_noncharacter_delimiter_tokens():
+        if delimiter not in text:
+            return delimiter
+    raise ValueError("At least one noncharacter delimiter token is required")
 
 
 def _build_sentinel_escape_tables(
@@ -184,8 +200,10 @@ def _build_sentinel_escape_tables(
     """Return escape/restore tables for reserved sentinels in *text*.
 
     The escape values are private-use tokens that do not occur in the input.
-    Single private-use characters are used for normal inputs; longer tokens are
-    selected only if an adversarial input exhausts the single-character pool.
+    Single private-use characters are used for normal inputs; if an adversarial
+    input exhausts the single-character pool, longer private-use token bodies
+    are wrapped in an absent delimiter. The delimiter prevents restore matches
+    from starting inside neighboring original private-use text.
 
     Returns ``(escape, restore, restore_re)`` where ``escape`` maps codepoints to
     tokens for ``str.translate``, ``restore`` maps each token back to its
@@ -195,23 +213,30 @@ def _build_sentinel_escape_tables(
     per-token ``str.replace`` could match a window straddling two adjacent
     escaped sentinels and corrupt the round-trip.
     """
-    token_len = 1
-    while True:
-        occupied = _private_use_substrings(text, token_len)
-        tokens: list[str] = []
-        saw_candidate = False
-        for token in _iter_private_use_tokens(token_len):
-            saw_candidate = True
-            if token not in occupied:
+    tokens = []
+    occupied = set(text)
+    for token in _iter_private_use_chars():
+        if token not in occupied:
+            tokens.append(token)
+            if len(tokens) == len(_RESERVED_SENTINELS):
+                break
+    if len(tokens) < len(_RESERVED_SENTINELS):
+        delimiter = _absent_noncharacter_delimiter(text)
+        body_len = 1
+        while len(tokens) < len(_RESERVED_SENTINELS):
+            saw_candidate = False
+            for token in _iter_delimited_private_use_tokens(body_len, delimiter):
+                saw_candidate = True
                 tokens.append(token)
                 if len(tokens) == len(_RESERVED_SENTINELS):
-                    escape = {ord(ch): token for ch, token in zip(_RESERVED_SENTINELS, tokens, strict=True)}
-                    restore = {token: ch for ch, token in zip(_RESERVED_SENTINELS, tokens, strict=True)}
-                    restore_re = re.compile("|".join(re.escape(token) for token in tokens))
-                    return escape, restore, restore_re
-        if not saw_candidate:
-            raise ValueError("At least two private-use escape codepoints are required")
-        token_len += 1
+                    break
+            if not saw_candidate:
+                raise ValueError("At least one private-use escape codepoint is required")
+            body_len += 1
+    escape = {ord(ch): token for ch, token in zip(_RESERVED_SENTINELS, tokens, strict=True)}
+    restore = {token: ch for ch, token in zip(_RESERVED_SENTINELS, tokens, strict=True)}
+    restore_re = re.compile("|".join(re.escape(token) for token in sorted(tokens, key=len, reverse=True)))
+    return escape, restore, restore_re
 
 
 def _split_on_uppercase_boundary(text: str, whitespace_re: re.Pattern[str]) -> list[str] | None:
