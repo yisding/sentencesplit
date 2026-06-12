@@ -381,7 +381,7 @@ class AbbreviationReplacer:
     # another all-caps word (2+ letters). Used to detect imprint/colophon runs
     # like "CHARLES WHITTINGHAM AND CO. TOOKS COURT".
     _ALLCAPS_IMPRINT_RE = re.compile(r"(?<![A-Za-z0-9])([A-Z]{2,})\.(?=\s+[A-Z]{2,}\b)")
-    _ALLCAPS_IMPRINT_COMPANY_ABBREVIATIONS = frozenset({"co"})
+    _ALLCAPS_IMPRINT_COMPANY_ABBREVIATIONS = frozenset({"bros", "co", "corp", "inc", "ltd"})
 
     def protect_allcaps_imprint_abbreviations(self) -> str:
         """Keep a known abbreviation's period non-terminal inside an all-caps run.
