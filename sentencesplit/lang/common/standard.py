@@ -5,6 +5,51 @@ from sentencesplit.abbreviation_replacer import AbbreviationReplacer
 from sentencesplit.utils import Rule
 
 
+class _GluedLowercaseRunOnRegex:
+    """Linear-time replacer for glued 4+ dot lowercase run-ons."""
+
+    def sub(self, replacement: str, text: str) -> str:
+        chars: list[str] | None = None
+        index = 0
+        length = len(text)
+
+        while index < length:
+            if text[index] != ".":
+                index += 1
+                continue
+
+            run_start = index
+            while index < length and text[index] == ".":
+                index += 1
+            run_end = index
+            protected_end = run_end - 3
+
+            if run_end < length and "a" <= text[run_end] <= "z":
+                # Emulate the original per-dot lookbehind `(?<=\S)\.`: the run's
+                # first dot is only protected when it follows a non-space char,
+                # but every interior dot is preceded by a literal '.', so dots
+                # 2..N stay protected even when the run starts the string or
+                # follows whitespace.
+                if run_start > 0 and not text[run_start - 1].isspace():
+                    protect_from = run_start
+                else:
+                    protect_from = run_start + 1
+                if protected_end > protect_from:
+                    if chars is None:
+                        chars = list(text)
+                    chars[protect_from:protected_end] = replacement * (protected_end - protect_from)
+
+        if chars is None:
+            return text
+        return "".join(chars)
+
+
+class _GluedLowercaseRunOnRule:
+    pattern = "glued-lowercase-run-on"
+    replacement = "∮"
+    regex = _GluedLowercaseRunOnRegex()
+
+
 class Standard:
     # This class holds the punctuation marks.
     Punctuations = ["。", "．", ".", "！", "!", "?", "？"]
@@ -361,7 +406,7 @@ class Standard:
         # behind to act as a terminal: the trailing "..." is then handled by
         # OtherThreePeriodRule and the leading dots restore via SubOnePeriod.
         # The lowercase lookahead keeps "Wait.... The" / "...They" splitting.
-        GluedLowercaseRunOnRule = Rule(r"(?<=\S)\.(?=\.{3,}[a-z])", "∮")
+        GluedLowercaseRunOnRule = _GluedLowercaseRunOnRule()
 
         OtherThreePeriodRule = Rule(r"\.\.\.", "ƪƪƪ")
 

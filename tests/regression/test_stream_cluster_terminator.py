@@ -41,6 +41,18 @@ def test_normal_boundary_still_emits_promptly():
     assert stream.get_completed_sentences() == ["One. "]
 
 
+def test_boundary_before_next_punctuation_emits_and_compacts():
+    # A punctuation mark starting the next span is not a growing terminator
+    # cluster for the previous sentence. It must not hold the whole stream until
+    # flush(), or default max_buffer_size=None streams can retain and reprocess
+    # every following chunk.
+    stream = StreamSegmenter(language="en")
+    stream.feed("One. !Two. Three.")
+
+    assert stream.get_completed_sentences() == ["One. ", "!", "Two. ", "Three."]
+    assert stream.pending_text() == ""
+
+
 def test_final_span_cluster_is_text_preserving_documented_limitation():
     # When a chunk ends *exactly* on the first char of a cluster ("Wait."), that
     # leading piece is a complete-looking FINAL span and is emitted before the
