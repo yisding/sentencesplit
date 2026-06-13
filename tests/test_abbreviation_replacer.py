@@ -21,21 +21,24 @@ def test_uppercase_following_word_does_not_force_split_without_capitalized_follo
     assert [s.strip() for s in seg.segment(text)] == [text]
 
 
-def test_legacy_sentence_start_override_remains_compatible():
+def test_sentence_start_override_uses_text_start_signature():
+    # The supported hook signature is ``_is_likely_sentence_start(self, text, start=0)``;
+    # the override receives the full text plus the offset of the candidate sentence
+    # start, so it must index into ``text`` at ``start`` rather than slicing.
     class DemoAbbreviationReplacer(English.AbbreviationReplacer):
-        def _is_likely_sentence_start(self, text: str) -> bool:
-            return text.lstrip().startswith("★")
+        def _is_likely_sentence_start(self, text: str, start: int = 0) -> bool:
+            return text[start:].startswith("★")
 
     class Demo(Common, Standard):
-        iso_code = "demo_legacy_start"
+        iso_code = "demo_custom_start"
         AbbreviationReplacer = DemoAbbreviationReplacer
 
-    register_language("demo_legacy_start", Demo)
+    register_language("demo_custom_start", Demo)
     try:
-        seg = sentencesplit.Segmenter(language="demo_legacy_start", clean=False)
+        seg = sentencesplit.Segmenter(language="demo_custom_start", clean=False)
         assert [s.strip() for s in seg.segment("He earned a Ph.D. ★ Next.")] == [
             "He earned a Ph.D.",
             "★ Next.",
         ]
     finally:
-        unregister_language("demo_legacy_start")
+        unregister_language("demo_custom_start")
