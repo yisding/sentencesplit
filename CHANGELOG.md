@@ -5,6 +5,9 @@
 - refactor(lang): remove the hard-coded sentence-starter word lists; route starter/abbreviation boundary decisions through `split_mode` instead, with the prior behavior characterized by new split-mode tests.
 - fix(abbrev): route dotted acronyms and two-letter initialisms through `split_mode`; scope the standalone `I` boundary restoration and preserve abbreviations during quoted resplit.
 - fix(lang): resplit `en_es_zh` multi-terminator boundaries; restore empty `AbbreviationReplacer` overrides so languages no longer inherit English starters; preserve Kazakh and Russian abbreviation handling.
+- fix(ar): the Arabic comma `،` is no longer a sentence terminator; comma-chained run-ons and lists stay whole (splitting only on `. ؟ !`). Deliberately diverges from pragmatic_segmenter/pySBD — changes Arabic output for comma-bearing text.
+- fix(mr): segment Marathi on the Devanagari danda `।`/`॥` (was Latin-only, so native-punctuated Marathi was never split).
+- docs(lang): document why Urdu omits `ArabicScriptProfile`.
 - fix(lookahead): ignore boundary zero-width characters and linearize zero-width stripping before closers.
 - fix(processor): bound sentinel delimiter selection and delimit the sentinel escape fallback.
 - fix(en): narrow the all-caps imprint abbreviation guard.
