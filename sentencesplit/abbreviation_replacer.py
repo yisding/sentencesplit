@@ -137,13 +137,10 @@ class _AbbreviationData:
 
 class AbbreviationReplacer:
     _data_cache: dict[type, _AbbreviationData] = {}
-    _boundary_regex_cache: dict[type, re.Pattern[str] | None] = {}
-    _boundary_key_cache: dict[type, frozenset[str]] = {}
     _sentence_start_offset_cache: dict[type, bool] = {}
     _cache_lock = RLock()
-    SENTENCE_BOUNDARY_ABBREVIATIONS = ["U∯S", "U.S", "U∯K", "E∯U", "E.U", "U∯S∯A", "U.S.A", "I", "i.v", "I.V"]
-    CAPITALIZED_FOLLOWER_IS_BOUNDARY_CUE: bool | None = None
-    PROTECT_ALLCAPS_IMPRINT_SUFFIXES: bool | None = None
+    CAPITALIZED_FOLLOWER_IS_BOUNDARY_CUE = False
+    PROTECT_ALLCAPS_IMPRINT_SUFFIXES = False
 
     # Opt-in for scripts (e.g. Greek, Cyrillic) that do not capitalize common
     # nouns mid-sentence: there, a capital letter following a multi-period
@@ -164,11 +161,28 @@ class AbbreviationReplacer:
     # a following title/name ("Bankr. Court") but can also end a sentence
     # ("The 9th Cir. The panel reversed."). split_mode resolves that ambiguity.
     STARTER_AWARE_PREPOSITIVE: frozenset[str] = frozenset()
-    BOUNDARY_ABBREVIATION_SPLIT_MIN_RANK = 1
+    TWO_LETTER_INITIALISM_SPLIT_MIN_RANK = 1
     UPPERCASE_INITIALISM_SPLIT_MIN_RANK = 1
+    ALWAYS_JOIN_TWO_LETTER_INITIALISM_PHRASES = frozenset(
+        {
+            ("d.c", "circuit"),
+            ("e.u", "commission"),
+            ("l.a", "times"),
+            ("u.n", "general", "assembly"),
+            ("u.n", "secretary", "general"),
+            ("u.n", "secretary-general"),
+            ("u.n", "security", "council"),
+            ("u.s", "court", "of"),
+            ("u.s", "courts"),
+            ("u.s", "department"),
+            ("u.s", "district", "court"),
+            ("u.s", "embassy"),
+            ("u.s", "government"),
+            ("u.s", "supreme", "court"),
+        }
+    )
     _UNKNOWN_PLACEHOLDER = "&ᓷ&&ᓷ&"
     _SENTENCE_START_OPENERS = frozenset("\"'“‘«([")
-    _QUESTION_CLOSERS = frozenset("\"'”’»)]")
 
     def __init__(self, text: str, lang, split_mode: str = "balanced") -> None:
         self.text = text
@@ -192,15 +206,11 @@ class AbbreviationReplacer:
 
     @property
     def _capitalized_follower_is_boundary_cue(self) -> bool:
-        flag = self.CAPITALIZED_FOLLOWER_IS_BOUNDARY_CUE
-        # Compatibility for third-party profiles that used the old extension
-        # hook. Built-in profiles set the explicit flags instead.
-        return bool(getattr(type(self), "SENTENCE_STARTERS", ())) if flag is None else flag
+        return self.CAPITALIZED_FOLLOWER_IS_BOUNDARY_CUE
 
     @property
     def _protect_allcaps_imprint_suffixes(self) -> bool:
-        flag = self.PROTECT_ALLCAPS_IMPRINT_SUFFIXES
-        return bool(getattr(type(self), "SENTENCE_STARTERS", ())) if flag is None else flag
+        return self.PROTECT_ALLCAPS_IMPRINT_SUFFIXES
 
     @staticmethod
     def _initials_chain_start(text: str, sep_index: int) -> int | None:
@@ -239,6 +249,10 @@ class AbbreviationReplacer:
             word_start -= 1
         return text[word_start:word_end]
 
+    def _i_looks_like_name_or_heading_continuation(self, match: re.Match[str]) -> bool:
+        prev_word = self._previous_whitespace_token(self.text, match.start()).strip(",;:(")
+        return bool(prev_word) and prev_word[0].isupper()
+
     @staticmethod
     def _next_whitespace_token(text: str, start_index: int) -> str:
         """Return the whitespace-delimited token at or after *start_index*."""
@@ -259,12 +273,7 @@ class AbbreviationReplacer:
         conservative mode uses this structural check to keep the trailing period
         non-terminal.
         """
-        chain_start = self._initials_chain_start(text, sep_index)
-        if chain_start is None:
-            return False
-        if self._legacy_sentence_starter_matches(text, sep_index + 1):
-            return False
-        return True
+        return self._initials_chain_start(text, sep_index) is not None
 
     def _sentence_start_content_offset(self, text: str, start: int) -> int:
         index = start
@@ -324,21 +333,14 @@ class AbbreviationReplacer:
         # Protect compact time tokens with no space before them (e.g. "3P.M.")
         # so a.m./p.m. rules can decide boundary vs non-boundary using context.
         self.text = re.sub(r"(?<=\d)([AaPp])\.([Mm])\.", r"\1∯\2∯", self.text)
-        # Restore sentence-boundary period when an all-uppercase multi-period
+        # Restore a sentence-boundary period when an all-uppercase multi-period
         # abbreviation with 3+ parts (e.g. "S∯A∯T∯", "E∯S∯T∯") is followed
-        # by a space and uppercase letter.  Two-part abbreviations like U∯S∯
-        # are handled separately by replace_abbreviation_as_sentence_boundary.
+        # by a space and uppercase letter.
         # Only uppercase lookbehind so lowercase abbreviations like "a.k.a."
         # keep their non-boundary separator.
         restore_source = self.text
-        sentence_boundary_keys = type(self)._get_boundary_keys()
 
         def restore_uppercase_initialism_boundary(match):
-            chain_start = self._initials_chain_start(restore_source, match.start())
-            if chain_start is not None:
-                boundary_key = restore_source[chain_start : match.start()].replace("∯", ".").lower()
-                if boundary_key in sentence_boundary_keys:
-                    return match.group()
             content_offset = self._sentence_start_content_offset(restore_source, match.end())
             if not self._is_capital_sentence_start_at(restore_source, content_offset):
                 return match.group()
@@ -356,7 +358,7 @@ class AbbreviationReplacer:
         self.text = re.sub(r"(?<=[A-Z]∯[A-Z]∯[A-Z])∯(?=\s)", restore_uppercase_initialism_boundary, self.text)
         self.text = self.protect_allcaps_imprint_abbreviations()
         self.apply_ampm_boundary_rules()
-        self.text = self.replace_abbreviation_as_sentence_boundary()
+        self.text = self.restore_standalone_i_boundaries()
         return self.text
 
     def apply_ampm_boundary_rules(self, restore_non_ascii: bool = True) -> None:
@@ -404,124 +406,57 @@ class AbbreviationReplacer:
 
         return self._ALLCAPS_IMPRINT_RE.sub(_protect, self.text)
 
-    @classmethod
-    def _get_boundary_regex(cls) -> re.Pattern[str] | None:
-        with AbbreviationReplacer._cache_lock:
-            if cls not in cls._boundary_regex_cache:
-                boundary_abbr = "|".join(
-                    re.escape(abbr).replace(r"\.", r"[.∯]")
-                    for abbr in sorted(cls.SENTENCE_BOUNDARY_ABBREVIATIONS, key=len, reverse=True)
-                )
-                if not boundary_abbr:
-                    cls._boundary_regex_cache[cls] = None
-                else:
-                    cls._boundary_regex_cache[cls] = re.compile(r"(?<![A-Za-z0-9_∯])({})∯".format(boundary_abbr))
-            return cls._boundary_regex_cache[cls]
-
-    @classmethod
-    def _get_boundary_keys(cls) -> frozenset[str]:
-        with AbbreviationReplacer._cache_lock:
-            if cls not in cls._boundary_key_cache:
-                cls._boundary_key_cache[cls] = frozenset(
-                    abbr.replace("∯", ".").lower() for abbr in cls.SENTENCE_BOUNDARY_ABBREVIATIONS
-                )
-            return cls._boundary_key_cache[cls]
-
-    def replace_abbreviation_as_sentence_boundary(self) -> str:
-        regex = type(self)._get_boundary_regex()
-        if regex is None:
-            return self.text
-
+    def restore_standalone_i_boundaries(self) -> str:
         def _restore(match):
-            if self._should_restore_boundary_abbreviation(match):
-                return match.group(1) + "."
-            return match.group()
+            content_offset = self._sentence_start_content_offset(self.text, match.end())
+            if not self._is_capital_sentence_start_at(self.text, content_offset):
+                return match.group()
+            if self._i_looks_like_name_or_heading_continuation(match):
+                return "I." if self._leans_split else match.group()
+            return "I."
 
-        self.text = regex.sub(_restore, self.text)
-        return self.text
-
-    def _should_restore_boundary_abbreviation(self, match: re.Match[str]) -> bool:
-        content_offset = self._sentence_start_content_offset(self.text, match.end())
-        if content_offset >= len(self.text):
-            return True
-        if self._is_standalone_i_boundary(match):
-            return True
-        if not self._is_capital_sentence_start_at(self.text, content_offset):
-            return False
-        if self._is_i_name_continuation(match):
-            return self._leans_split
-        if self._legacy_sentence_starter_matches(self.text, content_offset):
-            return not self._leans_join
-        if self._follower_is_quoted_question_title_continuation(self.text, content_offset):
-            return self._leans_split
-        if self._follower_is_question_clause(self.text, content_offset):
-            return not self._leans_join
-        return split_mode_rank(self.split_mode) >= self.BOUNDARY_ABBREVIATION_SPLIT_MIN_RANK
+        return re.sub(r"(?<![A-Za-z0-9_∯])I∯(?=\s)", _restore, self.text)
 
     @staticmethod
-    def _boundary_abbreviation_key(match: re.Match[str]) -> str:
-        return match.group(1).replace("∯", ".").lower()
+    def _two_letter_initialism_key(parts: list[str]) -> str:
+        return ".".join(parts).lower()
 
-    def _is_i_name_continuation(self, match: re.Match[str]) -> bool:
-        if self._boundary_abbreviation_key(match) != "i":
-            return False
-        prev_word = self._previous_whitespace_token(self.text, match.start()).strip(",;:(")
-        return bool(prev_word) and prev_word[0].isupper()
+    @staticmethod
+    def _normalize_follower_token(token: str) -> str:
+        normalized = token.strip(",.;:([{)]}\"'“”‘’").lower()
+        for possessive_suffix in ("'s", "’s"):
+            if normalized.endswith(possessive_suffix):
+                return normalized[: -len(possessive_suffix)]
+        return normalized
 
-    def _is_standalone_i_boundary(self, match: re.Match[str]) -> bool:
-        if self._boundary_abbreviation_key(match) != "i":
-            return False
-        if self._is_i_name_continuation(match):
-            return False
-        return self._follower_is_likely_sentence_start(self.text, match.end())
-
-    def _legacy_sentence_starter_matches(self, text: str, start: int) -> bool:
-        starters = ()
-        for cls in type(self).__mro__:
-            if "SENTENCE_STARTERS" in vars(cls):
-                starters = vars(cls)["SENTENCE_STARTERS"]
+    def _next_normalized_words(self, start_index: int, limit: int) -> tuple[str, ...]:
+        words = []
+        word_start = start_index
+        text_len = len(self.text)
+        while len(words) < limit:
+            while word_start < text_len and self.text[word_start].isspace():
+                word_start += 1
+            if word_start >= text_len:
                 break
-        if not starters:
-            return False
-        follower = self._next_whitespace_token(text, start).rstrip(",.;:")
-        return follower in starters
+            word_end = word_start
+            while word_end < text_len and not self.text[word_end].isspace():
+                word_end += 1
+            word = self._normalize_follower_token(self.text[word_start:word_end])
+            if word:
+                words.append(word)
+            word_start = word_end
+        return tuple(words)
 
-    def _follower_is_question_clause(self, text: str, start: int) -> bool:
-        for index, char in enumerate(text[start:], start):
-            if char == "?":
-                if self._follower_is_quoted_question_title_continuation(text, start):
-                    return False
+    def _two_letter_initialism_has_always_joined_follower(self, parts: list[str], content_offset: int) -> bool:
+        initialism_key = self._two_letter_initialism_key(parts)
+        max_words = max((len(phrase) - 1 for phrase in self.ALWAYS_JOIN_TWO_LETTER_INITIALISM_PHRASES), default=0)
+        followers = self._next_normalized_words(content_offset, max_words)
+        for word_count in range(1, len(followers) + 1):
+            if (initialism_key, *followers[:word_count]) in self.ALWAYS_JOIN_TWO_LETTER_INITIALISM_PHRASES:
                 return True
-            if char in ".!":
-                return False
         return False
-
-    def _follower_is_quoted_question_title_continuation(self, text: str, start: int) -> bool:
-        for index, char in enumerate(text[start:], start):
-            if char == "?":
-                next_index = index + 1
-                saw_closer = False
-                while next_index < len(text) and (text[next_index].isspace() or text[next_index] in self._QUESTION_CLOSERS):
-                    saw_closer = saw_closer or text[next_index] in self._QUESTION_CLOSERS
-                    next_index += 1
-                return (
-                    saw_closer
-                    and next_index < len(text)
-                    and text[next_index].islower()
-                    and self._quoted_question_looks_like_title(text[start:index])
-                )
-            if char in ".!":
-                return False
-        return False
-
-    @staticmethod
-    def _quoted_question_looks_like_title(content: str) -> bool:
-        tokens = re.findall(r"[^\W\d_][^\s!?.,;:]*", content, re.UNICODE)
-        return sum(token[0].isupper() for token in tokens[1:]) >= 1
 
     def replace_multi_period_abbreviations(self) -> None:
-        sentence_boundary_keys = type(self)._get_boundary_keys()
-
         def mpa_replace(match):
             matched = match.group()
             parts = matched[:-1].split(".")
@@ -535,16 +470,21 @@ class AbbreviationReplacer:
             #
             # Split-bias: 'conservative' never treats the final period as a
             # boundary (so "Ph.D. Smith" stays joined); balanced/aggressive
-            # split mixed abbreviations and 3+ uppercase initialisms before
-            # likely sentence starts. Generic two-part initialisms stay joined.
+            # split mixed abbreviations, uppercase two-letter initialisms, and
+            # 3+ uppercase initialisms before likely sentence starts.
             content_offset = self._sentence_start_content_offset(self.text, next_start)
             likely_start = self._is_likely_sentence_start_at(self.text, content_offset)
+            two_letter_uppercase_initialism = len(parts) == 2 and all(len(part) == 1 and part.isupper() for part in parts)
+            two_letter_initialism = (
+                two_letter_uppercase_initialism
+                and split_mode_rank(self.split_mode) >= self.TWO_LETTER_INITIALISM_SPLIT_MIN_RANK
+            )
             uppercase_initialism = (
                 len(parts) >= 3
                 and all(part.isupper() for part in parts)
                 and split_mode_rank(self.split_mode) >= self.UPPERCASE_INITIALISM_SPLIT_MIN_RANK
             )
-            split_candidate = any(len(part) > 1 for part in parts) or uppercase_initialism
+            split_candidate = any(len(part) > 1 for part in parts) or two_letter_initialism or uppercase_initialism
             # Greek/Cyrillic etc. (opt-in): a capital follower reliably starts a
             # new sentence, so a pure single-letter initialism ("π.Χ.", "Ε.Ε.")
             # ends the sentence before it even though _is_latin_upper ignored it.
@@ -558,11 +498,13 @@ class AbbreviationReplacer:
             # numeric-time awareness), so the generic multi-period split skips
             # them to avoid breaking a "p.m. EST" time+zone unit.
             is_ampm = matched[:-1].lower().replace(".", "") in {"am", "pm"}
-            boundary_key = matched[:-1].replace("∯", ".").lower()
-            is_sentence_boundary_abbreviation = boundary_key in sentence_boundary_keys
+            has_always_joined_follower = (
+                two_letter_uppercase_initialism
+                and self._two_letter_initialism_has_always_joined_follower(parts, content_offset)
+            )
             if self._leans_join:
                 protect_final_period = True
-            elif is_sentence_boundary_abbreviation:
+            elif has_always_joined_follower:
                 protect_final_period = True
             elif not is_ampm and ((split_candidate and likely_start) or capital_boundary):
                 protect_final_period = False

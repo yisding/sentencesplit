@@ -540,14 +540,14 @@ CHALLENGING_EN_TEST_CASES = [
         "In early Dixieland, a.k.a. New Orleans jazz, musicians improvised freely.",
         ["In early Dixieland, a.k.a. New Orleans jazz, musicians improvised freely."],
     ),
-    # 119j) Two-part abbreviation U.S. followed by uppercase splits in default mode
+    # 119j) Common U.S. Government phrases stay joined even before uppercase followers
     (
         "The U.S. Government issued a statement.",
-        ["The U.S.", "Government issued a statement."],
+        ["The U.S. Government issued a statement."],
     ),
     (
         "He worked for the U.S. Government office.",
-        ["He worked for the U.S.", "Government office."],
+        ["He worked for the U.S. Government office."],
     ),
     # 119k) H.R. followed by a number does not split
     (

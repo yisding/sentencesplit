@@ -44,7 +44,7 @@ GOLDEN_EN_RULES = [
         ["I live in the U.S.", "How about you?"],
     ),
     # 16) U.S. as non sentence boundary with next word capitalized
-    ("I work for the U.S. Government in Virginia.", ["I work for the U.S.", "Government in Virginia."]),
+    ("I work for the U.S. Government in Virginia.", ["I work for the U.S. Government in Virginia."]),
     # 17) U.S. as non sentence boundary
     ("I have lived in the U.S. for 20 years.", ["I have lived in the U.S. for 20 years."]),
     # Most difficult sentence to crack

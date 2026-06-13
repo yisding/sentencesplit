@@ -5,8 +5,6 @@ import pytest
 
 import sentencesplit
 from sentencesplit.lang.common.standard import Standard
-from sentencesplit.language_profile import LanguageProfile
-from sentencesplit.languages import LANGUAGE_CODES
 from sentencesplit.lists_item_replacer import ListItemReplacer
 from sentencesplit.utils import TextSpan
 
@@ -199,17 +197,9 @@ you may copy it, give it away or re-use it under the terms of the this license
 ]
 
 
-@pytest.mark.parametrize("language", sorted(LANGUAGE_CODES))
-def test_builtin_profiles_do_not_define_sentence_starter_word_lists(language):
-    """Built-in profiles should route ambiguous starters through split_mode."""
-    profile = LanguageProfile.from_language(LANGUAGE_CODES[language])
-
-    assert "SENTENCE_STARTERS" not in vars(profile.abbreviation_replacer_cls)
-
-
 @pytest.mark.parametrize("language", ["mr", "fr", "it", "pl", "es", "nl"])
-def test_non_english_boundary_abbreviation_follows_split_mode(language):
-    """Latin-script non-English profiles route boundary abbreviations through split_mode."""
+def test_non_english_two_letter_initialism_follows_split_mode(language):
+    """Latin-script non-English profiles route two-letter initialisms through split_mode."""
     text = "Je vois U.S. Il part."
 
     seg = sentencesplit.Segmenter(language=language, clean=False, split_mode="conservative")
@@ -550,8 +540,8 @@ def test_pt_abbreviation_before_roman_numeral():
     ]
 
 
-def test_boundary_abbreviation_before_non_ascii_uppercase_follows_split_mode():
-    """Boundary abbreviations no longer depend on exact starter-word lists."""
+def test_two_letter_initialism_before_non_ascii_uppercase_follows_split_mode():
+    """Two-letter initialisms split before capital followers using split_mode."""
     text = "He moved from the U.S. \u00c9lodie arrived."
 
     seg = sentencesplit.Segmenter(language="en", clean=False, char_span=False, split_mode="conservative")
@@ -1119,8 +1109,8 @@ def test_allcaps_imprint_company_abbreviation_no_false_split(text, expected):
     assert segments == expected
 
 
-def test_generic_two_part_initialism_before_capital_stays_joined():
-    """Generic two-part initialisms stay joined to avoid name/place over-splits."""
+def test_common_two_part_initialism_phrase_before_capital_stays_joined():
+    """Common two-part initialism phrases stay joined in every split mode."""
     text = "His involvement at the D.C. Circuit level and Anthony Kennedy joining the liberals."
     for mode in ("conservative", "balanced", "aggressive"):
         seg = sentencesplit.Segmenter(language="en", clean=False, split_mode=mode)

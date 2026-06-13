@@ -265,9 +265,6 @@ class MultiLang(Common, Standard):
             French.Abbreviation.NUMBER_ABBREVIATIONS
         ))
 
-    class AbbreviationReplacer(AbbreviationReplacer):
-        SENTENCE_STARTERS = English.AbbreviationReplacer.SENTENCE_STARTERS
-
 from sentencesplit.languages import register_language
 
 register_language("multi", MultiLang)  # or: LANGUAGE_CODES["multi"] = MultiLang

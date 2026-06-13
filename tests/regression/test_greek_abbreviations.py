@@ -65,27 +65,27 @@ def test_greek_multi_period_abbreviation_boundary_before_capital(case_id, text, 
     assert [s.strip() for s in seg.segment(text)] == expected
 
 
-GREEK_LATIN_BOUNDARY_ABBREVIATION_CASES = [
+GREEK_LATIN_TWO_LETTER_INITIALISM_CASES = [
     (
         "us_embassy",
         "Η U.S. Embassy άνοιξε. Ήταν πρωί.",
-        ["Η U.S.", "Embassy άνοιξε.", "Ήταν πρωί."],
+        ["Η U.S. Embassy άνοιξε.", "Ήταν πρωί."],
     ),
     (
         "eu_commission",
         "Η E.U. Commission άνοιξε. Ήταν πρωί.",
-        ["Η E.U.", "Commission άνοιξε.", "Ήταν πρωί."],
+        ["Η E.U. Commission άνοιξε.", "Ήταν πρωί."],
     ),
 ]
 
 
-@pytest.mark.parametrize("case_id,text,expected", GREEK_LATIN_BOUNDARY_ABBREVIATION_CASES)
-def test_greek_preserves_standard_sentence_starters_for_latin_boundary_abbreviations(case_id, text, expected):
+@pytest.mark.parametrize("case_id,text,expected", GREEK_LATIN_TWO_LETTER_INITIALISM_CASES)
+def test_greek_keeps_common_latin_two_letter_initialism_phrases_joined(case_id, text, expected):
     seg = sentencesplit.Segmenter(language="el")
     assert [s.strip() for s in seg.segment(text)] == expected
 
 
-def test_greek_latin_boundary_abbreviation_before_greek_capital_follows_split_mode():
+def test_greek_latin_two_letter_initialism_before_greek_capital_follows_split_mode():
     text = "Είδε την U.S. Ήταν αργά."
 
     conservative = sentencesplit.Segmenter(language="el", split_mode="conservative")

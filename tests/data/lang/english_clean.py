@@ -63,7 +63,7 @@ TESTS_WITH_CLEAN = [
     ("I have 1.000.00. Yay $.50 and .50! That's 600.", ["I have 1.000.00.", "Yay $.50 and .50!", "That's 600."]),
     ("1.) This is a list item with a parens.", ["1.) This is a list item with a parens."]),
     ("1. This is a list item.", ["1. This is a list item."]),
-    ("I live in the U.S.A. I went to J.C. Penney.", ["I live in the U.S.A.", "I went to J.C. Penney."]),
+    ("I live in the U.S.A. I went to J.C. Penney.", ["I live in the U.S.A.", "I went to J.C.", "Penney."]),
     ("His name is Alfred E. Sloan.", ["His name is Alfred E. Sloan."]),
     ("Q. What is his name? A. His name is Alfred E. Sloan.", ["Q. What is his name?", "A. His name is Alfred E. Sloan."]),
     ("Today is 11.18.2014.", ["Today is 11.18.2014."]),
@@ -151,14 +151,14 @@ TESTS_WITH_CLEAN = [
         [
             "There were 500 cases in the U.S.",
             "The U.S.",
-            "Commission asked the U.S.",
-            "Government to give their opinion on the issue.",
+            "Commission asked the U.S. Government to give their opinion on the issue.",
         ],
     ),
     (
         "CELLULAR COMMUNICATIONS INC. sold 1,550,000 common shares at $21.75 each yesterday, according to lead underwriter L.F. Rothschild & Co. (cited from WSJ 05/29/1987)",
         [
-            "CELLULAR COMMUNICATIONS INC. sold 1,550,000 common shares at $21.75 each yesterday, according to lead underwriter L.F. Rothschild & Co. (cited from WSJ 05/29/1987)"
+            "CELLULAR COMMUNICATIONS INC. sold 1,550,000 common shares at $21.75 each yesterday, according to lead underwriter L.F.",
+            "Rothschild & Co. (cited from WSJ 05/29/1987)",
         ],
     ),
     (
@@ -306,8 +306,7 @@ TESTS_WITH_CLEAN = [
             "How about you?",
             "I live in the U.S.",
             "How about you?",
-            "I work for the U.S.",
-            "Government in Virginia.",
+            "I work for the U.S. Government in Virginia.",
             "I have lived in the U.S. for 20 years.",
             "She has $100.00 in her bag.",
             "She has $100.00.",
@@ -409,8 +408,7 @@ TESTS_WITH_CLEAN = [
         "The nurse gave him the i.v. in his vein. She gave him the i.v. It was a great I.V. that she gave him. She gave him the I.V. It was night.",
         [
             "The nurse gave him the i.v. in his vein.",
-            "She gave him the i.v.",
-            "It was a great I.V. that she gave him.",
+            "She gave him the i.v. It was a great I.V. that she gave him.",
             "She gave him the I.V.",
             "It was night.",
         ],

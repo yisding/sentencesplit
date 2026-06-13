@@ -1,5 +1,5 @@
 import sentencesplit
-from sentencesplit.abbreviation_replacer import AbbreviationReplacer, _AbbreviationData
+from sentencesplit.abbreviation_replacer import _AbbreviationData
 from sentencesplit.lang.common import Common, Standard
 from sentencesplit.lang.english import English
 from sentencesplit.languages import register_language, unregister_language
@@ -14,7 +14,7 @@ def test_abbreviation_next_word_regex_reads_char_after_period_case_insensitive()
     assert next_word_re.findall("dr. smith") == ["s"]
 
 
-def test_uppercase_following_word_does_not_force_split_when_no_sentence_starters():
+def test_uppercase_following_word_does_not_force_split_without_capitalized_follower_cue():
     text = "Ide o firmy, napr. XYZCorp a.s."
     seg = sentencesplit.Segmenter(language="sk", clean=False)
 
@@ -39,46 +39,3 @@ def test_legacy_sentence_start_override_remains_compatible():
         ]
     finally:
         unregister_language("demo_legacy_start")
-
-
-def test_legacy_sentence_starters_still_enable_base_helper_flags():
-    class DemoAbbreviationReplacer(AbbreviationReplacer):
-        SENTENCE_STARTERS = ["Several"]
-
-    class Demo(Common, Standard):
-        iso_code = "demo_legacy_starters"
-        AbbreviationReplacer = DemoAbbreviationReplacer
-
-    register_language("demo_legacy_starters", Demo)
-    try:
-        conservative = sentencesplit.Segmenter(language="demo_legacy_starters", clean=False, split_mode="conservative")
-        assert [s.strip() for s in conservative.segment("See Fig. Several panels follow.")] == [
-            "See Fig. Several panels follow."
-        ]
-        assert [s.strip() for s in conservative.segment("ACME CORP. ANNOUNCED RESULTS.")] == ["ACME CORP. ANNOUNCED RESULTS."]
-        balanced = sentencesplit.Segmenter(language="demo_legacy_starters", clean=False, split_mode="balanced")
-        assert [s.strip() for s in balanced.segment("I live in the U.S. Several agencies joined.")] == [
-            "I live in the U.S.",
-            "Several agencies joined.",
-        ]
-    finally:
-        unregister_language("demo_legacy_starters")
-
-
-def test_legacy_sentence_starters_work_on_subclasses_of_builtin_replacers():
-    class DemoAbbreviationReplacer(English.AbbreviationReplacer):
-        SENTENCE_STARTERS = ["Several"]
-
-    class Demo(Common, Standard):
-        iso_code = "demo_legacy_english_starters"
-        AbbreviationReplacer = DemoAbbreviationReplacer
-
-    register_language("demo_legacy_english_starters", Demo)
-    try:
-        seg = sentencesplit.Segmenter(language="demo_legacy_english_starters", clean=False, split_mode="balanced")
-        assert [s.strip() for s in seg.segment("I live in the U.S. Several agencies joined.")] == [
-            "I live in the U.S.",
-            "Several agencies joined.",
-        ]
-    finally:
-        unregister_language("demo_legacy_english_starters")

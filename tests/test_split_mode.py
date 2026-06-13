@@ -99,7 +99,7 @@ def test_split_mode_controls_russian_sr_abbreviation():
         (
             "en",
             "He moved from the U.S. It happened.",
-            "He joined the U.S. Embassy today.",
+            "He joined the U.S. Market today.",
         ),
         (
             "de",
@@ -109,21 +109,72 @@ def test_split_mode_controls_russian_sr_abbreviation():
         (
             "da",
             "Han bor i U.S. Det er kendt.",
-            "Han bor i U.S. Embassy i dag.",
+            "Han bor i U.S. Market i dag.",
         ),
     ],
 )
-def test_split_mode_controls_boundary_abbreviations_without_starter_words(language, boundary_text, ambiguous_text):
-    """Capitalized followers after U.S./E.U. are structural ambiguity.
+def test_split_mode_controls_two_letter_initialisms(language, boundary_text, ambiguous_text):
+    """Capitalized followers after two-letter dotted initialisms are structural ambiguity.
 
     Conservative keeps the abbreviation joined; balanced and aggressive split.
-    This replaces exact starter-word vocabulary with the global split dial.
     """
     assert _segments(language, boundary_text, "conservative") == [boundary_text]
     assert _segments(language, ambiguous_text, "conservative") == [ambiguous_text]
     for mode in ("balanced", "aggressive"):
         assert len(_segments(language, boundary_text, mode)) == 2
         assert len(_segments(language, ambiguous_text, mode)) == 2
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "The U.S. Department issued guidance.",
+        "The U.S. Department's guidance changed.",
+        "The L.A. Times reported the story.",
+        "The D.C. Circuit heard arguments.",
+        "The D.C. Circuit's ruling stood.",
+        "The U.S. Court of Appeals ruled.",
+        "The U.S. Courts reopened.",
+        "The U.S. Courts' procedures changed.",
+        "The U.S. Supreme Court ruled.",
+        "The U.S. District Court ruled.",
+        "The U.S. Embassy opened.",
+        "The U.S. Government issued guidance.",
+        "The U.S. Government office opened.",
+        "The U.S. Government's response arrived.",
+        "The U.N. General Assembly met.",
+        "The U.N. General Assembly's vote passed.",
+        "The U.N. Security Council met.",
+        "The U.N. Security Council's vote passed.",
+        "The U.N. Secretary General spoke.",
+        "The U.N. Secretary-General spoke.",
+        "The U.N. Secretary-General's statement landed.",
+        "The E.U. Commission met.",
+    ],
+)
+def test_common_two_letter_initialism_phrases_stay_joined(text):
+    for mode in ("conservative", "balanced", "aggressive"):
+        assert _segments("en", text, mode) == [text]
+
+
+@pytest.mark.parametrize(
+    "text,expected",
+    [
+        ("He left the U.S. Court resumed at noon.", ["He left the U.S.", "Court resumed at noon."]),
+        ("The talks left the U.N. General replied later.", ["The talks left the U.N.", "General replied later."]),
+        (
+            "The report discussed the U.N. Security improved afterward.",
+            ["The report discussed the U.N.", "Security improved afterward."],
+        ),
+        ("I went to J.C. Penney.", ["I went to J.C.", "Penney."]),
+        ("The banker joined L.F. Rothschild.", ["The banker joined L.F.", "Rothschild."]),
+        ("The trial involved O.J. Simpson.", ["The trial involved O.J.", "Simpson."]),
+    ],
+)
+def test_common_initialism_phrase_prefixes_do_not_force_join(text, expected):
+    assert _segments("en", text, "conservative") == [text]
+    for mode in ("balanced", "aggressive"):
+        assert _segments("en", text, mode) == expected
 
 
 def test_split_mode_handles_i_boundary_without_royal_name_split():
@@ -141,6 +192,13 @@ def test_split_mode_handles_i_boundary_without_royal_name_split():
     ]
 
 
+def test_german_override_restores_standalone_i_boundary():
+    text = "We make a good team, you and I. Did it work."
+
+    for mode in ("conservative", "balanced", "aggressive"):
+        assert _segments("de", text, mode) == ["We make a good team, you and I.", "Did it work."]
+
+
 def test_split_mode_aggressive_splits_i_after_heading_like_name_continuation():
     text = "See Appendix I. It explains this."
 
@@ -150,7 +208,7 @@ def test_split_mode_aggressive_splits_i_after_heading_like_name_continuation():
 
 
 @pytest.mark.parametrize("text", ["We discussed H.B.S. She applied.", "F.J.G. Smith arrived."])
-def test_split_mode_disambiguates_initialisms_from_names_without_starter_words(text):
+def test_split_mode_disambiguates_initialisms_from_names(text):
     """A capitalized follower after initials is joined only in conservative mode."""
     assert sentencesplit.Segmenter(language="en", split_mode="conservative").segment(text) == [text]
     for mode in ("balanced", "aggressive"):
@@ -161,23 +219,13 @@ def test_split_mode_disambiguates_initialisms_from_names_without_starter_words(t
     "text",
     [
         "Er lebt in der E.U. Für ihn ist das klar.",
-        "Han bor i s.u. Det er kendt.",
     ],
 )
-def test_boundary_abbreviation_mode_handles_non_ascii_and_custom_cases(text):
-    language = "de" if text.startswith("Er ") else "da"
-
+def test_two_letter_initialism_mode_handles_non_ascii_capital_follower(text):
+    language = "de"
     assert _segments(language, text, "conservative") == [text]
     for mode in ("balanced", "aggressive"):
         assert len(_segments(language, text, mode)) == 2
-
-
-def test_danish_custom_boundary_abbreviation_before_unlisted_capital_continuation():
-    text = "Han bor i s.u. Embassy i dag."
-
-    assert _segments("da", text, "conservative") == [text]
-    for mode in ("balanced", "aggressive"):
-        assert _segments("da", text, mode) == ["Han bor i s.u.", "Embassy i dag."]
 
 
 @pytest.mark.parametrize(
@@ -187,7 +235,7 @@ def test_danish_custom_boundary_abbreviation_before_unlisted_capital_continuatio
         ("da", "Jeg bor i E.U. Hvad med dig?", ["Jeg bor i E.U.", "Hvad med dig?"]),
     ],
 )
-def test_boundary_abbreviation_splits_before_structural_question(language, text, expected):
+def test_two_letter_initialism_splits_before_structural_question(language, text, expected):
     assert _segments(language, text, "conservative") == [text]
     for mode in ("balanced", "aggressive"):
         assert _segments(language, text, mode) == expected
@@ -200,12 +248,24 @@ def test_boundary_abbreviation_splits_before_structural_question(language, text,
         'The U.S. "Who Wants to Be a Millionaire?" audience grew.',
     ],
 )
-def test_boundary_abbreviation_question_cue_ignores_quoted_title_continuation(text):
+def test_two_letter_initialism_before_quoted_title_follows_mode(text):
     expected_split = text.replace("The U.S. ", "", 1)
 
-    for mode in ("conservative", "balanced"):
+    assert _segments("en", text, "conservative") == [text]
+    for mode in ("balanced", "aggressive"):
+        assert _segments("en", text, mode) == ["The U.S.", expected_split]
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "The U.S. 'who wants to be a millionaire?' audience grew.",
+        'The U.S. "who wants to be a millionaire?" audience grew.',
+    ],
+)
+def test_two_letter_initialism_before_lowercase_quoted_continuation_stays_joined(text):
+    for mode in ("conservative", "balanced", "aggressive"):
         assert _segments("en", text, mode) == [text]
-    assert _segments("en", text, "aggressive") == ["The U.S.", expected_split]
 
 
 @pytest.mark.parametrize(
@@ -215,21 +275,21 @@ def test_boundary_abbreviation_question_cue_ignores_quoted_title_continuation(te
         ("I live in the U.S. 'How about you?' she asked.", "'How about you?' she asked."),
     ],
 )
-def test_boundary_abbreviation_question_cue_keeps_quoted_dialogue_boundary(text, expected):
+def test_two_letter_initialism_before_quoted_dialogue_follows_mode(text, expected):
 
     assert _segments("en", text, "conservative") == [text]
     for mode in ("balanced", "aggressive"):
         assert _segments("en", text, mode) == ["I live in the U.S.", expected]
 
 
-def test_allcaps_imprint_behavior_independent_of_sentence_starter_words():
+def test_allcaps_imprint_behavior_independent_of_capitalized_follower_split():
     for mode in ("conservative", "balanced", "aggressive"):
         assert _segments("en", "ACME CORP. ANNOUNCED RESULTS.", mode) == ["ACME CORP. ANNOUNCED RESULTS."]
         assert _segments("en", "IT HAPPENED IN DEC. THE END.", mode) == ["IT HAPPENED IN DEC.", "THE END."]
 
 
 @pytest.mark.parametrize("language", ["fr", "es", "it", "pl", "nl"])
-def test_non_english_profiles_use_split_mode_for_boundary_abbreviation(language):
+def test_non_english_profiles_use_split_mode_for_two_letter_initialisms(language):
     text = "Je vois U.S. Il part."
 
     assert _segments(language, text, "conservative") == [text]
@@ -237,7 +297,7 @@ def test_non_english_profiles_use_split_mode_for_boundary_abbreviation(language)
         assert _segments(language, text, mode) == ["Je vois U.S.", "Il part."]
 
 
-def test_no_sentence_starter_profile_keeps_uppercase_continuation_joined():
+def test_profile_without_capitalized_follower_cue_keeps_uppercase_continuation_joined():
     text = "Ide o firmy, napr. XYZCorp a.s."
 
     for mode in ("conservative", "balanced", "aggressive"):
@@ -287,11 +347,9 @@ def test_split_mode_initialism_with_strong_cue_splits_in_all_modes():
         # Mixed multi-period abbreviation before a capital: conservative joins
         # (surname reading), balanced/aggressive split.
         ("She earned a Ph.D. Smith advised her.", 1, 2, 2),
-        # Generic two-part initialisms remain joined: they are too often names,
-        # places, postal abbreviations, or timezones (J.C. Penney, D.C. Circuit,
-        # P.O. Box, P.M. EST). Known boundary abbreviations like U.S. still route
-        # through the split-mode dial.
-        ("Work on A.I. Systems are improving.", 1, 1, 1),
+        # Generic uppercase two-part initialisms use the split-mode dial, except
+        # for a tiny phrase-level join list.
+        ("Work on A.I. Systems are improving.", 1, 2, 2),
     ],
 )
 def test_split_mode_multi_period_abbreviation(text, n_conservative, n_balanced, n_aggressive):

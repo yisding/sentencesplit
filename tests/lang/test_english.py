@@ -29,7 +29,7 @@ GOLDEN_EN_RULES_TEST_CASES = [
         "I live in the U.S. How about you?",
         ["I live in the U.S.", "How about you?"],
     ),
-    ("I work for the U.S. Government in Virginia.", ["I work for the U.S.", "Government in Virginia."]),
+    ("I work for the U.S. Government in Virginia.", ["I work for the U.S. Government in Virginia."]),
     ("I have lived in the U.S. for 20 years.", ["I have lived in the U.S. for 20 years."]),
     # Most difficult sentence to crack
     pytest.param(

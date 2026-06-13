@@ -57,7 +57,7 @@ The system supports 23 languages through a class inheritance hierarchy where lan
 ```
 Common (base regex patterns)
   └── Standard (rules, abbreviations, punctuation lists)
-        ├── English (inherits everything, adds SENTENCE_STARTERS)
+        ├── English (inherits Standard behavior)
         ├── Spanish (custom abbreviation list)
         ├── German (custom Numbers, Processor, BetweenPunctuation)
         ├── Japanese (custom Cleaner, BetweenPunctuation)
@@ -249,7 +249,7 @@ For each abbreviation, it pre-computes:
       - digit + number abbreviation → protect ("p. 55")
 3. replace_multi_period_abbreviations() — "U.S.A." → "U∯S∯A∯"
 4. Apply AmPmRules (with timezone awareness)
-5. replace_abbreviation_as_sentence_boundary() — Undo protection when followed by a sentence starter
+5. restore_standalone_i_boundaries() and split-mode-aware two-letter initialism handling
 ```
 
 **`replace_period_of_abbr()`** — The general-case abbreviation handler:
@@ -262,11 +262,13 @@ This lookbehind finds the abbreviation, then looks ahead to determine if the per
 - `I `, `I'm`, `I'll` — special cases where "I" is not a sentence-starting capital
 - A digit or `(` — continuation of the same sentence
 
-**`replace_abbreviation_as_sentence_boundary()`:**
-```python
-regex = r"(U∯S|U\.S|U∯K|E∯U|E\.U|U∯S∯A|U\.S\.A|I|i.v|I.V)∯({})".format(sent_starters)
-```
-This is a correction pass. After abbreviation protection, patterns like `U.S. He went...` will have been over-protected. If the word following the abbreviation is a known sentence starter (A, Being, Did, For, He, How, However, I, In, It, Millions, More, She, That, The, There, They, We, What, When, Where, Who, Why), the period is restored as a genuine boundary.
+**Two-letter initialisms before capitalized words:**
+
+Uppercase dotted initialisms such as `U.S.` and `E.U.` are split-mode-sensitive:
+conservative mode keeps them protected, while default and aggressive mode allow
+them to split before a capitalized following token. A short phrase-aware join
+table keeps common names such as `D.C. Circuit`, `L.A. Times`, and
+`U.N. General Assembly` together.
 
 **`_replace_with_escape()`** helper:
 ```python
@@ -620,10 +622,9 @@ Ellipsis patterns are replaced with sentinels of the same character width, prese
 - Months: `jan`, `feb`, `mar`, `apr`, ...
 - Other: `etc`, `fig`, `vs`, `corp`, `inc`, `ltd`, ...
 
-**SENTENCE_STARTERS:** Words that, when following an abbreviation, indicate a new sentence:
-```
-A Being Did For He How However I In It Millions More She That The There They We What When Where Who Why
-```
+**Two-letter initialism join exceptions:** Short normalized phrase tuples that
+should remain together even when a capitalized follower would otherwise permit a
+split in default or aggressive mode.
 
 ---
 
@@ -631,7 +632,7 @@ A Being Did For He How However I In It Millions More She That The There They We 
 
 #### Minimal override languages (inherit Common + Standard)
 
-**English** (`en`): Only overrides `SENTENCE_STARTERS`.
+**English** (`en`): Inherits Standard behavior.
 
 **French** (`fr`): Custom abbreviation list (79 entries). Empty `PREPOSITIVE_ABBREVIATIONS` and `NUMBER_ABBREVIATIONS` — French doesn't use titles like "Dr." the same way.
 
@@ -647,14 +648,14 @@ A Being Did For He How However I In It Millions More She That The There They We 
 
 **Spanish** (`es`): 159 abbreviations. Custom prepositive (`dr`, `ee`, `lic`, `mt`, `prof`, `sra`, `srta`) and number (`cra`, `ext`, `no`, `nos`, `p`, `pp`, `tel`) lists.
 
-**Danish** (`da`): 274 abbreviations. Custom `Numbers` rules for Danish number formatting. Custom `SENTENCE_STARTERS` list in Danish. Overrides `replace_abbreviation_as_sentence_boundary()` to include Danish-specific patterns (`s.u`, `s.U`).
+**Danish** (`da`): 274 abbreviations. Custom `Numbers` rules for Danish number formatting.
 
 **German/Deutsch** (`de`):
 - Custom `Numbers` with `NumberPeriodSpaceRule` and `NegativeNumberPeriodSpaceRule` for ordinal numbers.
 - Custom `Processor` with `replace_period_in_deutsch_dates()` — protects periods before German month names (`Januar`, `Februar`, ...).
 - Custom `AbbreviationReplacer.scan_for_replacements()` — simplified to `r'(?<={am})\.(?=\s)'`.
 - Custom `BetweenPunctuation` for German quotation marks (`„..."` and `,,..."` — unconventional variant).
-- German `SENTENCE_STARTERS`: `Am Auch Auf Bei Da Das Der Die Ein Eine Es Für Heute Ich Im In Ist Jetzt Mein Mit Nach So Und Warum Was Wenn Wer Wie Wir`.
+- German-specific date and abbreviation scanning rules cover the language behavior without a starter-word list.
 
 **Russian** (`ru`): 62 Cyrillic abbreviations. Custom `replace_period_of_abbr()` with three separate regexes (after whitespace, after `\A`, after `^`) because Russian text processing may not have the same word boundary behavior.
 
@@ -1001,9 +1002,9 @@ match_re = re.compile(r"(?:^|\s|\r|\n){}".format(escaped), re.IGNORECASE)
 next_word_re = re.compile(r"(?<={escaped} ).{1}".format(escaped=escaped))
 ```
 
-Sentence-starter patterns are built dynamically:
+Two-letter initialism join exceptions are normalized before matching:
 ```python
-sent_starters = "|".join(r"(?=\s{}\s)".format(word) for word in self.SENTENCE_STARTERS)
+("u.s", "district", "court")
 ```
 
 ### 8.5 Negative Lookahead for Exception Lists
