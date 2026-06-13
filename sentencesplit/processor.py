@@ -589,6 +589,12 @@ class Processor:
                 resplit.extend(p for p in _CJK_BANG_RESPLIT_RE.split(part) if p)
         return resplit
 
+    def _is_orphan_content_char(self, c: str) -> bool:
+        # A short period-terminated fragment is only an orphan abbreviation if it
+        # carries content (an alphanumeric char). Subclasses can widen what counts
+        # as content (e.g. CJK ideographs for the combined profile).
+        return c.isalnum()
+
     def _merge_orphan_fragments(self, postprocessed_sents: list[str]) -> list[str]:
         # Merge orphan fragments into the preceding sentence.
         # An orphan is either an ellipsis (3+ periods) or a very short
@@ -612,7 +618,7 @@ class Processor:
                     # bracket (")", "]") is a real sentence, not an orphan.
                     and stripped[0] not in ")]}"
                     and " " not in stripped[:-1]
-                    and any(c.isalnum() for c in stripped)
+                    and any(self._is_orphan_content_char(c) for c in stripped)
                 ):
                     is_orphan = True
             if is_orphan:
