@@ -1348,12 +1348,28 @@ def test_glued_lowercase_run_on_protects_leading_dot_runs(case_id, text, expecte
     assert seg.segment(text) == expected
 
 
-def test_en_es_zh_resplits_protected_number_abbreviation_unknown_placeholder():
+@pytest.mark.parametrize(
+    "text,expected",
+    [
+        ("Fig. ?? Next sentence.", ["Fig. ?? ", "Next sentence."]),
+        ("Fig. ?? ¿Cómo está?", ["Fig. ?? ", "¿Cómo está?"]),
+        ("Fig. ?? 下一个。", ["Fig. ?? ", "下一个。"]),
+        ("Fig. ?? “下一个。”", ["Fig. ?? ", "“下一个。”"]),
+        ("Fig. ?? (下一个。)", ["Fig. ?? ", "(下一个。)"]),
+        ("Fig. ?? (¿Cómo está?)", ["Fig. ?? ", "(¿Cómo está?)"]),
+    ],
+)
+def test_en_es_zh_resplits_protected_number_abbreviation_unknown_placeholder(text, expected):
     """The combined profile must resplit restored ?? after number abbreviations.
 
-    Its custom CJK-aware resplit path should preserve the base Latin multi-terminator
-    behavior used by English after protected unknown punctuation placeholders are restored.
+    Its custom CJK-aware resplit path should preserve the base Latin multi-terminator behavior and support combined
+    profile sentence starters after protected unknown punctuation placeholders are restored.
     """
     seg = sentencesplit.Segmenter(language="en_es_zh", clean=False)
 
-    assert seg.segment("Fig. ?? Next sentence.") == ["Fig. ?? ", "Next sentence."]
+    assert seg.segment(text) == expected
+
+    span_seg = sentencesplit.Segmenter(language="en_es_zh", clean=False, char_span=True)
+    spans = span_seg.segment(text)
+    assert [span.sent for span in spans] == expected
+    assert "".join(span.sent for span in spans) == text

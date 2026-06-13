@@ -25,8 +25,11 @@ from sentencesplit.processor import (
     Processor,
     _split_on_uppercase_boundary,
 )
+from sentencesplit.utils import _next_nonspace_char_starts_sentence
 
 _CJK_FOLLOWING_CHAR_RE = re.compile(r"[\u3400-\u9FFF]")
+_SENTENCE_START_WRAPPERS = frozenset("\"'“‘«‹([{「『【（《")
+_SPANISH_INVERTED_SENTENCE_OPENERS = frozenset("¿¡")
 # The uppercase sentence-start heuristic applies to BOTH the English and Spanish
 # abbreviation sets. Gating it to English-only previously made common words that
 # are also Spanish abbreviations (doc, dir, dom, \u2026) under-split versus both the
@@ -37,6 +40,33 @@ _HEURISTIC_ABBREVIATIONS = frozenset(
 # Closers that mark an embedded CJK quote/title; a lowercase Latin continuation
 # after one of these is not a quote continuation (unlike a Latin quote closer).
 _CJK_QUOTE_CLOSERS = frozenset("\u300d\u300f\u300b\u3011")
+
+
+def _next_nonspace_char_starts_combined_sentence(text: str, start: int = 0) -> bool:
+    for index in range(start, len(text)):
+        char = text[index]
+        if char.isspace() or char in _SENTENCE_START_WRAPPERS:
+            continue
+        return (
+            _next_nonspace_char_starts_sentence(text, index)
+            or char in _SPANISH_INVERTED_SENTENCE_OPENERS
+            or _CJK_FOLLOWING_CHAR_RE.match(char) is not None
+        )
+    return False
+
+
+def _split_on_combined_sentence_boundary(text: str, whitespace_re: re.Pattern[str]) -> list[str] | None:
+    parts = []
+    last = 0
+    for match in whitespace_re.finditer(text):
+        if not _next_nonspace_char_starts_combined_sentence(text, match.end()):
+            continue
+        parts.append(text[last : match.start()])
+        last = match.end()
+    if not parts:
+        return None
+    parts.append(text[last:])
+    return [part for part in parts if part]
 
 
 class EnglishSpanishChinese(CJKBoundaryProfile, Common, Standard):
@@ -136,7 +166,7 @@ class EnglishSpanishChinese(CJKBoundaryProfile, Common, Standard):
         def _resplit_segments(self, postprocessed_sents: list[str]) -> list[str]:
             resplit = []
             for pps in postprocessed_sents:
-                latin_parts = _split_on_uppercase_boundary(pps, _LATIN_RESPLIT_RE) or _split_on_uppercase_boundary(
+                latin_parts = _split_on_uppercase_boundary(pps, _LATIN_RESPLIT_RE) or _split_on_combined_sentence_boundary(
                     pps, _MULTI_TERMINATOR_RESPLIT_RE
                 )
                 for latin_part in latin_parts or [pps]:
