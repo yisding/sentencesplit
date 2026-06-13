@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import re
-from collections import deque
 from itertools import product
 
 from sentencesplit.exclamation_words import ExclamationWords
@@ -168,6 +167,7 @@ _PRIVATE_USE_RANGES = ((0xE000, 0xF8FF), (0xF0000, 0xFFFFD), (0x100000, 0x10FFFD
 _NONCHARACTER_DELIMITER_RANGES = ((0xFDD0, 0xFDEF),) + tuple(
     (plane + 0xFFFE, plane + 0xFFFF) for plane in range(0, 0x110000, 0x10000)
 )
+_MAX_NONCHARACTER_DELIMITER_INDEX_BYTES = 32 * 1024 * 1024
 
 
 def _iter_private_use_chars():
@@ -190,44 +190,119 @@ def _iter_noncharacter_delimiters():
             yield chr(cp)
 
 
-def _absent_noncharacter_delimiter(text: str) -> str:
-    """Return a noncharacter delimiter token absent from *text* in linear time.
+def _decode_noncharacter_delimiter(code: int, width: int, alphabet: tuple[str, ...]) -> str:
+    base = len(alphabet)
+    chars = [""] * width
+    for pos in range(width - 1, -1, -1):
+        code, idx = divmod(code, base)
+        chars[pos] = alphabet[idx]
+    return "".join(chars)
 
-    The adversarial fallback path can receive text that contains every short
-    delimiter candidate. Avoid testing each candidate with ``delimiter not in
-    text`` because that repeats a full substring search for every occupied
-    token. Instead, collect the delimiter-only substrings that actually occur at
-    each width with one pass over the input, then choose a candidate outside
-    that set.
-    """
+
+def _absent_noncharacter_delimiter_with_missing_follower(
+    text: str,
+    context_code: int,
+    context_width: int,
+    alphabet: tuple[str, ...],
+    alphabet_index: dict[str, int],
+) -> str | None:
+    base = len(alphabet)
+    high_order = base ** (context_width - 1)
+    code = 0
+    run_len = 0
+    followers = 0
+
+    for index, ch in enumerate(text):
+        char_index = alphabet_index.get(ch)
+        if char_index is None:
+            code = 0
+            run_len = 0
+            continue
+        if run_len < context_width:
+            code = (code * base) + char_index
+            run_len += 1
+            if run_len < context_width:
+                continue
+        else:
+            code = ((code % high_order) * base) + char_index
+
+        if code != context_code or index + 1 == len(text):
+            continue
+        follower_index = alphabet_index.get(text[index + 1])
+        if follower_index is not None:
+            followers |= 1 << follower_index
+
+    for follower_index, follower in enumerate(alphabet):
+        if not followers & (1 << follower_index):
+            return _decode_noncharacter_delimiter(context_code, context_width, alphabet) + follower
+    return None
+
+
+def _scan_noncharacter_delimiter_counts(
+    text: str,
+    width: int,
+    base: int,
+    total_candidates: int,
+    alphabet_index: dict[str, int],
+) -> tuple[bytearray, int]:
+    counts = bytearray(total_candidates)
+    seen = 0
+    code = 0
+    run_len = 0
+    high_order = base ** (width - 1)
+
+    for ch in text:
+        idx = alphabet_index.get(ch)
+        if idx is None:
+            code = 0
+            run_len = 0
+            continue
+        if run_len < width:
+            code = (code * base) + idx
+            run_len += 1
+            if run_len < width:
+                continue
+        else:
+            code = ((code % high_order) * base) + idx
+
+        if counts[code] == 0:
+            seen += 1
+        if counts[code] < base:
+            counts[code] += 1
+
+    return counts, seen
+
+
+def _absent_noncharacter_delimiter(text: str) -> str:
+    """Return a noncharacter delimiter token absent from *text* in linear time."""
     alphabet = tuple(_iter_noncharacter_delimiters())
     if not alphabet:
         raise ValueError("At least one noncharacter delimiter token is required")
 
-    alphabet_set = frozenset(alphabet)
+    alphabet_index = {char: idx for idx, char in enumerate(alphabet)}
+    base = len(alphabet)
     width = 1
-    while True:
-        present = set()
-        total_candidates = len(alphabet) ** width
-        window: deque[str] = deque(maxlen=width)
-        run_len = 0
-        for ch in text:
-            if ch in alphabet_set:
-                window.append(ch)
-                run_len += 1
-                if run_len >= width:
-                    present.add("".join(window))
-                    if len(present) == total_candidates:
-                        break
-            else:
-                window.clear()
-                run_len = 0
 
-        if len(present) < total_candidates:
-            for chars in product(alphabet, repeat=width):
-                delimiter = "".join(chars)
-                if delimiter not in present:
-                    return delimiter
+    while True:
+        total_candidates = base**width
+        if total_candidates > _MAX_NONCHARACTER_DELIMITER_INDEX_BYTES:
+            raise ValueError("Unable to choose a bounded noncharacter delimiter token")
+
+        counts, seen = _scan_noncharacter_delimiter_counts(text, width, base, total_candidates, alphabet_index)
+
+        if seen < total_candidates:
+            for missing_code, count in enumerate(counts):
+                if count == 0:
+                    return _decode_noncharacter_delimiter(missing_code, width, alphabet)
+
+        for context_code, count in enumerate(counts):
+            if count >= base:
+                continue
+            delimiter = _absent_noncharacter_delimiter_with_missing_follower(
+                text, context_code, width, alphabet, alphabet_index
+            )
+            if delimiter is not None:
+                return delimiter
 
         width += 1
 

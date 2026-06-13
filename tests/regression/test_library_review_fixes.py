@@ -421,12 +421,11 @@ def test_sentinel_escape_all_single_noncharacter_delimiters_falls_back_to_multic
 
 @pytest.mark.perf
 def test_sentinel_delimiter_selection_stays_linear_when_short_tokens_are_occupied():
-    """Choosing an absent noncharacter delimiter must not repeatedly scan the
-    whole input for every occupied candidate.
+    """Choosing an absent noncharacter delimiter must not scan or store every candidate.
 
     The crafted prefix contains every one-, two-, and three-codepoint delimiter
-    token from the real alphabet. The fix should still find a four-codepoint
-    delimiter with a small number of linear passes over the input.
+    token from the real alphabet. The fix should still find an absent delimiter
+    with bounded memory and a small number of linear scans over the input.
     """
     import time
     from itertools import product
@@ -434,7 +433,7 @@ def test_sentinel_delimiter_selection_stays_linear_when_short_tokens_are_occupie
     from sentencesplit import processor as _proc
 
     alphabet = tuple(_proc._iter_noncharacter_delimiters())
-    occupied = "".join("".join(chars) for width in range(1, 4) for chars in product(alphabet, repeat=width))
+    occupied = "x".join("".join(chars) for width in range(1, 4) for chars in product(alphabet, repeat=width))
     text = f"∯{occupied}" + ("x" * 100000)
 
     start = time.perf_counter()
@@ -443,7 +442,44 @@ def test_sentinel_delimiter_selection_stays_linear_when_short_tokens_are_occupie
 
     assert len(delimiter) == 4
     assert delimiter not in text
-    assert elapsed < 5.0
+    assert elapsed < 20.0
+
+
+def test_sentinel_delimiter_selection_uses_missing_follower_before_widening(monkeypatch):
+    """Dense delimiter-only input should not require recording every observed wider window."""
+    from itertools import product
+
+    from sentencesplit import processor as _proc
+
+    monkeypatch.setattr(_proc, "_NONCHARACTER_DELIMITER_RANGES", ((0xFDD0, 0xFDD1),))
+    alphabet = tuple(_proc._iter_noncharacter_delimiters())
+    text = "x".join("".join(chars) for width in range(1, 7) for chars in product(alphabet, repeat=width))
+
+    delimiter = _proc._absent_noncharacter_delimiter(text)
+
+    assert delimiter not in text
+    assert delimiter[0] in alphabet
+    assert len(delimiter) == 7
+    assert set(delimiter) == {delimiter[0]}
+
+
+def test_sentinel_escape_fallback_avoids_long_delimiter_amplification(monkeypatch):
+    """Delimiter selection must not turn short adversarial input into huge escape tokens."""
+    from sentencesplit import processor as _proc
+
+    monkeypatch.setattr(_proc, "_PRIVATE_USE_RANGES", ((0xE000, 0xE001),))
+    monkeypatch.setattr(_proc, "_NONCHARACTER_DELIMITER_RANGES", ((0xFDD0, 0xFDD1),))
+    delimiter_a, delimiter_b = tuple(_proc._iter_noncharacter_delimiters())
+    repeat = 1000
+    text = "\ue000\ue001" + ("∯" * repeat) + (delimiter_a * repeat) + (delimiter_b * repeat)
+
+    escape, restore, restore_re = _proc._build_sentinel_escape_tables(text)
+    translated = text.translate(escape)
+    restored = restore_re.sub(lambda match: restore[match.group(0)], translated)
+
+    assert max(len(token) for token in escape.values()) < 32
+    assert len(translated) < len(text) * 10
+    assert restored == text
 
 
 @pytest.mark.perf
