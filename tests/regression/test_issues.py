@@ -212,11 +212,11 @@ def test_non_english_boundary_abbreviation_follows_split_mode(language):
     """Latin-script non-English profiles route boundary abbreviations through split_mode."""
     text = "Je vois U.S. Il part."
 
-    for mode in ("conservative", "balanced"):
+    seg = sentencesplit.Segmenter(language=language, clean=False, split_mode="conservative")
+    assert [s.strip() for s in seg.segment(text)] == [text]
+    for mode in ("balanced", "aggressive"):
         seg = sentencesplit.Segmenter(language=language, clean=False, split_mode=mode)
-        assert [s.strip() for s in seg.segment(text)] == [text]
-    seg = sentencesplit.Segmenter(language=language, clean=False, split_mode="aggressive")
-    assert [s.strip() for s in seg.segment(text)] == ["Je vois U.S.", "Il part."]
+        assert [s.strip() for s in seg.segment(text)] == ["Je vois U.S.", "Il part."]
 
 
 @pytest.mark.parametrize("language", ["fr", "es", "it", "nl"])
@@ -524,6 +524,14 @@ def test_compact_ampm_before_non_ascii_uppercase():
     ]
 
 
+def test_bare_ampm_initialism_before_name_stays_joined():
+    """Without a preceding number, P.M./A.M. is a generic two-part initialism."""
+    for text in ("Met with P.M. Trudeau today.", "The A.M. Smith papers arrived."):
+        for mode in ("conservative", "balanced", "aggressive"):
+            seg = sentencesplit.Segmenter(language="en", clean=False, char_span=False, split_mode=mode)
+            assert [s.strip() for s in seg.segment(text)] == [text]
+
+
 def test_eq_abbreviation_before_roman_numeral():
     """Eq. before a Roman numeral should stay joined like Fig."""
     seg = sentencesplit.Segmenter(language="en", clean=False, char_span=False)
@@ -546,12 +554,12 @@ def test_boundary_abbreviation_before_non_ascii_uppercase_follows_split_mode():
     """Boundary abbreviations no longer depend on exact starter-word lists."""
     text = "He moved from the U.S. \u00c9lodie arrived."
 
-    for mode in ("conservative", "balanced"):
-        seg = sentencesplit.Segmenter(language="en", clean=False, char_span=False, split_mode=mode)
-        assert [s.strip() for s in seg.segment(text)] == [text]
+    seg = sentencesplit.Segmenter(language="en", clean=False, char_span=False, split_mode="conservative")
+    assert [s.strip() for s in seg.segment(text)] == [text]
 
-    aggressive = sentencesplit.Segmenter(language="en", clean=False, char_span=False, split_mode="aggressive")
-    assert [s.strip() for s in aggressive.segment(text)] == ["He moved from the U.S.", "\u00c9lodie arrived."]
+    for mode in ("balanced", "aggressive"):
+        seg = sentencesplit.Segmenter(language="en", clean=False, char_span=False, split_mode=mode)
+        assert [s.strip() for s in seg.segment(text)] == ["He moved from the U.S.", "\u00c9lodie arrived."]
 
 
 @pytest.mark.parametrize(
@@ -594,13 +602,19 @@ def test_en_es_zh_ordinary_abbreviation_before_cjk_stays_joined(text, expected):
     assert [s.strip() for s in seg.segment(text)] == expected
 
 
-def test_three_part_initialism_before_non_ascii_uppercase_stays_joined():
-    """Pure initialisms like U.S.A. should stay joined before non-ASCII uppercase
-    proper nouns like Élodie — avoids false splits in noun phrases."""
-    seg = sentencesplit.Segmenter(language="en", clean=False, char_span=False)
-    assert [s.strip() for s in seg.segment("He works for the U.S.A. \u00c9lodie Foundation.")] == [
-        "He works for the U.S.A. \u00c9lodie Foundation.",
-    ]
+def test_three_part_initialism_before_non_ascii_uppercase_follows_split_mode():
+    """Non-ASCII Latin capitals are still capital followers for the acronym dial."""
+    text = "He works for the U.S.A. \u00c9lodie Foundation."
+
+    seg = sentencesplit.Segmenter(language="en", clean=False, char_span=False, split_mode="conservative")
+    assert [s.strip() for s in seg.segment(text)] == [text]
+
+    for mode in ("balanced", "aggressive"):
+        seg = sentencesplit.Segmenter(language="en", clean=False, char_span=False, split_mode=mode)
+        assert [s.strip() for s in seg.segment(text)] == [
+            "He works for the U.S.A.",
+            "\u00c9lodie Foundation.",
+        ]
 
 
 @pytest.mark.parametrize(
@@ -873,7 +887,7 @@ def test_multi_char_terminator_protected_when_no_capital_follower(language, text
 @pytest.mark.parametrize(
     "language,text,expected",
     [
-        # NL: chained single-letter initials (Initials + Surname) must not split
+        # NL: conservative mode keeps chained single-letter initials joined
         # before the capitalized surname.
         (
             "nl",
@@ -901,12 +915,33 @@ def test_multi_char_terminator_protected_when_no_capital_follower(language, text
         ),
     ],
 )
-def test_chained_initials_before_capital_surname_no_split(language, text, expected):
+def test_chained_initials_before_capital_surname_conservative_no_split(language, text, expected):
     """A run of single-letter initials (e.g. F.J.G.) followed by a single
-    capitalized token is an Initials + Surname personal name, not a sentence
-    boundary, so the abbreviation-as-terminal restore must be suppressed."""
-    seg = sentencesplit.Segmenter(language=language, clean=False)
+    capitalized token can be read as an Initials + Surname personal name;
+    conservative mode preserves that joined reading."""
+    seg = sentencesplit.Segmenter(language=language, clean=False, split_mode="conservative")
     assert [s.strip() for s in seg.segment(text)] == expected
+
+
+def test_dutch_chained_initials_balanced_keeps_name_reading():
+    text = "forensisch psycholoog F.J.G. Buschman van het centrum"
+
+    balanced = sentencesplit.Segmenter(language="nl", clean=False)
+    assert [s.strip() for s in balanced.segment(text)] == [text]
+
+    aggressive = sentencesplit.Segmenter(language="nl", clean=False, split_mode="aggressive")
+    assert [s.strip() for s in aggressive.segment(text)] == ["forensisch psycholoog F.J.G.", "Buschman van het centrum"]
+
+
+def test_dutch_balanced_initialism_exception_is_language_specific():
+    """Dutch balanced mode keeps the name-heavy 3+ initialism reading; aggressive splits."""
+    text = "Hij behaalde zijn M.B.A. Daarna vertrok hij."
+
+    balanced = sentencesplit.Segmenter(language="nl", clean=False)
+    assert [s.strip() for s in balanced.segment(text)] == [text]
+
+    aggressive = sentencesplit.Segmenter(language="nl", clean=False, split_mode="aggressive")
+    assert [s.strip() for s in aggressive.segment(text)] == ["Hij behaalde zijn M.B.A.", "Daarna vertrok hij."]
 
 
 @pytest.mark.parametrize(
@@ -933,8 +968,9 @@ def test_chained_initials_before_capital_surname_no_split(language, text, expect
 def test_non_ascii_prefixed_initials_no_split(language, text, expected):
     """A non-ASCII leading initial absorbed into the protected initials chain
     (via the Greek Unicode MPA regex) must not cause the initials-name heuristic
-    to walk back to a preceding determiner and split before the surname."""
-    seg = sentencesplit.Segmenter(language=language, clean=False)
+    to walk back to a preceding determiner and split before the surname in
+    conservative mode."""
+    seg = sentencesplit.Segmenter(language=language, clean=False, split_mode="conservative")
     assert [s.strip() for s in seg.segment(text)] == expected
 
 
@@ -959,8 +995,8 @@ def test_acronym_noun_before_new_sentence_still_splits(text, expected):
 
 @pytest.mark.perf
 def test_repeated_initials_heuristic_is_linear_time():
-    """Repeated dotted initialisms should not rescan the full prefix per match."""
-    seg = sentencesplit.Segmenter(language="en", clean=False)
+    """Repeated joined initialisms should not rescan the full prefix per match."""
+    seg = sentencesplit.Segmenter(language="en", clean=False, split_mode="conservative")
     text = "A.B.C. X " * 4000
 
     start = perf_counter()
@@ -1083,13 +1119,12 @@ def test_allcaps_imprint_company_abbreviation_no_false_split(text, expected):
     assert segments == expected
 
 
-def test_dc_circuit_abbreviation_stays_joined():
-    """GUARD: 'D.C. Circuit' must stay joined (case_0038) — protects the
-    abbreviation-as-terminal heuristic from over-splitting initialism nouns
-    followed by an ordinary capitalized continuation."""
-    seg = sentencesplit.Segmenter(language="en", clean=False)
+def test_generic_two_part_initialism_before_capital_stays_joined():
+    """Generic two-part initialisms stay joined to avoid name/place over-splits."""
     text = "His involvement at the D.C. Circuit level and Anthony Kennedy joining the liberals."
-    assert [s.strip() for s in seg.segment(text)] == [text]
+    for mode in ("conservative", "balanced", "aggressive"):
+        seg = sentencesplit.Segmenter(language="en", clean=False, split_mode=mode)
+        assert [s.strip() for s in seg.segment(text)] == [text]
 
 
 MULTI_SENTENCE_QUOTATION_DATA = [

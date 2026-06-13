@@ -13,11 +13,10 @@ class Greek(Common, Standard):
     class AbbreviationReplacer(Standard.AbbreviationReplacer):
         CAPITALIZED_FOLLOWER_IS_BOUNDARY_CUE = True
         PROTECT_ALLCAPS_IMPRINT_SUFFIXES = True
-        # Latin boundary abbreviations inside Greek text are commonly embedded
-        # names ("U.S. Embassy"). Greek uppercase boundaries are handled by the
-        # non-Latin multi-period rule below, so only aggressive mode splits
-        # ambiguous Latin uppercase followers here.
-        BOUNDARY_ABBREVIATION_SPLIT_MIN_RANK = 2
+        # Latin boundary abbreviations inside Greek text use the shared
+        # split-mode dial: conservative joins; balanced/aggressive split before
+        # capital followers.
+        BOUNDARY_ABBREVIATION_SPLIT_MIN_RANK = 1
         # Greek does not capitalize common nouns mid-sentence, so a capital after
         # a multi-period abbreviation's period ("π.Χ. Ήταν …") is a real sentence
         # boundary even for a pure single-letter initialism.

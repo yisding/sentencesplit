@@ -116,14 +116,14 @@ def test_split_mode_controls_russian_sr_abbreviation():
 def test_split_mode_controls_boundary_abbreviations_without_starter_words(language, boundary_text, ambiguous_text):
     """Capitalized followers after U.S./E.U. are structural ambiguity.
 
-    Conservative and balanced keep the abbreviation joined; aggressive splits.
+    Conservative keeps the abbreviation joined; balanced and aggressive split.
     This replaces exact starter-word vocabulary with the global split dial.
     """
-    for mode in ("conservative", "balanced"):
-        assert _segments(language, boundary_text, mode) == [boundary_text]
-        assert _segments(language, ambiguous_text, mode) == [ambiguous_text]
-    assert len(_segments(language, boundary_text, "aggressive")) == 2
-    assert len(_segments(language, ambiguous_text, "aggressive")) == 2
+    assert _segments(language, boundary_text, "conservative") == [boundary_text]
+    assert _segments(language, ambiguous_text, "conservative") == [ambiguous_text]
+    for mode in ("balanced", "aggressive"):
+        assert len(_segments(language, boundary_text, mode)) == 2
+        assert len(_segments(language, ambiguous_text, mode)) == 2
 
 
 def test_split_mode_handles_i_boundary_without_royal_name_split():
@@ -151,10 +151,10 @@ def test_split_mode_aggressive_splits_i_after_heading_like_name_continuation():
 
 @pytest.mark.parametrize("text", ["We discussed H.B.S. She applied.", "F.J.G. Smith arrived."])
 def test_split_mode_disambiguates_initialisms_from_names_without_starter_words(text):
-    """A capitalized follower after initials is name-like unless aggressive splits."""
-    for mode in ("conservative", "balanced"):
-        assert sentencesplit.Segmenter(language="en", split_mode=mode).segment(text) == [text]
-    assert len(sentencesplit.Segmenter(language="en", split_mode="aggressive").segment(text)) == 2
+    """A capitalized follower after initials is joined only in conservative mode."""
+    assert sentencesplit.Segmenter(language="en", split_mode="conservative").segment(text) == [text]
+    for mode in ("balanced", "aggressive"):
+        assert len(sentencesplit.Segmenter(language="en", split_mode=mode).segment(text)) == 2
 
 
 @pytest.mark.parametrize(
@@ -167,17 +167,17 @@ def test_split_mode_disambiguates_initialisms_from_names_without_starter_words(t
 def test_boundary_abbreviation_mode_handles_non_ascii_and_custom_cases(text):
     language = "de" if text.startswith("Er ") else "da"
 
-    for mode in ("conservative", "balanced"):
-        assert _segments(language, text, mode) == [text]
-    assert len(_segments(language, text, "aggressive")) == 2
+    assert _segments(language, text, "conservative") == [text]
+    for mode in ("balanced", "aggressive"):
+        assert len(_segments(language, text, mode)) == 2
 
 
 def test_danish_custom_boundary_abbreviation_before_unlisted_capital_continuation():
     text = "Han bor i s.u. Embassy i dag."
 
-    for mode in ("conservative", "balanced"):
-        assert _segments("da", text, mode) == [text]
-    assert _segments("da", text, "aggressive") == ["Han bor i s.u.", "Embassy i dag."]
+    assert _segments("da", text, "conservative") == [text]
+    for mode in ("balanced", "aggressive"):
+        assert _segments("da", text, mode) == ["Han bor i s.u.", "Embassy i dag."]
 
 
 @pytest.mark.parametrize(
@@ -232,9 +232,9 @@ def test_allcaps_imprint_behavior_independent_of_sentence_starter_words():
 def test_non_english_profiles_use_split_mode_for_boundary_abbreviation(language):
     text = "Je vois U.S. Il part."
 
-    for mode in ("conservative", "balanced"):
-        assert _segments(language, text, mode) == [text]
-    assert _segments(language, text, "aggressive") == ["Je vois U.S.", "Il part."]
+    assert _segments(language, text, "conservative") == [text]
+    for mode in ("balanced", "aggressive"):
+        assert _segments(language, text, mode) == ["Je vois U.S.", "Il part."]
 
 
 def test_no_sentence_starter_profile_keeps_uppercase_continuation_joined():
@@ -247,11 +247,11 @@ def test_no_sentence_starter_profile_keeps_uppercase_continuation_joined():
 @pytest.mark.parametrize(
     "text,joined,split",
     [
-        # 3-part initialism before a capitalized word is structurally identical
-        # to "Initials + Surname"; aggressive resolves the ambiguity by splitting.
+        # Multi-period initialism before a capitalized word is structurally
+        # ambiguous; conservative keeps it joined, balanced/aggressive split.
         ("We discussed H.B.S. Applications are due.", ["We discussed H.B.S. Applications are due."], 2),
         ("I visited U.S.A. Microsoft is based there.", ["I visited U.S.A. Microsoft is based there."], 2),
-        # The accepted trade-off: a real name splits in aggressive mode too.
+        # The accepted trade-off: a real name splits outside conservative mode too.
         (
             "A.S.E. Ackermann and team published the findings in 2007.",
             ["A.S.E. Ackermann and team published the findings in 2007."],
@@ -260,17 +260,20 @@ def test_no_sentence_starter_profile_keeps_uppercase_continuation_joined():
     ],
 )
 def test_split_mode_initialism_before_capital(text, joined, split):
-    # conservative and balanced keep the surname reading (joined); aggressive splits.
-    for mode in ("conservative", "balanced"):
-        assert sentencesplit.Segmenter(language="en", split_mode=mode).segment(text) == joined
-    aggressive = sentencesplit.Segmenter(language="en", split_mode="aggressive").segment(text)
-    assert len(aggressive) == split
+    # Conservative keeps the joined reading; balanced/aggressive split.
+    assert sentencesplit.Segmenter(language="en", split_mode="conservative").segment(text) == joined
+    for mode in ("balanced", "aggressive"):
+        segmented = sentencesplit.Segmenter(language="en", split_mode=mode).segment(text)
+        assert len(segmented) == split
 
 
 def test_split_mode_initialism_with_strong_cue_splits_in_all_modes():
-    # A determiner ("the S.A.T.") is a structural cue that the initialism is a
-    # noun, not an "Initials + Surname" name, so it splits regardless of mode.
-    for mode in ("conservative", "balanced", "aggressive"):
+    # A determiner ("the S.A.T.") still leaves acronym/capital ambiguity to the
+    # split-mode dial.
+    assert sentencesplit.Segmenter(language="en", split_mode="conservative").segment(
+        "I studied for the S.A.T. Tomorrow is test day."
+    ) == ["I studied for the S.A.T. Tomorrow is test day."]
+    for mode in ("balanced", "aggressive"):
         seg = sentencesplit.Segmenter(language="en", split_mode=mode)
         assert [s.strip() for s in seg.segment("I studied for the S.A.T. Tomorrow is test day.")] == [
             "I studied for the S.A.T.",
@@ -284,9 +287,11 @@ def test_split_mode_initialism_with_strong_cue_splits_in_all_modes():
         # Mixed multi-period abbreviation before a capital: conservative joins
         # (surname reading), balanced/aggressive split.
         ("She earned a Ph.D. Smith advised her.", 1, 2, 2),
-        # Pure initialism before a capital: only aggressive splits; conservative
-        # and balanced keep it joined ("A.I." protected before "Systems").
-        ("Work on A.I. Systems are improving.", 1, 1, 2),
+        # Generic two-part initialisms remain joined: they are too often names,
+        # places, postal abbreviations, or timezones (J.C. Penney, D.C. Circuit,
+        # P.O. Box, P.M. EST). Known boundary abbreviations like U.S. still route
+        # through the split-mode dial.
+        ("Work on A.I. Systems are improving.", 1, 1, 1),
     ],
 )
 def test_split_mode_multi_period_abbreviation(text, n_conservative, n_balanced, n_aggressive):
@@ -321,6 +326,9 @@ def test_split_mode_ampm_before_capital():
         "The call is at 3 p.m. EST.",
         "Join on time.",
     ]
+    initialism = "Met with P.M. Trudeau today."
+    for mode in ("conservative", "balanced", "aggressive"):
+        assert sentencesplit.Segmenter(language="en", split_mode=mode).segment(initialism) == [initialism]
 
 
 def test_split_mode_exclamation_before_lowercase():

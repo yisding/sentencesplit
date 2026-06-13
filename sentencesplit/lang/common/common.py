@@ -96,22 +96,21 @@ class Common:
         # behave like compact "a.m."/ "p.m." in boundary logic.
         SpacedAmPmRule = Rule(r"\b([AaPp])\.(\s+)([Mm])\.(?=((\.|:|-|\?|,)|(\s)))", r"\1∯\2\3∯")
 
-        # Rubular: http://rubular.com/r/Vnx3m4Spc8
-        UpperCasePmRule = Rule(r"(?<=[\s\d]P∯M)∯(?=\s(?!" + _TZ + r")[A-Z])", ".")
+        # Restore a.m./p.m. boundaries only when the token is part of a numeric
+        # time expression. Bare "P.M. Trudeau" remains a generic two-part
+        # initialism, not a time boundary.
+        UpperCasePmRule = Rule(r"(\d\s*P∯M)∯(?=\s(?!" + _TZ + r")[A-Z])", r"\1.")
 
-        # Rubular: http://rubular.com/r/AJMCotJVbW
-        UpperCaseAmRule = Rule(r"(?<=[\s\d]A∯M)∯(?=\s(?!" + _TZ + r")[A-Z])", ".")
+        UpperCaseAmRule = Rule(r"(\d\s*A∯M)∯(?=\s(?!" + _TZ + r")[A-Z])", r"\1.")
 
-        # Rubular: http://rubular.com/r/13q7SnOhgA
-        LowerCasePmRule = Rule(r"(?<=p∯m)∯(?=\s(?!" + _TZ + r")[A-Z])", ".")
+        LowerCasePmRule = Rule(r"(\d\s*p∯m)∯(?=\s(?!" + _TZ + r")[A-Z])", r"\1.")
 
-        # Rubular: http://rubular.com/r/DgUDq4mLz5
-        LowerCaseAmRule = Rule(r"(?<=a∯m)∯(?=\s(?!" + _TZ + r")[A-Z])", ".")
+        LowerCaseAmRule = Rule(r"(\d\s*a∯m)∯(?=\s(?!" + _TZ + r")[A-Z])", r"\1.")
 
-        SpacedUpperCasePmRule = Rule(r"\b(P∯\s+M)∯(?=\s(?!" + _TZ + r")[A-Z])", r"\1.")
-        SpacedUpperCaseAmRule = Rule(r"\b(A∯\s+M)∯(?=\s(?!" + _TZ + r")[A-Z])", r"\1.")
-        SpacedLowerCasePmRule = Rule(r"\b(p∯\s+m)∯(?=\s(?!" + _TZ + r")[A-Z])", r"\1.")
-        SpacedLowerCaseAmRule = Rule(r"\b(a∯\s+m)∯(?=\s(?!" + _TZ + r")[A-Z])", r"\1.")
+        SpacedUpperCasePmRule = Rule(r"(\d\s+P∯\s+M)∯(?=\s(?!" + _TZ + r")[A-Z])", r"\1.")
+        SpacedUpperCaseAmRule = Rule(r"(\d\s+A∯\s+M)∯(?=\s(?!" + _TZ + r")[A-Z])", r"\1.")
+        SpacedLowerCasePmRule = Rule(r"(\d\s+p∯\s+m)∯(?=\s(?!" + _TZ + r")[A-Z])", r"\1.")
+        SpacedLowerCaseAmRule = Rule(r"(\d\s+a∯\s+m)∯(?=\s(?!" + _TZ + r")[A-Z])", r"\1.")
 
         All = [
             SpacedAmPmRule,

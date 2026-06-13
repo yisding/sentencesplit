@@ -23,7 +23,7 @@ GOLDEN_DA_RULES_TEST_CASES = [
     ("I visited the U.S.A. last year.", ["I visited the U.S.A. last year."]),
     ("Jeg bor i E.U. Hvad med dig?", ["Jeg bor i E.U.", "Hvad med dig?"]),
     ("I live in the U.S. Hvad med dig?", ["I live in the U.S.", "Hvad med dig?"]),
-    ("I work for the U.S. Government in Virginia.", ["I work for the U.S. Government in Virginia."]),
+    ("I work for the U.S. Government in Virginia.", ["I work for the U.S.", "Government in Virginia."]),
     ("I have lived in the U.S. for 20 years.", ["I have lived in the U.S. for 20 years."]),
     ("She has $100.00 in her bag.", ["She has $100.00 in her bag."]),
     ("She has $100.00. It is in her bag.", ["She has $100.00.", "It is in her bag."]),

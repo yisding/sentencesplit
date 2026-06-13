@@ -5,6 +5,12 @@ from sentencesplit.lang.common import Common, Standard
 class Dutch(Common, Standard):
     iso_code = "nl"
 
+    class AbbreviationReplacer(Standard.AbbreviationReplacer):
+        # Dutch gold contains personal-name initials such as "F.J.G. Buschman";
+        # keep balanced mode on the joined side for that 3+ initials ambiguity.
+        # This is a language-specific exception: aggressive still splits.
+        UPPERCASE_INITIALISM_SPLIT_MIN_RANK = 2
+
     class Abbreviation(Standard.Abbreviation):
         ABBREVIATIONS = [
             "a.2d",
