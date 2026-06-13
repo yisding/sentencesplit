@@ -8,17 +8,15 @@ from sentencesplit.utils import Rule
 class ArabicScriptProfile:
     """Shared hooks for Arabic-script languages (Arabic, Persian).
 
-    Mixed in before ``Common, Standard`` so it provides the colon/comma boundary
-    rules and an abbreviation replacer that protects the period after a matched
-    abbreviation. Languages still set their own ``Punctuations`` and
-    ``SENTENCE_BOUNDARY_REGEX`` (which differ, e.g. Arabic includes the comma ،).
+    Mixed in before ``Common, Standard`` so it provides the colon boundary rule
+    (protecting ``10:30``-style times) and an abbreviation replacer that protects
+    the period after a matched abbreviation. Languages still set their own
+    ``Punctuations`` and ``SENTENCE_BOUNDARY_REGEX``. Neither language treats the
+    Arabic comma ``،`` as a sentence terminator, so no comma rule is needed.
     """
 
     # Rubular: http://rubular.com/r/RX5HpdDIyv
     ReplaceColonBetweenNumbersRule = Rule(r"(?<=\d):(?=\d)", "♭")
-
-    # Rubular: http://rubular.com/r/kPRgApNHUg
-    ReplaceNonSentenceBoundaryCommaRule = Rule(r"،(?=\s\S+،)", "♬")
 
     class AbbreviationReplacer(AbbreviationReplacer):
         def scan_for_replacements(self, txt, am, index, character_array, stripped=None, escaped=None):
