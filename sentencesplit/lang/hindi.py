@@ -1,15 +1,11 @@
 # -*- coding: utf-8 -*-
 import re
 
-from sentencesplit.abbreviation_replacer import AbbreviationReplacer
 from sentencesplit.lang.common import Common, Standard
 
 
 class Hindi(Common, Standard):
     iso_code = "hi"
-
-    class AbbreviationReplacer(AbbreviationReplacer):
-        SENTENCE_STARTERS = []
 
     # The danda (।) is the standard Hindi sentence terminator. "." is intentionally
     # excluded from both the boundary regex and Punctuations so Latin abbreviations

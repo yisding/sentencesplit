@@ -205,11 +205,6 @@ class Deutsch(Common, Standard):
         NUMBER_ABBREVIATIONS = ["art", "ca", "no", "nos", "nr", "pp"]
 
     class AbbreviationReplacer(AbbreviationReplacer):
-        SENTENCE_STARTERS = (
-            "Am Auch Auf Bei Da Das Der Die Ein Eine Es Für Heute Ich Im In "
-            "Ist Jetzt Mein Mit Nach So Und Warum Was Wenn Wer Wie Wir"
-        ).split(" ")
-
         def replace(self):
             # Rubular: http://rubular.com/r/B4X33QKIL8
             SingleLowerCaseLetterRule = Rule(r"(?<=\s[a-z])\.(?=\s)", "∯")
@@ -229,7 +224,8 @@ class Deutsch(Common, Standard):
             # German never restored non-ASCII a.m./p.m. boundaries; keep that
             # while honoring the conservative split-bias dial.
             self.apply_ampm_boundary_rules(restore_non_ascii=False)
-            self.text = self.replace_abbreviation_as_sentence_boundary()
+            if self.RESTORE_STANDALONE_I_BOUNDARIES:
+                self.text = self.restore_standalone_i_boundaries()
             return self.text
 
         def scan_for_replacements(self, txt, am, index, character_array, stripped=None, escaped=None):

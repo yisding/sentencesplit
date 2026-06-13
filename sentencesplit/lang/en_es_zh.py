@@ -13,7 +13,6 @@ from sentencesplit.lang.common.cjk import (
     CJKBoundaryProfile,
     make_cjk_abbreviation_rules,
 )
-from sentencesplit.lang.english import English
 from sentencesplit.lang.spanish import Spanish
 from sentencesplit.processor import (
     _CJK_BANG_RESPLIT_RE,
@@ -51,7 +50,9 @@ class EnglishSpanishChinese(CJKBoundaryProfile, Common, Standard):
         )
 
     class AbbreviationReplacer(AbbreviationReplacer):
-        SENTENCE_STARTERS = English.AbbreviationReplacer.SENTENCE_STARTERS
+        CAPITALIZED_FOLLOWER_IS_BOUNDARY_CUE = True
+        PROTECT_ALLCAPS_IMPRINT_SUFFIXES = True
+        RESTORE_STANDALONE_I_BOUNDARIES = True
 
         def replace_period_of_abbr(self, txt: str, abbr: str, escaped: str | None = None) -> str:
             txt = " " + txt

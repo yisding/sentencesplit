@@ -111,7 +111,6 @@ class Russian(Common, Standard):
             "фр",
             "чуваш",
         }
-        _SR_STANDALONE_FOLLOWERS = {"он", "она", "оно", "они", "это", "эта", "этот", "эти"}
         _SENTENCE_START_OPENERS = frozenset("\"'“”‘’«„([{")
 
         @classmethod
@@ -128,14 +127,6 @@ class Russian(Common, Standard):
                 return False
             char = text[index]
             return char.isupper() and unicodedata.name(char, "").startswith("CYRILLIC")
-
-        @classmethod
-        def _next_word_lower(cls, text, start=0):
-            index = cls._content_start(text, start)
-            word_start = index
-            while index < len(text) and text[index].isalpha():
-                index += 1
-            return text[word_start:index].lower()
 
         @staticmethod
         def _is_embedded_occurrence(text, abbr_start):
@@ -168,9 +159,9 @@ class Russian(Common, Standard):
                         return match.group()[:-1] + "∯"
                     if self._is_embedded_occurrence(txt, match.start(2)):
                         return match.group()[:-1] + "∯"
-                    if self._next_word_lower(txt, match_end) in self._SR_STANDALONE_FOLLOWERS:
-                        return match.group()
                     if self._sr_continues_compare_phrase(txt, match_end):
+                        return match.group() if self._leans_split else match.group()[:-1] + "∯"
+                    if self._leans_join:
                         return match.group()[:-1] + "∯"
                     return match.group()
                 if (

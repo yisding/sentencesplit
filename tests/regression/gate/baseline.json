@@ -1,7 +1,7 @@
 {
   "_about": "Committed baseline for the hermetic CI regression gate (tests/regression/test_regression_gate.py). Per-corpus exact-match and boundary-F1 for sentencesplit over the vendored gold. The gate FAILS a PR if any corpus drops below its score here by more than the per-language tolerance in gate_scoring.TOLERANCES. Update only via the reviewed `# baseline-update` flow documented in GOVERNANCE.md.",
-  "updated": "2026-05-30",
-  "rationale": "Initial gate baseline: captures current sentencesplit behavior on feat/regression-gate (post split-mode-bias merge).",
+  "updated": "2026-06-13",
+  "rationale": "route two-letter initialisms through split mode; keep only common phrase exceptions",
   "overall": {
     "exact_match": 76.1,
     "boundary_f1": 94.1,
@@ -17,7 +17,7 @@
     "ud_en_ewt": {
       "language": "en",
       "exact_match": 70.0,
-      "boundary_f1": 94.7,
+      "boundary_f1": 94.4,
       "n": 30
     },
     "ud_en_gum": {
@@ -53,7 +53,7 @@
     "ud_nl_alpino": {
       "language": "nl",
       "exact_match": 66.7,
-      "boundary_f1": 91.8,
+      "boundary_f1": 91.5,
       "n": 30
     },
     "ud_ru_gsd": {

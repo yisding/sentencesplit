@@ -14,7 +14,7 @@ def test_abbreviation_next_word_regex_reads_char_after_period_case_insensitive()
     assert next_word_re.findall("dr. smith") == ["s"]
 
 
-def test_uppercase_following_word_does_not_force_split_when_no_sentence_starters():
+def test_uppercase_following_word_does_not_force_split_without_capitalized_follower_cue():
     text = "Ide o firmy, napr. XYZCorp a.s."
     seg = sentencesplit.Segmenter(language="sk", clean=False)
 

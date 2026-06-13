@@ -11,6 +11,8 @@ class Greek(Common, Standard):
     Punctuations = [".", "!", ";", "?"]
 
     class AbbreviationReplacer(Standard.AbbreviationReplacer):
+        CAPITALIZED_FOLLOWER_IS_BOUNDARY_CUE = True
+        PROTECT_ALLCAPS_IMPRINT_SUFFIXES = True
         # Greek does not capitalize common nouns mid-sentence, so a capital after
         # a multi-period abbreviation's period ("π.Χ. Ήταν …") is a real sentence
         # boundary even for a pure single-letter initialism.

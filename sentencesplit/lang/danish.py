@@ -30,14 +30,8 @@ class Danish(Common, Standard):
         All = Common.Numbers.All + [NumberPeriodSpaceRule, NegativeNumberPeriodSpaceRule]
 
     class AbbreviationReplacer(AbbreviationReplacer):
-        SENTENCE_STARTERS = (
-            "At De Dem Den Der Det Du En Et For Få Gjorde Han Hun Hvad Hvem"
-            " Hvilke Hvor Hvordan Hvorfor Hvorledes Hvornår I Jeg Mange Vi Være"
-        ).split(" ")
-        # Consumed by the cached base _get_boundary_regex(), which escapes the
-        # dots correctly. Replaces a hand-rolled override that rebuilt the regex
-        # on every call with unescaped dots (i.v / s.u / s.U).
-        SENTENCE_BOUNDARY_ABBREVIATIONS = ["U∯S", "U.S", "U∯K", "E∯U", "E.U", "U∯S∯A", "U.S.A", "I", "i.v", "s.u", "s.U"]
+        CAPITALIZED_FOLLOWER_IS_BOUNDARY_CUE = True
+        PROTECT_ALLCAPS_IMPRINT_SUFFIXES = True
 
     class Abbreviation(Standard.Abbreviation):
         ABBREVIATIONS = [

@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 from sentencesplit.abbreviation_replacer import AbbreviationReplacer
 from sentencesplit.lang.common import Common, Standard
-from sentencesplit.lang.english import English
 
 
 class EnglishLegal(Common, Standard):
@@ -161,36 +160,13 @@ class EnglishLegal(Common, Standard):
         NUMBER_ABBREVIATIONS = sorted(set(Standard.Abbreviation.NUMBER_ABBREVIATIONS + LEGAL_NUMBER_ABBREVIATIONS))
 
     class AbbreviationReplacer(AbbreviationReplacer):
-        SENTENCE_STARTERS = English.AbbreviationReplacer.SENTENCE_STARTERS + [
-            "After",
-            "Although",
-            "And",
-            "As",
-            "Because",
-            "Before",
-            "But",
-            "Each",
-            "Even",
-            "Here",
-            "His",
-            "Her",
-            "If",
-            "Its",
-            "No",
-            "On",
-            "Our",
-            "So",
-            "Such",
-            "Their",
-            "This",
-            "Thus",
-            "Under",
-            "Yet",
-        ]
+        CAPITALIZED_FOLLOWER_IS_BOUNDARY_CUE = True
+        PROTECT_ALLCAPS_IMPRINT_SUFFIXES = True
+        RESTORE_STANDALONE_I_BOUNDARIES = True
         # Court/tribunal abbreviations that are prepositive (e.g. "Bankr. Court")
         # but can also legitimately end a sentence (e.g. "The 9th Cir. The panel
-        # reversed.").  Listing them here allows sentence splits before known
-        # sentence starters while still protecting them before non-starters.
+        # reversed."). split_mode controls whether ambiguous capitalized
+        # followers split.
         STARTER_AWARE_PREPOSITIVE = AbbreviationReplacer.STARTER_AWARE_PREPOSITIVE | frozenset(
             {
                 "admin",

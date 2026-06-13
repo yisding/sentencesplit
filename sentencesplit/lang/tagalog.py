@@ -1,13 +1,9 @@
 # -*- coding: utf-8 -*-
-from sentencesplit.abbreviation_replacer import AbbreviationReplacer
 from sentencesplit.lang.common import Common, Standard
 
 
 class Tagalog(Common, Standard):
     iso_code = "tl"
-
-    class AbbreviationReplacer(AbbreviationReplacer):
-        SENTENCE_STARTERS = []
 
     class Abbreviation(Standard.Abbreviation):
         ABBREVIATIONS = [

@@ -325,7 +325,6 @@ class Kazakh(Common, Standard):
         NUMBER_ABBREVIATIONS = []
 
     class AbbreviationReplacer(AbbreviationReplacer):
-        SENTENCE_BOUNDARY_ABBREVIATIONS = []
         _LOWERCASE_CONTINUATION_CHARS = "a-zа-яёәғқңөұүһі"
 
         def replace(self) -> str:

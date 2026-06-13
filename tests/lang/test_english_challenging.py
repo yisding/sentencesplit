@@ -514,12 +514,11 @@ CHALLENGING_EN_TEST_CASES = [
         "In early Dixieland, a.k.a. New Orleans jazz, musicians improvised freely.",
         ["In early Dixieland, a.k.a. New Orleans jazz, musicians improvised freely."],
     ),
-    # 119e) Name initials with three letters should not force a split.
-    # A run of single-letter initials followed by a single capitalized surname
-    # (not preceded by an article) is an "Initials + Surname" personal name.
+    # 119e) Name initials with three letters before a capitalized word follow
+    # the split-mode dial; default mode resolves the ambiguity toward a split.
     (
         "A.S.E. Ackermann and team published the findings in 2007.",
-        ["A.S.E. Ackermann and team published the findings in 2007."],
+        ["A.S.E.", "Ackermann and team published the findings in 2007."],
     ),
     # 119f) No-space time token + dotted timezone should stay in one sentence
     (
@@ -541,10 +540,14 @@ CHALLENGING_EN_TEST_CASES = [
         "In early Dixieland, a.k.a. New Orleans jazz, musicians improvised freely.",
         ["In early Dixieland, a.k.a. New Orleans jazz, musicians improvised freely."],
     ),
-    # 119j) Two-part abbreviation U.S. followed by uppercase does not split
+    # 119j) Common U.S. Government phrases stay joined even before uppercase followers
     (
         "The U.S. Government issued a statement.",
         ["The U.S. Government issued a statement."],
+    ),
+    (
+        "He worked for the U.S. Government office.",
+        ["He worked for the U.S. Government office."],
     ),
     # 119k) H.R. followed by a number does not split
     (

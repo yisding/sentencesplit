@@ -87,9 +87,6 @@ The Latin branch is `b[a-z](?:\.[a-z])+[.]` — a literal `b` — instead of wor
 **Exclamation-word entries lack word-boundary anchoring; brand names suppress genuine sentence-final boundaries** — *low* — `sentencesplit/exclamation_words.py:18-22`
 No `\b`/lookaround, so listed tokens match as substrings (`'xYum!'` → `'xYum&ᓴ&'`), and `Yahoo!`/`Yum!`/`Y!J` protect their `!` even sentence-finally: `Segmenter('en').segment('I really love Yahoo! Do you?')` → one segment. *Fix:* anchor click-language entries with a trailing non-space requirement, and for brand names only protect `!` when *not* followed by whitespace + a sentence-start. Any change must not regress mid-sentence golden rules (test_english.py:108-109, test_english_clean.py:194 `"He works at Yahoo! and Y!J."`). Add a regression test covering `'Yahoo! Sentence.'` *and* asserting the existing merged cases still pass.
 
-**Danish `AbbreviationReplacer.replace_abbreviation_as_sentence_boundary` is drifted copy-paste with unescaped dots** — *low* — `sentencesplit/lang/danish.py:43-47`
-A hand-rolled reimplementation that predates the cached base `_get_boundary_regex()`: it rebuilds the regex on every call and uses unescaped dots (`i.v`, `s.u`, `s.U`), so `.` matches any char. The mis-fire requires the placeholder `∯` in an exact shape immediately before a Danish starter — essentially never produced for arbitrary letters, so it is a maintainability issue, not a live regression. *Fix:* delete the override and add a properly-escaped `SENTENCE_BOUNDARY_ABBREVIATIONS` class attribute (Danish already defines `SENTENCE_STARTERS`), letting the cached base run.
-
 **Danish `"lb."` abbreviation entry is redundant** — *low* — `sentencesplit/lang/danish.py:252`
 Stored with a trailing period, so its key becomes `lb.` and it can only match `lb..`. **Not** a correctness bug: bare `"lb"` already exists at line 251 and correctly protects the period (segmentation output is identical with or without line 252). *Fix:* simply delete line 252 (do not "change to `lb`", which would duplicate line 251).
 
@@ -136,16 +133,10 @@ Byte-identical `ReplaceColonBetweenNumbersRule`, `ReplaceNonSentenceBoundaryComm
 
 ## Cross-language consistency
 
-(The Hindi boundary-regex asymmetry, Kazakh typo, Arabic/Persian duplication, Kazakh dotted-list dead weight, Deutsch/Italian/Dutch data defects, the English no-op override below, and the CJK reporting-clause / CjkAbbreviationRules duplication are the seam-level cross-language issues; most are detailed under Correctness & Architecture above to avoid duplication.)
-
-**`English.AbbreviationReplacer` is a no-op override identical to `Standard.AbbreviationReplacer`** — *low* — `sentencesplit/lang/english.py:9-14`
-The nested class only sets `SENTENCE_STARTERS` to a value identical to `Standard`'s, adding nothing (English already inherits Standard), contradicting the project's recent boilerplate-removal direction. *Fix:* delete the nested class and the now-unused import. Safe because `en_legal.py:164` and `en_es_zh.py:47` both reference `English.AbbreviationReplacer.SENTENCE_STARTERS` but fall through the MRO to `Standard` (verified) — no caller edits needed.
+(The Hindi boundary-regex asymmetry, Kazakh typo, Arabic/Persian duplication, Kazakh dotted-list dead weight, Deutsch/Italian/Dutch data defects, and the CJK reporting-clause / CjkAbbreviationRules duplication are the seam-level cross-language issues; most are detailed under Correctness & Architecture above to avoid duplication.)
 
 **Empty `__init__` overrides that only call `super()` remain in three modules** — *low* — `sentencesplit/lang/danish.py:40-41`, `sentencesplit/lang/deutsch.py:31-32,217-218`, `sentencesplit/lang/kazakh.py:20-21`
 Pure boilerplate that contradicts commit 78ae045's cleanup. *Fix:* delete the no-op `__init__` methods in `Danish.AbbreviationReplacer`, `Deutsch.Processor`, `Deutsch.AbbreviationReplacer`, and `Kazakh.Processor`.
-
-**Inconsistent escaping of `SENTENCE_STARTERS` between the two regexes that consume them** — *low* — `sentencesplit/abbreviation_replacer.py:207 vs 297`
-`_get_boundary_regex` interpolates starters raw (`'(?=\s{}\s)'.format(word)`) while `_prepositive_suffix` uses `re.escape`. All current starters are plain words, but a future metacharacter-containing starter would misbehave. A third raw site exists at `sentencesplit/lang/danish.py:44`. *Fix:* apply `re.escape()` at line 207 and danish.py:44 to unify treatment.
 
 **English-specific `for N. x` guard hardcoded in the generic list replacer** — *low* — `sentencesplit/lists_item_replacer.py:126-136`
 `add_line_breaks_for_numbered_list_with_periods()` suppresses splits matching the literal English regex `r"for\s\d{1,2}♨\s[a-z]"` (the placeholder is `♨` U+2668, not `♧`), living in the shared base used by all 24 languages. Blast radius is narrow (the trailing `[a-z]` limits firing to Latin-script followers). *Fix:* move the locale phrase into an overridable class attribute (e.g. `NUMBERED_LIST_FALSE_POSITIVE_RE`).
@@ -311,4 +302,3 @@ independently re-verified** by an adversarial skeptic that re-read the cited sou
 | `tests` | 6 | 6 |
 | `perf` | 4 | 4 |
 | `docs` | 4 | 4 |
-

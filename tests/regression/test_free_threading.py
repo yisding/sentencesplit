@@ -41,7 +41,6 @@ def _cold_lazy_state(codes: set[str]):
 
     with AbbreviationReplacer._cache_lock:
         AbbreviationReplacer._data_cache.clear()
-        AbbreviationReplacer._boundary_regex_cache.clear()
 
     try:
         yield
