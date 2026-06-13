@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 from __future__ import annotations
 
-import inspect
 import re
 from collections import deque
 from threading import RLock
@@ -137,7 +136,6 @@ class _AbbreviationData:
 
 class AbbreviationReplacer:
     _data_cache: dict[type, _AbbreviationData] = {}
-    _sentence_start_offset_cache: dict[type, bool] = {}
     _cache_lock = RLock()
     CAPITALIZED_FOLLOWER_IS_BOUNDARY_CUE = False
     PROTECT_ALLCAPS_IMPRINT_SUFFIXES = False
@@ -204,14 +202,6 @@ class AbbreviationReplacer:
     def _leans_join(self) -> bool:
         """True in 'conservative' mode: resolve ambiguous abbreviations toward joining."""
         return split_mode_rank(self.split_mode) <= 0
-
-    @property
-    def _capitalized_follower_is_boundary_cue(self) -> bool:
-        return self.CAPITALIZED_FOLLOWER_IS_BOUNDARY_CUE
-
-    @property
-    def _protect_allcaps_imprint_suffixes(self) -> bool:
-        return self.PROTECT_ALLCAPS_IMPRINT_SUFFIXES
 
     @staticmethod
     def _initials_chain_start(text: str, sep_index: int) -> int | None:
@@ -289,28 +279,13 @@ class AbbreviationReplacer:
         """Check if the next non-space character in *text* looks like a sentence start.
 
         Subclasses (e.g. en_es_zh) can override to recognise additional scripts
-        such as CJK ideographs.
+        such as CJK ideographs. The supported override signature is
+        ``(self, text, start=0)``.
         """
         return _next_nonspace_char_is_upper(text, start)
 
-    @classmethod
-    def _sentence_start_accepts_offset(cls) -> bool:
-        with AbbreviationReplacer._cache_lock:
-            cached = AbbreviationReplacer._sentence_start_offset_cache.get(cls)
-            if cached is None:
-                try:
-                    inspect.signature(cls._is_likely_sentence_start).bind(object(), "", 0)
-                except TypeError:
-                    cached = False
-                else:
-                    cached = True
-                AbbreviationReplacer._sentence_start_offset_cache[cls] = cached
-            return cached
-
     def _is_likely_sentence_start_at(self, text: str, start: int) -> bool:
-        if type(self)._sentence_start_accepts_offset():
-            return self._is_likely_sentence_start(text, start)
-        return self._is_likely_sentence_start(text[start:])
+        return self._is_likely_sentence_start(text, start)
 
     def _is_capital_sentence_start_at(self, text: str, start: int) -> bool:
         if start >= len(text):
@@ -398,7 +373,7 @@ class AbbreviationReplacer:
         boundaries after other abbreviations ("IT HAPPENED IN DEC. THE END.")
         still split.
         """
-        if not self._protect_allcaps_imprint_suffixes:
+        if not self.PROTECT_ALLCAPS_IMPRINT_SUFFIXES:
             return self.text
 
         def _protect(match):
@@ -592,10 +567,6 @@ class AbbreviationReplacer:
         txt = re.sub(rf"(?<=[{boundary}]{am_escaped}∯)\s\?\?(?!\?)", f" {self._UNKNOWN_PLACEHOLDER}", txt)
         return txt[1:]
 
-    def _prepositive_suffix(self, am_lower: str, upper: bool, char: str) -> str:
-        """Return the regex suffix pattern for protecting a prepositive abbreviation."""
-        return r"\.(?=(\s|:\d+))"
-
     def _replace_starter_aware_prepositive(self, txt: str, am_escaped: str, boundary: str) -> str:
         txt = " " + txt
         pattern = re.compile(rf"(?<=[{boundary}]{am_escaped})\.(?=(\s|:\d+))")
@@ -616,7 +587,7 @@ class AbbreviationReplacer:
             char = char_array[ind]
         except IndexError:
             char = ""
-        use_case_heuristic = self._capitalized_follower_is_boundary_cue
+        use_case_heuristic = self.CAPITALIZED_FOLLOWER_IS_BOUNDARY_CUE
         upper = char.isupper() if (char and use_case_heuristic) else False
         am_stripped = am.strip()
         # Strip leading elision characters (e.g. apostrophe in "l'Avv") so the
@@ -634,8 +605,7 @@ class AbbreviationReplacer:
                     if am_lower in self.STARTER_AWARE_PREPOSITIVE and self._leans_split:
                         txt = self._replace_starter_aware_prepositive(txt, am_escaped, boundary)
                     else:
-                        suffix = self._prepositive_suffix(am_lower, upper, char)
-                        txt = _replace_with_escape(txt, am_escaped, suffix, "∯", boundary)
+                        txt = _replace_with_escape(txt, am_escaped, r"\.(?=(\s|:\d+))", "∯", boundary)
             elif am_lower in self._data.number_abbr_set:
                 txt = self._replace_number_abbr(txt, am_escaped, boundary, upper)
                 # Multi-char number abbreviations (eq, pt, fig, vol, …) also
