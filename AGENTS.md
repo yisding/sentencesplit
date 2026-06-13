@@ -53,11 +53,12 @@ CI in `.github/workflows/python-package.yml` runs lint + tests on Python 3.11, 3
 - For language-rule changes, update or add the relevant Golden Rules file in `tests/lang/` and verify the language remains registered in `tests/test_languages.py`.
 
 ## Commit & Pull Request Guidelines
-- Commit messages MUST follow the [Conventional Commits](https://www.conventionalcommits.org/) spec — releases are cut by `python-semantic-release` (configured in `pyproject.toml` with `commit_parser = "conventional"`), which derives the next version from commit types.
+- Commit messages MUST follow the [Conventional Commits](https://www.conventionalcommits.org/) spec — releases are cut by `python-semantic-release` (configured in `pyproject.toml` with `commit_parser = "conventional"`), which uses commit types to group changelog entries.
+- The release workflow (`.github/workflows/release.yml`) does NOT derive the version number from commit types: the bump is chosen manually from a `workflow_dispatch` dropdown (`patch` / `minor` / `major` / `prerelease`) that forces the corresponding level. So whoever cuts a release must pick the right level by hand — a cycle containing any `feat:` must ship as a minor, and any breaking change as a major. (Next release: pick **minor** → 0.1.0, since `feat: support free-threaded Python` landed since v0.0.5.)
 - Format: `<type>(<optional scope>): <imperative subject>`. Examples:
-  - `fix(lookahead): refine handling for quoted terminal periods` (→ patch)
-  - `feat(lang): add Vietnamese segmentation profile` (→ minor)
-  - `feat!: drop Python 3.10 support` or a `BREAKING CHANGE:` footer (→ major)
+  - `fix(lookahead): refine handling for quoted terminal periods` (release as patch)
+  - `feat(lang): add Vietnamese segmentation profile` (release as minor)
+  - `feat!: drop Python 3.10 support` or a `BREAKING CHANGE:` footer (release as major)
 - Allowed types: `feat`, `fix`, `perf`, `refactor`, `docs`, `test`, `build`, `ci`, `chore`, `style`, `revert`. Use `fix`/`feat`/`perf`/`refactor` for anything that should appear in the changelog; use `chore`/`docs`/`test`/`ci`/`build` for non-release-worthy work.
 - Keep the subject short, imperative, and specific. Put rationale and details in the body.
 - Keep commits focused; separate refactors/formatting from behavior changes when practical.
