@@ -192,11 +192,12 @@ def test_split_mode_handles_i_boundary_without_royal_name_split():
     ]
 
 
-def test_german_override_restores_standalone_i_boundary():
+@pytest.mark.parametrize("language", ["en", "en_legal", "en_es_zh"])
+def test_english_profiles_restore_standalone_i_boundary(language):
     text = "We make a good team, you and I. Did it work."
 
     for mode in ("conservative", "balanced", "aggressive"):
-        assert _segments("de", text, mode) == ["We make a good team, you and I.", "Did it work."]
+        assert _segments(language, text, mode) == ["We make a good team, you and I.", "Did it work."]
 
 
 def test_split_mode_aggressive_splits_i_after_heading_like_name_continuation():

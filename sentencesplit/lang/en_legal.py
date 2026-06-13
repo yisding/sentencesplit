@@ -162,6 +162,7 @@ class EnglishLegal(Common, Standard):
     class AbbreviationReplacer(AbbreviationReplacer):
         CAPITALIZED_FOLLOWER_IS_BOUNDARY_CUE = True
         PROTECT_ALLCAPS_IMPRINT_SUFFIXES = True
+        RESTORE_STANDALONE_I_BOUNDARIES = True
         # Court/tribunal abbreviations that are prepositive (e.g. "Bankr. Court")
         # but can also legitimately end a sentence (e.g. "The 9th Cir. The panel
         # reversed."). split_mode controls whether ambiguous capitalized

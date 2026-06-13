@@ -52,6 +52,7 @@ class EnglishSpanishChinese(CJKBoundaryProfile, Common, Standard):
     class AbbreviationReplacer(AbbreviationReplacer):
         CAPITALIZED_FOLLOWER_IS_BOUNDARY_CUE = True
         PROTECT_ALLCAPS_IMPRINT_SUFFIXES = True
+        RESTORE_STANDALONE_I_BOUNDARIES = True
 
         def replace_period_of_abbr(self, txt: str, abbr: str, escaped: str | None = None) -> str:
             txt = " " + txt

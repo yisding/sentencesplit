@@ -8,3 +8,4 @@ class English(Common, Standard):
     class AbbreviationReplacer(Standard.AbbreviationReplacer):
         CAPITALIZED_FOLLOWER_IS_BOUNDARY_CUE = True
         PROTECT_ALLCAPS_IMPRINT_SUFFIXES = True
+        RESTORE_STANDALONE_I_BOUNDARIES = True

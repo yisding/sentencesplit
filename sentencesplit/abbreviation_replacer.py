@@ -141,6 +141,7 @@ class AbbreviationReplacer:
     _cache_lock = RLock()
     CAPITALIZED_FOLLOWER_IS_BOUNDARY_CUE = False
     PROTECT_ALLCAPS_IMPRINT_SUFFIXES = False
+    RESTORE_STANDALONE_I_BOUNDARIES = False
 
     # Opt-in for scripts (e.g. Greek, Cyrillic) that do not capitalize common
     # nouns mid-sentence: there, a capital letter following a multi-period
@@ -358,7 +359,8 @@ class AbbreviationReplacer:
         self.text = re.sub(r"(?<=[A-Z]∯[A-Z]∯[A-Z])∯(?=\s)", restore_uppercase_initialism_boundary, self.text)
         self.text = self.protect_allcaps_imprint_abbreviations()
         self.apply_ampm_boundary_rules()
-        self.text = self.restore_standalone_i_boundaries()
+        if self.RESTORE_STANDALONE_I_BOUNDARIES:
+            self.text = self.restore_standalone_i_boundaries()
         return self.text
 
     def apply_ampm_boundary_rules(self, restore_non_ascii: bool = True) -> None:
