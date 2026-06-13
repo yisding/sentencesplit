@@ -4,6 +4,7 @@ from __future__ import annotations
 import re
 from itertools import product
 
+from sentencesplit.abbreviation_replacer import AbbreviationReplacer
 from sentencesplit.exclamation_words import ExclamationWords
 from sentencesplit.language_profile import LanguageProfile
 from sentencesplit.utils import (
@@ -92,6 +93,32 @@ def _quote_abbreviation_scan_text(text: str) -> str:
     return text.translate(_QUOTE_ABBREVIATION_SCAN_TRANS)
 
 
+# ``replace_abbreviations`` rewrites ``<number-abbr>∯ ??`` to
+# ``<number-abbr>∯ <_UNKNOWN_PLACEHOLDER>`` (e.g. "No. ??" -> "No∯ &ᓷ&&ᓷ&").
+# That expansion (3 input chars "\s??" -> 7 chars " " + placeholder) is the only
+# operation that makes the abbreviation-protected scan a different length than
+# the restored segment. _resplit_multi_sentence_quote only consults the protected
+# scan to ask whether a candidate boundary period is an abbreviation sentinel
+# ("∯"), so collapsing this single expansion back to its original literal " ??"
+# restores exact length parity without disturbing any ∯ position.
+_UNKNOWN_PLACEHOLDER_EXPANSION = " " + AbbreviationReplacer._UNKNOWN_PLACEHOLDER
+
+
+def _length_align_protected_scan(protected_text: str | None, text: str) -> str | None:
+    """Restore length parity between the protected scan and the restored segment.
+
+    Returns *protected_text* with the (non-length-preserving) unknown-placeholder
+    expansion collapsed back to its literal ``" ??"``. When the result is the same
+    length as *text* it is positionally aligned with it and the ``∯`` sentinel
+    lookup is valid; otherwise ``None`` is returned so the caller falls back to the
+    unprotected scan rather than reading a misaligned position.
+    """
+    if protected_text is None:
+        return None
+    aligned = protected_text.replace(_UNKNOWN_PLACEHOLDER_EXPANSION, " ??")
+    return aligned if len(aligned) == len(text) else None
+
+
 def _resplit_multi_sentence_quote(
     text: str,
     min_interior_sentences: int = _QUOTE_MIN_INTERIOR_SENTENCES,
@@ -120,7 +147,12 @@ def _resplit_multi_sentence_quote(
     if any(char in _ANY_QUOTE_CHARS for char in inner):
         return None
 
-    protected = protected_text if protected_text is not None and len(protected_text) == len(text) else text
+    # Use the abbreviation-protected scan only when it is positionally aligned
+    # with *text*. The unknown-placeholder expansion ("No. ??" -> "No∯ &ᓷ&&ᓷ&")
+    # is the lone length-changing rewrite; collapsing it restores parity so an
+    # abbreviation period inside the quote is still recognized as a sentinel and
+    # not over-split. If alignment cannot be restored, fall back to *text*.
+    protected = _length_align_protected_scan(protected_text, text) or text
     spans = []
     last = 0
     for boundary in _QUOTE_INTERIOR_BOUNDARY_RE.finditer(text):

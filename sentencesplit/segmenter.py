@@ -134,6 +134,19 @@ class Segmenter:
             by default "en"
         clean : bool, optional
             cleans original text, by default False
+
+            .. note::
+               Internally the pipeline protects punctuation with private
+               sentinel tokens. Single-char sentinels in the input are escaped
+               and restored verbatim, but the multi-char ``&X&`` sentinels (e.g.
+               ``&ᓴ&`` for ``!``, ``&ᓷ&`` for ``?``) are not. With ``clean=True``
+               the cleaned segments are returned directly, so an input that
+               literally contains such a token is rewritten to its punctuation
+               form on output (``&ᓴ&`` -> ``!``). These tokens are private-use /
+               unusual codepoints and are realistically absent from natural
+               text. Use the default ``clean=False`` (or :meth:`segment_spans`),
+               whose output is reconstructed from the original text, when a
+               byte-exact round-trip of such input is required.
         doc_type : [type], optional
             Normal text or OCRed text, by default None
             set to `pdf` for OCRed text
