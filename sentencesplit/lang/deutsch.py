@@ -224,8 +224,9 @@ class Deutsch(Common, Standard):
             # German never restored non-ASCII a.m./p.m. boundaries; keep that
             # while honoring the conservative split-bias dial.
             self.apply_ampm_boundary_rules(restore_non_ascii=False)
-            if self.RESTORE_STANDALONE_I_BOUNDARIES:
-                self.text = self.restore_standalone_i_boundaries()
+            # No standalone-"I" boundary restoration: "I" is not a German
+            # pronoun, so RESTORE_STANDALONE_I_BOUNDARIES stays False for German
+            # (only english / en_legal / en_es_zh enable it).
             return self.text
 
         def scan_for_replacements(self, txt, am, index, character_array, stripped=None, escaped=None):

@@ -46,6 +46,12 @@ _ZERO_WIDTH_CHARS = frozenset(ZERO_WIDTH_CHARS)
 _ZERO_WIDTH_TRANSLATION = {ord(c): None for c in _ZERO_WIDTH_CHARS}
 _ZERO_WIDTH_CLASS = re.escape("".join(_ZERO_WIDTH_CHARS))
 
+# Above this length, the whole-sentence flexible-regex span fallback (which
+# emits ~8 pattern chars per input char with no cache) is replaced by a linear
+# whitespace/zero-width-tolerant index walk. Real sentences are far shorter than
+# this; the cap exists only to bound CPU on adversarial single-"sentence" input.
+_REGEX_FALLBACK_MAX_LEN = 4096
+
 
 def _strip_zero_width(text: str, punctuations=None) -> str:
     """Drop boundary zero-width/format characters from a (plain, non-span) segment.
@@ -134,6 +140,19 @@ class Segmenter:
             by default "en"
         clean : bool, optional
             cleans original text, by default False
+
+            .. note::
+               Internally the pipeline protects punctuation with private
+               sentinel tokens. Single-char sentinels in the input are escaped
+               and restored verbatim, but the multi-char ``&X&`` sentinels (e.g.
+               ``&ᓴ&`` for ``!``, ``&ᓷ&`` for ``?``) are not. With ``clean=True``
+               the cleaned segments are returned directly, so an input that
+               literally contains such a token is rewritten to its punctuation
+               form on output (``&ᓴ&`` -> ``!``). These tokens are private-use /
+               unusual codepoints and are realistically absent from natural
+               text. Use the default ``clean=False`` (or :meth:`segment_spans`),
+               whose output is reconstructed from the original text, when a
+               byte-exact round-trip of such input is required.
         doc_type : [type], optional
             Normal text or OCRed text, by default None
             set to `pdf` for OCRed text
@@ -362,6 +381,15 @@ class Segmenter:
         if start_idx != -1:
             return start_idx, start_idx + len(sent)
 
+        # The processed sentence diverges from the original (post-processing may
+        # normalize spaces around punctuation, drop boundary zero-width chars,
+        # etc.). For long sentences, building/compiling a per-character regex
+        # from the whole sentence is O(N) work per call (CPU amplification on
+        # attacker-controlled input length), so fall back to a linear,
+        # whitespace/zero-width-tolerant index walk instead.
+        if len(sent) > _REGEX_FALLBACK_MAX_LEN:
+            return self._find_sentence_start_tolerant(sent, original_text, prior_end)
+
         # Some post-processing rules may normalize spaces around punctuation,
         # so allow flexible whitespace when mapping back to original text.
         whitespace_flexible = re.escape(sent).replace(r"\ ", r"\s*")
@@ -374,6 +402,64 @@ class Segmenter:
         start_idx = prior_end + match.start()
         end_idx = prior_end + match.end()
         return start_idx, end_idx
+
+    @staticmethod
+    def _match_tolerant_at(sent: str, original_text: str, start: int):
+        """Match ``sent`` against ``original_text`` starting at ``start``.
+
+        Mirrors the zero-width-flexible regex fallback without compiling a
+        per-character pattern: between any two characters a run of zero-width
+        characters may be skipped, and where ``sent`` has whitespace a run of
+        whitespace-or-zero-width may be consumed (including the empty run).
+        Returns the end index in ``original_text`` on success, else ``None``.
+        """
+        n = len(original_text)
+        oi = start
+        for ch in sent:
+            # Skip an optional run of zero-width chars (the inter-char joiner).
+            while oi < n and original_text[oi] in _ZERO_WIDTH_CHARS:
+                oi += 1
+            if ch.isspace():
+                # A whitespace char in sent matches zero-or-more
+                # whitespace-or-zero-width chars in the original.
+                while oi < n and (original_text[oi].isspace() or original_text[oi] in _ZERO_WIDTH_CHARS):
+                    oi += 1
+                continue
+            if oi >= n or original_text[oi] != ch:
+                return None
+            oi += 1
+        # Trailing inter-char joiner run (the regex appends one after the
+        # final character as well).
+        while oi < n and original_text[oi] in _ZERO_WIDTH_CHARS:
+            oi += 1
+        return oi
+
+    def _find_sentence_start_tolerant(self, sent: str, original_text: str, prior_end: int):
+        """Linear fallback for long divergent sentences.
+
+        Scans candidate start positions left-to-right (like ``re.search``) and
+        returns the first whitespace/zero-width-tolerant match. The first
+        character of ``sent`` is non-flexible here in practice (processor
+        divergences are interior/trailing whitespace and zero-width trims), so
+        anchoring on it via ``str.find`` keeps the scan linear.
+        """
+        first = sent[0]
+        if first.isspace() or first in _ZERO_WIDTH_CHARS:
+            # Defensive: the literal-prefix anchor below assumes a concrete
+            # first character. If the sentence starts with flexible content,
+            # we cannot match it without re-anchoring, so report no match and
+            # let the caller emit a contiguous fallback span.
+            return None
+
+        search_from = prior_end
+        while True:
+            candidate = original_text.find(first, search_from)
+            if candidate == -1:
+                return None
+            end_idx = self._match_tolerant_at(sent, original_text, candidate)
+            if end_idx is not None:
+                return candidate, end_idx
+            search_from = candidate + 1
 
     def _zero_width_flexible_pattern(self, sent: str) -> str:
         joiner = rf"[{_ZERO_WIDTH_CLASS}]*"

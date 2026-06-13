@@ -131,6 +131,39 @@ def test_orphan_merge_does_not_swallow_short_sentences(text, expected):
 
 
 # ---------------------------------------------------------------------------
+# Orphan-content hook seam (pre-release review findings 9/10).
+# The base Processor exposes `_is_orphan_content_char` so the en_es_zh combined
+# profile can widen "content" to CJK ideographs by overriding ONLY that hook,
+# instead of copying the whole `_merge_orphan_fragments` body.
+# ---------------------------------------------------------------------------
+def test_orphan_content_char_hook_is_overridable_seam():
+    from sentencesplit.lang.en_es_zh import EnglishSpanishChinese
+    from sentencesplit.processor import Processor
+
+    # Both classes expose the hook; en_es_zh defines its own (does not inherit).
+    assert "_is_orphan_content_char" in Processor.__dict__
+    assert "_is_orphan_content_char" in EnglishSpanishChinese.Processor.__dict__
+
+    base = Processor._is_orphan_content_char
+    combined = EnglishSpanishChinese.Processor._is_orphan_content_char
+
+    # Latin/digit content counts as orphan content for both.
+    assert base(None, "a") is True
+    assert base(None, "7") is True
+    assert combined(None, "a") is True
+    # A char that is in the CJK following-char range but is NOT alphanumeric
+    # (e.g. the hexagram symbol U+4DC0) is the exact delta the combined override
+    # widens: base rejects it, combined accepts it.
+    cjk_non_alnum = "䷀"  # ䷀, matched by _CJK_FOLLOWING_CHAR_RE, isalnum() is False
+    assert cjk_non_alnum.isalnum() is False
+    assert base(None, cjk_non_alnum) is False
+    assert combined(None, cjk_non_alnum) is True
+    # Pure punctuation is content for neither.
+    assert base(None, ".") is False
+    assert combined(None, ".") is False
+
+
+# ---------------------------------------------------------------------------
 # Cleaner fixes.
 # ---------------------------------------------------------------------------
 def test_escaped_html_rule_preserves_escaped_comparisons():

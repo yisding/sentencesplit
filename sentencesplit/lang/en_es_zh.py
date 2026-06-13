@@ -17,10 +17,8 @@ from sentencesplit.lang.spanish import Spanish
 from sentencesplit.processor import (
     _CJK_BANG_RESPLIT_RE,
     _CJK_QUOTE_RESPLIT_RE,
-    _ELLIPSIS_RE,
     _LATIN_RESPLIT_RE,
     _MULTI_TERMINATOR_RESPLIT_RE,
-    _ORPHAN_SINGLE_CHARS,
     Processor,
     _split_on_uppercase_boundary,
 )
@@ -175,14 +173,21 @@ class EnglishSpanishChinese(CJKBoundaryProfile, Common, Standard):
                         continue
                     for part in _CJK_QUOTE_RESPLIT_RE.split(latin_part):
                         resplit.extend(p for p in _CJK_BANG_RESPLIT_RE.split(part) if p)
-            return self._merge_quote_continuations(resplit or postprocessed_sents)
+            return self._merge_combined_quote_continuations(resplit or postprocessed_sents)
 
-        def _merge_quote_continuations(self, sentences: list[str]) -> list[str]:
+        # NOTE: distinct from CJKProcessor._merge_quote_continuations /
+        # _should_merge_quote_continuation (lang/common/cjk.py). The combined
+        # profile does not set CJK_REPORTING_CLAUSE_REGEX (its profile value is
+        # None), so it cannot take the regex from self.profile like the CJK
+        # variants do; it hardcodes the module-global CJK_REPORTING_CLAUSE_RE and
+        # adds extra Latin-closer / separator handling. The differently-named
+        # methods make that divergence explicit rather than a silent overload.
+        def _merge_combined_quote_continuations(self, sentences: list[str]) -> list[str]:
             merged: list[str] = []
             idx = 0
             while idx < len(sentences):
                 current = sentences[idx]
-                if merged and self._should_merge_quote_continuation(merged[-1], current):
+                if merged and self._should_merge_combined_quote_continuation(merged[-1], current):
                     separator = "" if _CJK_FOLLOWING_CHAR_RE.match(current.lstrip()) else " "
                     merged[-1] = merged[-1] + separator + current.lstrip()
                 else:
@@ -190,7 +195,7 @@ class EnglishSpanishChinese(CJKBoundaryProfile, Common, Standard):
                 idx += 1
             return merged
 
-        def _should_merge_quote_continuation(self, previous: str, current: str) -> bool:
+        def _should_merge_combined_quote_continuation(self, previous: str, current: str) -> bool:
             previous = previous.rstrip()
             current = current.lstrip()
             if not previous or not current:
@@ -209,30 +214,7 @@ class EnglishSpanishChinese(CJKBoundaryProfile, Common, Standard):
                 return True
             return False
 
-        def _merge_orphan_fragments(self, sentences: list[str]) -> list[str]:
-            merged = []
-            for sent in sentences:
-                stripped = sent.strip()
-                is_orphan = False
-                if stripped and merged:
-                    if _ELLIPSIS_RE.match(stripped):
-                        is_orphan = True
-                    elif len(stripped) == 1 and stripped in _ORPHAN_SINGLE_CHARS:
-                        is_orphan = True
-                    elif (
-                        len(stripped) <= 10
-                        and stripped.endswith(".")
-                        and not stripped[0].isupper()
-                        and stripped[0] not in ")]}"
-                        and " " not in stripped[:-1]
-                        and any(c.isalnum() or _CJK_FOLLOWING_CHAR_RE.match(c) for c in stripped)
-                    ):
-                        is_orphan = True
-                if is_orphan:
-                    if len(stripped) == 1 and stripped in _ORPHAN_SINGLE_CHARS:
-                        merged[-1] = merged[-1] + sent
-                    else:
-                        merged[-1] = merged[-1] + " " + sent
-                else:
-                    merged.append(sent)
-            return merged
+        def _is_orphan_content_char(self, c: str) -> bool:
+            # Combined profile also treats CJK ideographs as orphan content so a
+            # short CJK fragment ending in "." merges like a Latin abbreviation.
+            return c.isalnum() or bool(_CJK_FOLLOWING_CHAR_RE.match(c))
