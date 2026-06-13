@@ -1,3 +1,37 @@
+<!-- version list -->
+
+# v0.1.0 (Unreleased)
+- feat: support free-threaded (no-GIL) Python builds.
+- refactor(lang): remove the hard-coded sentence-starter word lists; route starter/abbreviation boundary decisions through `split_mode` instead, with the prior behavior characterized by new split-mode tests.
+- fix(abbrev): route dotted acronyms and two-letter initialisms through `split_mode`; scope the standalone `I` boundary restoration and preserve abbreviations during quoted resplit.
+- fix(lang): resplit `en_es_zh` multi-terminator boundaries; restore empty `AbbreviationReplacer` overrides so languages no longer inherit English starters; preserve Kazakh and Russian abbreviation handling.
+- fix(lookahead): ignore boundary zero-width characters and linearize zero-width stripping before closers.
+- fix(processor): bound sentinel delimiter selection and delimit the sentinel escape fallback.
+- fix(en): narrow the all-caps imprint abbreviation guard.
+- fix(list): preserve lowercase numbered-item splits.
+- fix(spacy): preserve the positional `language` argument.
+- fix(security): avoid repeated boundary-lookahead slicing.
+- test: reorganize the suite structure and consolidate shared test helpers.
+- ci: pin `uv run` interpreters.
+
+# v0.0.5 (2026-06-12)
+- feat(api): add `list_languages()` discovery, package metadata, and a zero-dependency guard; add `register_language`/`unregister_language`; validate `doc_type`; add a package-rooted exception hierarchy.
+- feat(stream): add `StreamSegmenter` for first-class streaming segmentation.
+- feat(split_mode): generalize `split_mode` into a 3-level oversplit/undersplit bias and apply the dials in the German and `en_es_zh` replacer overrides.
+- deprecate(api): soft-deprecate the `char_span` parameter (`.. deprecated:: 0.0.5`). It is retained indefinitely as a convenience alias with no planned removal; prefer `segment_spans()`. First use now emits a one-time `DeprecationWarning`.
+- fix(spans): `segment_spans()` now guarantees a byte-faithful round-trip back to the original text, enforced by new property-based tests.
+- fix(stream): drive bookkeeping on byte-exact spans to stop zero-width drift; hold non-final spans abutting a terminal cluster; compact the buffer at confirmed boundaries; keep the `char_span` flush type contract for trailing whitespace; re-segment only the unemitted tail.
+- fix(cleaner): harden HTML/TOC handling against ReDoS and quadratic backtracking; fix escaped-HTML prose, escaped-newline order, and PDF de-hyphenation.
+- fix(processor): protect input sentinels and restore sentinel escapes atomically to keep the round-trip safe; re-split multi-character terminators and multi-sentence quotations before a capital; fix orphan merge.
+- fix(abbreviation): avoid quadratic initials scans; keep initials-chain walks ASCII-only; protect number abbreviations before unknown placeholders; keep chained single-letter initials attached to a surname.
+- fix(ellipsis): protect leading dot-runs and keep glued run-on scans linear.
+- fix(lang): per-language boundary fixes for Spanish (period-before-comma, trailing zero-width-space phantoms), Dutch opening-quote, German consecutive ordinals, Greek multi-period abbreviations, Russian abbreviations/inline language tags, and Arabic-script period protection.
+- perf: lazily resolve package metadata to cut import time; dedup abbreviation occurrences and cache `LanguageProfile.from_language`.
+- refactor(api): add `__all__`; type the mode parameters as `Literal` aliases; add a scoped mypy gate for the public type surface.
+- test(regression-gate): add a hermetic CI gate scoring `sentencesplit` against committed gold output.
+- docs: document the versioning and output-stability policy; document the `StreamSegmenter` wrapper in the README; expand project URLs and add `SECURITY.md` + `CITATION.cff`.
+- ci: pin the PyPI publish action and CI actions to immutable SHAs; assert the built wheel ships `py.typed` and all language modules; set least-privilege token permissions.
+
 # v0.0.4 (2026-05-10)
 - feat(api): export `TextSpan` from the package root.
 - feat(typing): add a `py.typed` marker so type checkers see inline types.
