@@ -1346,3 +1346,14 @@ def test_glued_lowercase_run_on_protects_leading_dot_runs(case_id, text, expecte
     stay intact under clean=False, matching the original per-dot lookbehind."""
     seg = sentencesplit.Segmenter(language="en", clean=False)
     assert seg.segment(text) == expected
+
+
+def test_en_es_zh_resplits_protected_number_abbreviation_unknown_placeholder():
+    """The combined profile must resplit restored ?? after number abbreviations.
+
+    Its custom CJK-aware resplit path should preserve the base Latin multi-terminator
+    behavior used by English after protected unknown punctuation placeholders are restored.
+    """
+    seg = sentencesplit.Segmenter(language="en_es_zh", clean=False)
+
+    assert seg.segment("Fig. ?? Next sentence.") == ["Fig. ?? ", "Next sentence."]

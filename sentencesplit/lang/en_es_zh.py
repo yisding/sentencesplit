@@ -20,6 +20,7 @@ from sentencesplit.processor import (
     _CJK_QUOTE_RESPLIT_RE,
     _ELLIPSIS_RE,
     _LATIN_RESPLIT_RE,
+    _MULTI_TERMINATOR_RESPLIT_RE,
     _ORPHAN_SINGLE_CHARS,
     Processor,
     _split_on_uppercase_boundary,
@@ -135,7 +136,9 @@ class EnglishSpanishChinese(CJKBoundaryProfile, Common, Standard):
         def _resplit_segments(self, postprocessed_sents: list[str]) -> list[str]:
             resplit = []
             for pps in postprocessed_sents:
-                latin_parts = _split_on_uppercase_boundary(pps, _LATIN_RESPLIT_RE)
+                latin_parts = _split_on_uppercase_boundary(pps, _LATIN_RESPLIT_RE) or _split_on_uppercase_boundary(
+                    pps, _MULTI_TERMINATOR_RESPLIT_RE
+                )
                 for latin_part in latin_parts or [pps]:
                     if not latin_part:
                         continue
