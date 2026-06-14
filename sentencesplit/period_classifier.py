@@ -100,8 +100,20 @@ class AbbrPolicy:
     # follower that sits immediately after the period). en_es_zh uses the CJK
     # ideograph class ``[㐀-鿿]`` here: "U.S.标准" / "etc.标准" protect even
     # without an intervening space. Woven into the regular / prepositive /
-    # number-lower suffix patterns. Base = "" (inert).
+    # number-lower suffix patterns (or the regular branch only, see
+    # ``cjk_follower_regular_only``). Base = "" (inert).
     cjk_follower_class: str = ""
+    # When True the ``cjk_follower_class`` alternative is woven ONLY into the
+    # REGULAR-branch suffix (and the number-branch's multi-char REGULAR
+    # fallthrough, which reuses ``RE_REGULAR``), NOT into the prepositive or
+    # number-lower suffixes. Standalone ``zh`` needs this: its legacy
+    # ``Chinese.AbbreviationReplacer`` overrode ONLY ``replace_period_of_abbr``
+    # (the regular branch), adding the CJK follower ``[一-鿿]`` there,
+    # while its prepositive / number branches inherited the base (no-CJK)
+    # suffixes. en_es_zh, by contrast, overrode the whole
+    # ``scan_for_replacements`` and wove CJK into every branch, so it leaves this
+    # False. Base = False.
+    cjk_follower_regular_only: bool = False
     # When True the capital-follower-is-boundary heuristic only fires for an
     # ASCII uppercase follower (en_es_zh): a non-ASCII uppercase follower
     # ("Sr. Élena") is NOT treated as a sentence-start cue, so it falls through
@@ -158,6 +170,40 @@ EN_ES_ZH_POLICY = AbbrPolicy(
     follower_class=r"[^\W\d_]",
     cjk_follower_class="[㐀-鿿]",  # CJK unified ideographs (Ext-A start .. BMP end)
     ascii_only_upper_heuristic=True,
+)
+
+# Standalone Chinese (Phase 5): the legacy ``Chinese.AbbreviationReplacer``
+# overrode ONLY ``replace_period_of_abbr`` (the regular branch), keeping the base
+# regular suffix and appending a CJK-ideograph follower alternative
+# ``[一-鿿]`` (the CJK Unified Ideographs BMP block, U+4E00..U+9FFF) with
+# NO leading ``\s`` — so "U.S.标准" / "etc.标准" protect even without an
+# intervening space (chinese.py:21-30). It did NOT override
+# ``scan_for_replacements``, so the PREPOSITIVE and NUMBER branches inherit the
+# base (no-CJK) suffixes, and it did NOT set
+# ``CAPITALIZED_FOLLOWER_IS_BOUNDARY_CUE``, so the capital-follower-is-boundary
+# heuristic never fires (CJK has no letter case; a Latin capital follower flows
+# through the normal split-mode dial in later passes). The base ``[a-z]``
+# follower class is kept verbatim.
+#
+# Differences from ``EN_ES_ZH_POLICY``:
+#   - follower_class ``[a-z]`` (base), not ``[^\W\d_]`` — zh's regular suffix is
+#     the unmodified base one; the combined profile widened it to any Unicode
+#     letter because it must also segment Spanish/English prose with accented
+#     followers, which standalone zh never does.
+#   - cjk_follower_class ``[一-鿿]`` (U+4E00..U+9FFF, no Ext-A), matching the zh
+#     override's literal range; the combined profile uses ``[㐀-鿿]``
+#     (U+3400..U+9FFF, includes Ext-A) to match its own resplit regexes.
+#   - cjk_follower_regular_only True — the CJK follower is woven ONLY into the
+#     regular branch, exactly as the zh override placed it, NOT into the
+#     prepositive / number-lower branches (which en_es_zh's whole-method override
+#     did weave it into). Verified order-independent + byte-identical to the
+#     legacy zh protection step over every zh Golden/challenging case and an
+#     adversarial prepositive/number-before-CJK corpus.
+#   - ascii_only_upper_heuristic left False (inert — the capital cue is off here).
+ZH_POLICY = AbbrPolicy(
+    follower_class="[a-z]",
+    cjk_follower_class="[一-鿿]",  # CJK Unified Ideographs (U+4E00..U+9FFF, BMP only)
+    cjk_follower_regular_only=True,
 )
 
 # German (Phase 5): the legacy ``Deutsch.AbbreviationReplacer`` overrode
@@ -471,9 +517,14 @@ class PeriodClassifier:
         # ``cjk`` is an extra follower alternative WITHOUT a leading ``\s`` (it
         # matches a CJK ideograph sitting immediately after the period). Base
         # policy leaves it empty, so ``cjk`` contributes nothing to any pattern.
+        # ``cjk_follower_regular_only`` (standalone zh) restricts that alternative
+        # to the REGULAR branch only, matching the legacy zh override that wove CJK
+        # into ``replace_period_of_abbr`` alone; ``cjk_other`` is then inert for the
+        # prepositive / number-lower suffixes (they keep the base no-CJK shape).
         cjk = ("|" + policy.cjk_follower_class) if policy.cjk_follower_class else ""
+        cjk_other = "" if policy.cjk_follower_regular_only else cjk
         self.RE_REGULAR = re.compile(r"\.(?=((\.|\:|-|\?|,)" + cjk + r"|(\s(" + fc + r"|I\s|I'm|I'll|\d|\())))")
-        self.RE_PREPOSITIVE = re.compile(r"\.(?=(\s|:\d+" + cjk + r"))")
+        self.RE_PREPOSITIVE = re.compile(r"\.(?=(\s|:\d+" + cjk_other + r"))")
         # The number UPPER arms intentionally carry NO ``cjk`` alternative: in the
         # legacy en_es_zh override the upper branch fires only for an ASCII-upper
         # follower (so the period is not adjacent to a CJK char), and a CJK
@@ -481,14 +532,14 @@ class PeriodClassifier:
         # number-lower arm below. Keeping CJK out here matches legacy exactly.
         self.RE_NUM_UP_JOIN = re.compile(r"\.(?=\s[^\W\d_])")
         self.RE_NUM_UP_SPLIT = re.compile(r"\.(?=\s(?:[IVXLCDM]{2,}|[VXLCDM])\b)")
-        self.RE_NUM_LOW = re.compile(r"\.(?=(\s\d|\s+\(|\s\?\?(?!\?)|\s[IVXLCDM]+\b" + cjk + r"))")
+        self.RE_NUM_LOW = re.compile(r"\.(?=(\s\d|\s+\(|\s\?\?(?!\?)|\s[IVXLCDM]+\b" + cjk_other + r"))")
         # Conservative variant of the number-lower suffix used ONLY by
         # ``ascii_only_upper_heuristic`` policies (en_es_zh). There a non-ASCII
         # uppercase follower ("Vol. Él") is ascii-gated out of the UPPER arm, so
         # in 'conservative' mode it must still be JOINED — legacy widened the
         # letter slot from ``\s[IVXLCDM]+\b`` to ``\s[^\W\d_]`` (any letter,
         # including capitals). Base/balanced/aggressive keep the Roman-only slot.
-        self.RE_NUM_LOW_JOIN = re.compile(r"\.(?=(\s\d|\s+\(|\s\?\?(?!\?)|\s[^\W\d_]" + cjk + r"))")
+        self.RE_NUM_LOW_JOIN = re.compile(r"\.(?=(\s\d|\s+\(|\s\?\?(?!\?)|\s[^\W\d_]" + cjk_other + r"))")
         self.RE_NUM_QQ = re.compile(r"\.(?=\s\?\?(?!\?))")  # the PLACEHOLDER alternative, isolated
         # Lookbehind-anchored full patterns for the GLOBAL realization pass, keyed by
         # the suffix that drove the decision. Built lazily per (am_escaped, suffix).

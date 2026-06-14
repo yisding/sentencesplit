@@ -77,12 +77,12 @@ def test_classifier_unavailable_for_non_opted_languages() -> None:
     # Languages that have NOT opted into the V2 classifier
     # (``USE_PERIOD_CLASSIFIER`` is False/unset) still raise loudly, so the
     # debugging-aid oracle never silently no-ops for a non-migrated language.
-    # ``zh`` (Chinese) remains on the legacy path; ``de``/``ru``/``sk``/``bg``/
-    # ``ar``/``fa`` opted in at Phase 5.
+    # ``kk`` (Kazakh) remains on the legacy path; ``zh``/``de``/``ru``/``sk``/
+    # ``bg``/``ar``/``fa`` opted in at Phase 5.
     with pytest.raises(ClassifierUnavailable):
-        classifier_protect_positions("这是中文。Dr. Smith 来了。", "zh")
+        classifier_protect_positions("Бұл мысалы. Қараңыз 5-бет.", "kk")
     with pytest.raises(ClassifierUnavailable):
-        diff_positions("这是中文。Dr. Smith 来了。", "zh")
+        diff_positions("Бұл мысалы. Қараңыз 5-бет.", "kk")
 
 
 @pytest.mark.parametrize("code", ["en", "en_legal"])
