@@ -280,19 +280,42 @@ def diff(path: Path = SNAPSHOT_PATH) -> list[dict[str, object]]:
     return changes
 
 
+def _print_diff(records: list[dict[str, object]]) -> None:
+    if not records:
+        print("snapshot: no diffs (live == baseline)")
+        return
+    print(f"snapshot: {len(records)} changed (lang,input) keys")
+    for rec in records:
+        print(f"  [{rec['kind']}] {rec['lang']}: {rec['input']!r}")
+        print(f"      baseline={rec['baseline']!r}")
+        print(f"      live    ={rec['live']!r}")
+
+
+def _main(argv: list[str]) -> int:
+    """CLI entry point.
+
+    * ``python -m tests.v2.segment_snapshot`` (bare) — diff the live engine
+      against the committed baseline and exit non-zero if they differ. A bare
+      run is *read-only*: it never rewrites the baseline.
+    * ``--diff`` / ``diff`` — explicit alias for the read-only diff above.
+    * ``--update`` — regenerate ``segment_snapshot.json`` from the live engine.
+      This is the ONLY path that rewrites the baseline; use it deliberately when
+      adjudicating an intended behavior change.
+    """
+    flag = argv[1] if len(argv) > 1 else ""
+    if flag == "--update":
+        snap = save_snapshot()
+        print(f"snapshot: wrote {len(snap)} (lang,input) keys to {SNAPSHOT_PATH}")
+        return 0
+    if flag in ("", "--diff", "diff"):
+        records = diff()
+        _print_diff(records)
+        return 1 if records else 0
+    print(f"snapshot: unknown argument {flag!r}; expected --diff or --update")
+    return 2
+
+
 if __name__ == "__main__":
     import sys
 
-    if len(sys.argv) > 1 and sys.argv[1] == "diff":
-        records = diff()
-        if not records:
-            print("snapshot: no diffs (live == baseline)")
-        else:
-            print(f"snapshot: {len(records)} changed (lang,input) keys")
-            for rec in records:
-                print(f"  [{rec['kind']}] {rec['lang']}: {rec['input']!r}")
-                print(f"      baseline={rec['baseline']!r}")
-                print(f"      live    ={rec['live']!r}")
-        sys.exit(1 if records else 0)
-    snap = save_snapshot()
-    print(f"snapshot: wrote {len(snap)} (lang,input) keys to {SNAPSHOT_PATH}")
+    sys.exit(_main(sys.argv))
