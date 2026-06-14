@@ -53,11 +53,41 @@ with a timer. The `*wrapper` rows (e.g. `abbr: replace (whole)`,
 
 **Conclusion:** two fixed-cost phases dominate and run on *every* call regardless
 of whether the input needs them:
-1. **Abbreviation replacement (~40%)** — dominated by the abbreviation scan.
+1. **Abbreviation replacement (~40%)** — but NOT the scan (see §2a); it is the
+   ~25 `re.sub` per call: per-occurrence replacements + always-on rule passes.
 2. **List-item detection (~18%)** — runs 4 sub-formatters even on non-list text.
 
 These ~58% are the structural gap. The `between_punctuation` / zero-width work
 already addressed in #72 was <4% on short input (it helped large text instead).
+
+### 2a. The Aho-Corasick scan is NOT the bottleneck (measured)
+
+An earlier draft of this plan assumed the abbreviation *scan* (Aho-Corasick) was
+the cost and proposed replacing it with pySBD's `in`-loop. **Direct measurement
+disproves that.** Our pure-Python automaton `search()` vs a pySBD-style
+`in`-filter loop over the same 199 abbreviations (identical match sets):
+
+| input | AC | `in`-loop | winner |
+|-------|---:|----------:|--------|
+| tiny (15c)   | 2.4 µs | 7.2 µs | **AC 3.0×** |
+| short (87c)  | 11.3 µs | 12.0 µs | **AC ~tied** |
+| medium (198c)| 25.3 µs | 18.0 µs | `in` 1.4× |
+| large (4k)   | 497 µs | 229 µs | `in` 2.2× |
+
+Our AC is faster on short input; `in` only overtakes around ~100–150 chars.
+(The crossover is inverted from textbook AC-wins-on-long because the automaton is
+**pure Python**: its per-char loop has a large constant, so on long text 199
+C-level `in` scans beat thousands of Python iterations.)
+
+Crucially, the AC scan is only **~11 µs ≈ 3% of the 400 µs short call**. Swapping
+it for `in` would *slow short down* and save nothing meaningful. The 39%
+abbreviation cost is the **~25 `re.sub`/call** that follow discovery:
+`scan_for_replacements` (a global `re.sub` per matched abbreviation),
+`replace_multi_period_abbreviations`, and the always-on rule passes
+(`PossessiveAbbreviationRule`, `SingleLetterAbbreviationRules`, `_COMPACT_AMPM_RE`,
+`_UPPERCASE_INITIALISM_BOUNDARY_RE`, allcaps-imprint, the a.m./p.m. rules).
+pySBD runs the per-occurrence regex too — so the gap is our **extra always-on
+passes**, not the discovery mechanism.
 
 ---
 
@@ -66,17 +96,14 @@ already addressed in #72 was <4% on short input (it helped large text instead).
 pySBD does **not** have fewer phases (~20 full-text passes, similar to ours).
 The difference is per-pass constant cost and cheap short-circuits:
 
-1. **Abbreviation loop short-circuits in C before any regex.** pySBD iterates its
-   188 English abbreviations and does `if stripped not in lowered: continue`
-   (`pysbd/abbreviation_replacer.py:82`). For short text ~186/188 fail the
-   C-level `str.__contains__` instantly; only 0–2 reach a regex.
-   **Ours** replaced this with an Aho-Corasick automaton
-   (`sentencesplit/abbreviation_replacer.py:535-564`) whose `search()`
-   (`:63-76`) runs a **pure-Python per-character state-machine loop over the
-   whole lowered text on every call** — slower than a handful of C `in` checks
-   on short strings. The automaton wins only when the abbreviation list is huge;
-   for ~200 entries on short text it is a net loss.
-2. **Always-on extra passes ours added** in `replace()` that pySBD lacks:
+1. **Abbreviation discovery is a wash on short text.** pySBD short-circuits with
+   C-level `in` (`pysbd/abbreviation_replacer.py:82`); ours uses a pure-Python
+   Aho-Corasick automaton (`sentencesplit/abbreviation_replacer.py:535-564`). Per
+   §2a these cost ~the same on short input (AC is actually slightly faster), so
+   this is **not** where the gap is — both then run the same per-occurrence regex
+   work. Discovery is ~3% of the call either way.
+2. **Always-on extra passes ours added** in `replace()` that pySBD lacks (this,
+   not the scan, is the abbreviation-phase cost):
    `_COMPACT_AMPM_RE`, `_UPPERCASE_INITIALISM_BOUNDARY_RE`, allcaps-imprint
    protection, non-ASCII a.m./p.m. restores (`:311-357`). Each is an
    unconditional full-text regex pass.
@@ -99,37 +126,45 @@ branch, auto-revert if Golden Rules or the suite regress (mirror the
 `improve-sentencesplit` discipline). Measure each with `phase_profile.py` and the
 competitive CodSpeed benchmark.
 
-### P1 — Abbreviation scan fast-path (target: the ~25–30% `search_in_string` cost)
+### ~~P1 — Abbreviation scan fast-path~~ — DROPPED (premise disproved, see §2a)
 
-The automaton's job is to find the **set** of abbreviations present, then run a
-per-occurrence `re.sub`. Three candidate mechanisms, to prototype in order:
+The original P1 (replace the Aho-Corasick scan with pySBD's `in`-loop or a
+compiled alternation) is **invalid**: measurement shows the AC scan is ~3% of the
+call and is already faster than `in` on short input. Switching would slow short
+text down. Do not pursue. The abbreviation-phase cost lives in the always-on
+passes (now P1, below), not discovery.
 
-- **P1a — Single compiled alternation regex (preferred to prototype first).**
-  Replace the pure-Python `search()` char loop with one cached
-  `re.compile("|".join(escaped_abbrevs))` (anchored as the automaton expects) and
-  a single C-level `.findall`/`.finditer` to discover the present set. One C pass
-  vs a Python per-char loop should beat both the automaton and pySBD's 188 `in`s.
-  *Risk:* must reproduce the automaton's matched-set **exactly** (case-folding,
-  overlap, boundary semantics). *DoD:* for a large corpus, the present-set is
-  identical to the automaton's for every line.
-- **P1b — Length-gated fallback.** Below a small text-length threshold, use a
-  pySBD-style `in`-guarded loop (cheap on short text); above it, keep the
-  automaton (wins on long text / big lists). *Risk:* two code paths must produce
-  identical sets — property-test them against each other.
-- **P1c — Cheap pre-filter.** Skip the scan entirely when a one-pass check proves
-  no abbreviation can match (e.g. no `.` in the line). Cheapest, smallest gain;
-  stack on top of P1a/P1b.
+*Optional, low priority:* a length-gated `in` fallback would help medium/large
+discovery (~7 µs on medium, ~270 µs on 4k) but hurts short, so only worth it as a
+threshold switch if medium/large latency becomes a target — not for this goal.
 
-### P2 — Gate the always-on `replace()` regexes (low risk, modest gain)
+### P1 — Gate the always-on abbreviation `replace()` passes (was P2; now top)
 
-Guard each unconditional pass in `AbbreviationReplacer.replace()` behind a cheap
-`in`/structural check so it only runs when it can match:
-- `_COMPACT_AMPM_RE` — only if a digit is adjacent to `a/p` + `.` + `m`.
+`AbbreviationReplacer.replace()` runs ~25 `re.sub`/call on short text, several of
+them unconditional rule passes that almost never match. Guard each behind a cheap
+`in`/structural check so it only runs when it can fire:
+- `_COMPACT_AMPM_RE` — only if a digit is adjacent to `a/p`+`.`+`m`.
 - `_UPPERCASE_INITIALISM_BOUNDARY_RE`, non-ASCII a.m./p.m. restores — only if the
   `∯` sentinel is present (it only exists after an abbreviation matched).
-- allcaps-imprint — only if the text has an all-caps run.
-*Risk:* low (each regex already requires the guarded condition). *DoD:* suite
-green + byte-identical corpus output.
+- allcaps-imprint — only if the text has a 2+ all-caps run.
+- the a.m./p.m. rule set (`apply_ampm_boundary_rules`, ~5–7%) — gate on an
+  `[ap]·m` pattern being present.
+This is the largest *safe* slice of the abbreviation phase. *Risk:* low (each
+regex already requires the guarded condition). *DoD:* suite green + byte-identical
+corpus output.
+
+### P2 — List-item detection guards (target: the ~18% list phase)
+
+`_mark_list_item_boundaries` constructs a fresh `ListItemReplacer` and runs 4
+sub-formatters every call. Safe reductions:
+- **P2a — Trigger-char guards per sub-formatter.** Skip the numbered-list passes
+  when the text has no digit; skip the parens passes when there is no `(`/`)`;
+  skip alphabetical/roman passes when no single letter precedes `.`/`)`. Each
+  formatter's regex already requires those chars, so skipping is a no-op.
+- **P2b — Early-out in `iterate_alphabet_array`** when `re.findall` returns empty
+  (avoid building the 26-entry `alphabet_index` dict and the lower/filter work).
+*Risk:* low-medium (list logic is subtle; guards must be on chars the regexes
+require). *DoD:* suite green; the list-heavy Golden Rules unchanged.
 
 ### P3 — Remove the per-call lock on the abbreviation-data read (low risk, small gain)
 
@@ -139,31 +174,15 @@ first, only lock to build on miss) or resolve `_data` once and stash it on the
 Abbreviation class / LanguageProfile. *Risk:* low; preserve thread-safety of the
 first build. *DoD:* suite green + a concurrency smoke test.
 
-### P4 — List-item detection guards (target: the ~18% list phase)
-
-`_mark_list_item_boundaries` constructs a fresh `ListItemReplacer` and runs 4
-sub-formatters every call. Safe reductions:
-- **P4a — Trigger-char guards per sub-formatter.** Skip the numbered-list passes
-  when the text has no digit; skip the parens passes when there is no `(`/`)`;
-  skip alphabetical/roman passes when no single letter precedes `.`/`)`. Each
-  formatter's regex already requires those chars, so skipping is a no-op.
-- **P4b — Early-out in `iterate_alphabet_array`** when `re.findall` returns empty
-  (avoid building the 26-entry `alphabet_index` dict and the lower/filter work).
-*Risk:* low-medium (list logic is subtle; guards must be on chars the regexes
-require). *DoD:* suite green; the list-heavy Golden Rules unchanged.
-
-### P5 (stretch) — a.m./p.m. rule gating
-
-`apply_ampm_boundary_rules` is ~5–7%. Guard the rule set on the presence of an
-`m`/`.`-adjacent pattern. Lower priority; do after P1–P4 re-measure.
-
 ---
 
 ## 5. Sequencing, guardrails, and non-goals
 
-**Sequence:** P2 + P3 first (cheap, low-risk warm-up + de-risks the harness),
-then P4 (clear ~18% target), then P1 (biggest but riskiest — prototype P1a,
-fall back to P1b). Re-run `phase_profile.py` + competitive CodSpeed after each.
+**Sequence:** P3 first (mechanical, lowest risk, de-risks the harness loop), then
+P1 (gate the always-on abbreviation passes — the biggest *safe* slice of the 40%
+abbreviation phase), then P2 (the ~18% list phase). Re-run `phase_profile.py` +
+competitive CodSpeed after each. Note the discovery scan is deliberately left
+alone (see §2a).
 
 **Guardrails (non-negotiable):**
 - Byte-identical `segment()`/`segment_spans()` output. Full suite + Golden Rules
@@ -172,14 +191,17 @@ fall back to P1b). Re-run `phase_profile.py` + competitive CodSpeed after each.
 - Keep changes isolated per branch/PR so CodSpeed attributes each delta.
 
 **Non-goals / risks to avoid:**
-- Do **not** regress the automaton's advantage on very large abbreviation lists
-  or the combined `en_es_zh` profile — P1 must keep (or length-gate to) the
-  automaton for the large-list case.
+- Do **not** touch the abbreviation *discovery* scan — it is faster than `in` on
+  short input and only ~3% of the call (§2a). The Aho-Corasick automaton stays.
 - Do not change boundary semantics to chase speed. This is a pure
   constant-factor effort; if a change can't be made byte-identical, it is out of
   scope for this plan.
 
-**Expected envelope:** P2+P3+P4 are low-risk and should recover a meaningful
-slice of the list phase + always-on passes (rough order ~10–20% of the call).
-P1 is where the abbreviation ~30% lives and is the swing item; treat its gain as
-unproven until P1a is prototyped and shown byte-identical.
+**Expected envelope:** all three items (P1 gate always-on passes, P2 list guards,
+P3 lock) are low-risk and target the always-on `re.sub` count + the list phase.
+Together they address roughly the abbreviation always-on slice (a chunk of the
+40%) plus the ~18% list phase. Treat individual gains as unproven until measured
+per-change with `phase_profile.py` and the competitive CodSpeed run; the honest
+expectation is incremental (single-digit to low-double-digit %), not a dramatic
+close, because much of the abbreviation phase is genuine per-occurrence regex
+work that pySBD also pays.
