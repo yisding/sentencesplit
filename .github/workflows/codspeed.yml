@@ -44,4 +44,8 @@ jobs:
       - name: Run CodSpeed benchmarks
         uses: CodSpeedHQ/action@v3
         with:
-          run: uv run --python 3.13 pytest benchmarks/test_latency_codspeed.py --codspeed
+          # --no-sync: run in the bench-only environment from the previous step
+          # without an implicit re-sync, which would otherwise pull the default
+          # `dev` group back in (defeating isolation) and run install work under
+          # CodSpeed instrumentation.
+          run: uv run --no-sync --python 3.13 pytest benchmarks/test_latency_codspeed.py --codspeed
