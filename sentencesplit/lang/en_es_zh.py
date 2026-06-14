@@ -14,6 +14,7 @@ from sentencesplit.lang.common.cjk import (
     make_cjk_abbreviation_rules,
 )
 from sentencesplit.lang.spanish import Spanish
+from sentencesplit.period_classifier import EN_ES_ZH_POLICY
 from sentencesplit.processor import (
     _CJK_BANG_RESPLIT_RE,
     _CJK_QUOTE_RESPLIT_RE,
@@ -27,13 +28,6 @@ from sentencesplit.utils import _next_nonspace_char_starts_sentence
 _CJK_FOLLOWING_CHAR_RE = re.compile(r"[\u3400-\u9FFF]")
 _SENTENCE_START_WRAPPERS = frozenset("\"'“‘«‹([{「『【（《")
 _SPANISH_INVERTED_SENTENCE_OPENERS = frozenset("¿¡")
-# The uppercase sentence-start heuristic applies to BOTH the English and Spanish
-# abbreviation sets. Gating it to English-only previously made common words that
-# are also Spanish abbreviations (doc, dir, dom, \u2026) under-split versus both the
-# standalone "en" and "es" profiles.
-_HEURISTIC_ABBREVIATIONS = frozenset(
-    a.lower() for a in (Standard.Abbreviation.ABBREVIATIONS + Spanish.Abbreviation.ABBREVIATIONS)
-)
 # Closers that mark an embedded CJK quote/title; a lowercase Latin continuation
 # after one of these is not a quote continuation (unlike a Latin quote closer).
 _CJK_QUOTE_CLOSERS = frozenset("\u300d\u300f\u300b\u3011")
@@ -83,75 +77,25 @@ class EnglishSpanishChinese(CJKBoundaryProfile, Common, Standard):
         PROTECT_ALLCAPS_IMPRINT_SUFFIXES = True
         RESTORE_STANDALONE_I_BOUNDARIES = True
 
-        def replace_period_of_abbr(self, txt: str, abbr: str, escaped: str | None = None) -> str:
-            txt = " " + txt
-            if escaped is None:
-                escaped = re.escape(abbr.strip())
-            txt = re.sub(
-                rf"(?<=\s{escaped})\.(?=(?:[.:\-?,]|\s(?:[^\W\d_]|I\s|I'm|I'll|\d|\()|[\u3400-\u9FFF]))",
-                "∯",
-                txt,
-            )
-            return txt[1:]
-
-        def scan_for_replacements(
-            self, txt: str, am: str, ind: int, char_array, stripped: str = "", escaped: str | None = None
-        ) -> str:
-            try:
-                char = char_array[ind]
-            except IndexError:
-                char = ""
-            am_lower = am.strip().lower()
-            ascii_upper = bool(char) and char.isascii() and char.isupper()
-            use_uppercase_heuristic = ascii_upper and am_lower in _HEURISTIC_ABBREVIATIONS
-            if not use_uppercase_heuristic or am_lower in self._data.prepositive_set:
-                am_escaped = re.escape(am.strip())
-                txt = " " + txt
-                if am_lower in self._data.prepositive_set:
-                    should_protect_prepositive = not (
-                        self._leans_split and am_lower in self.AGGRESSIVE_PREPOSITIVE_BOUNDARY_BLOCKLIST
-                    )
-                    if should_protect_prepositive:
-                        txt = re.sub(rf"(?<=\s{am_escaped})\.(?=(?:\s|:\d+|[\u3400-\u9FFF]))", "∯", txt)
-                elif am_lower in self._data.number_abbr_set:
-                    if self._leans_join:
-                        # conservative: also protect before any capitalized
-                        # follower ("Fig. Several"), matching the base dial.
-                        txt = re.sub(
-                            rf"(?<=\s{am_escaped})\.(?=(?:\s\d|\s+\(|\s\?\?(?!\?)|\s[^\W\d_]|[\u3400-\u9FFF]))",
-                            "∯",
-                            txt,
-                        )
-                    else:
-                        txt = re.sub(
-                            rf"(?<=\s{am_escaped})\.(?=(?:\s\d|\s+\(|\s\?\?(?!\?)|\s[IVXLCDM]+\b|[\u3400-\u9FFF]))",
-                            "∯",
-                            txt,
-                        )
-                    txt = self._protect_number_abbr_unknown_placeholder(txt[1:], am_escaped, r"\s")
-                    txt = " " + txt
-                else:
-                    txt = self.replace_period_of_abbr(txt[1:], am, am_escaped)
-                    return txt
-                txt = txt[1:]
-                # Multi-char number abbreviations (eq, pt, fig, vol, …) also
-                # need regular abbreviation protection before lowercase text.
-                # Guard with isupper() so uppercase starters (including non-ASCII
-                # Latin like É) still trigger sentence boundaries.
-                if am_lower in self._data.number_abbr_set and len(am.strip()) > 1 and not (char and char.isupper()):
-                    txt = self.replace_period_of_abbr(txt, am.strip(), am_escaped)
-            elif am_lower in self._data.number_abbr_set:
-                # Next word starts ASCII uppercase — protect only before Roman numerals.
-                # Exclude lone "I" to avoid false joins with the pronoun "I".
-                am_escaped = re.escape(am.strip())
-                txt = " " + txt
-                if self._leans_join:
-                    # conservative: protect before any capitalized follower.
-                    txt = re.sub(rf"(?<=\s{am_escaped})\.(?=\s[^\W\d_])", "∯", txt)
-                else:
-                    txt = re.sub(rf"(?<=\s{am_escaped})\.(?=\s(?:[IVXLCDM]{{2,}}|[VXLCDM])\b)", "∯", txt)
-                txt = txt[1:]
-            return txt
+        # V2: route the per-line abbreviation-protection step through the
+        # PeriodClassifier. EN_ES_ZH_POLICY re-encodes the two formerly-
+        # overridden methods (replace_period_of_abbr + scan_for_replacements)
+        # as data:
+        #   - follower_class [^\W\d_]: any Unicode letter may follow an abbr.
+        #   - cjk_follower_class [\u3400-\u9FFF]: a CJK ideograph immediately
+        #     after the period protects WITHOUT an intervening space
+        #     ("U.S.标准", "etc.标准"); with a space, [^\W\d_] already covers it.
+        #   - ascii_only_upper_heuristic: the capital-follower-is-boundary cue
+        #     fires only for an ASCII capital. A non-ASCII capital
+        #     ("Sr. Élena", "dept. Élena") is NOT a cue, so it falls through to
+        #     the regular / prepositive branches whose [^\W\d_] follower class
+        #     protects it.
+        # The legacy `_HEURISTIC_ABBREVIATIONS` gate was a no-op: that set
+        # equals the full abbreviation set and every candidate's abbr is
+        # necessarily in it, so the membership test was always True. It is
+        # therefore not modeled in the policy.
+        USE_PERIOD_CLASSIFIER = True
+        ABBR_POLICY = EN_ES_ZH_POLICY
 
     class CjkAbbreviationRules:
         All = make_cjk_abbreviation_rules(r"\u3400-\u9FFF")

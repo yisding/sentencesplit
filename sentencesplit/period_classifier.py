@@ -80,6 +80,18 @@ class AbbrPolicy:
     # boundary_class is NOT stored here: it is read off ``_AbbreviationData.boundary_class``
     # at construction so fr/it elision ("\\s’'") is automatic and never duplicated.
     follower_class: str = "[a-z]"
+    # An extra follower alternative WITHOUT a leading ``\s`` (so it matches a
+    # follower that sits immediately after the period). en_es_zh uses the CJK
+    # ideograph class ``[㐀-鿿]`` here: "U.S.标准" / "etc.标准" protect even
+    # without an intervening space. Woven into the regular / prepositive /
+    # number-lower suffix patterns. Base = "" (inert).
+    cjk_follower_class: str = ""
+    # When True the capital-follower-is-boundary heuristic only fires for an
+    # ASCII uppercase follower (en_es_zh): a non-ASCII uppercase follower
+    # ("Sr. Élena") is NOT treated as a sentence-start cue, so it falls through
+    # to the normal protection branches (the regular ``[^\W\d_]`` follower class
+    # then protects it). Base = False (any uppercase counts, per the flag).
+    ascii_only_upper_heuristic: bool = False
     # Override seams (base = inert).
     # classify_special returns Decision.{PROTECT,BOUNDARY,PLACEHOLDER}, the module
     # sentinel NOT_HANDLED to fall through to the generic 3-branch dispatch, or
@@ -91,8 +103,16 @@ class AbbrPolicy:
 
 
 BASE_POLICY = AbbrPolicy()  # module-level frozen constant; shared, read-only (free-threaded-safe)
-# Built/used in Phase 5; defined here so the seam exists.
-EN_ES_ZH_POLICY = AbbrPolicy(follower_class=r"[^\W\d_]")
+# Combined en/es/zh profile (Phase 5): any-Unicode-letter follower class, a CJK
+# ideograph follower that protects even without an intervening space, and the
+# ASCII-only restriction on the capital-follower-is-boundary heuristic. This
+# reproduces the legacy ``EnglishSpanishChinese.AbbreviationReplacer``
+# (``replace_period_of_abbr`` + ``scan_for_replacements`` overrides) as data.
+EN_ES_ZH_POLICY = AbbrPolicy(
+    follower_class=r"[^\W\d_]",
+    cjk_follower_class="[㐀-鿿]",  # CJK unified ideographs (Ext-A start .. BMP end)
+    ascii_only_upper_heuristic=True,
+)
 
 
 class PeriodClassifier:
@@ -113,11 +133,27 @@ class PeriodClassifier:
         # data.boundary_class ("\\s" or "\\s<escaped-elision>") is read off `data`
         # in _full_pattern; the suffix patterns below are lookbehind-free.
         fc = policy.follower_class
-        self.RE_REGULAR = re.compile(r"\.(?=((\.|\:|-|\?|,)|(\s(" + fc + r"|I\s|I'm|I'll|\d|\())))")
-        self.RE_PREPOSITIVE = re.compile(r"\.(?=(\s|:\d+))")
+        # ``cjk`` is an extra follower alternative WITHOUT a leading ``\s`` (it
+        # matches a CJK ideograph sitting immediately after the period). Base
+        # policy leaves it empty, so ``cjk`` contributes nothing to any pattern.
+        cjk = ("|" + policy.cjk_follower_class) if policy.cjk_follower_class else ""
+        self.RE_REGULAR = re.compile(r"\.(?=((\.|\:|-|\?|,)" + cjk + r"|(\s(" + fc + r"|I\s|I'm|I'll|\d|\())))")
+        self.RE_PREPOSITIVE = re.compile(r"\.(?=(\s|:\d+" + cjk + r"))")
+        # The number UPPER arms intentionally carry NO ``cjk`` alternative: in the
+        # legacy en_es_zh override the upper branch fires only for an ASCII-upper
+        # follower (so the period is not adjacent to a CJK char), and a CJK
+        # follower is always a SEPARATE no-space candidate that flows through the
+        # number-lower arm below. Keeping CJK out here matches legacy exactly.
         self.RE_NUM_UP_JOIN = re.compile(r"\.(?=\s[^\W\d_])")
         self.RE_NUM_UP_SPLIT = re.compile(r"\.(?=\s(?:[IVXLCDM]{2,}|[VXLCDM])\b)")
-        self.RE_NUM_LOW = re.compile(r"\.(?=(\s\d|\s+\(|\s\?\?(?!\?)|\s[IVXLCDM]+\b))")
+        self.RE_NUM_LOW = re.compile(r"\.(?=(\s\d|\s+\(|\s\?\?(?!\?)|\s[IVXLCDM]+\b" + cjk + r"))")
+        # Conservative variant of the number-lower suffix used ONLY by
+        # ``ascii_only_upper_heuristic`` policies (en_es_zh). There a non-ASCII
+        # uppercase follower ("Vol. Él") is ascii-gated out of the UPPER arm, so
+        # in 'conservative' mode it must still be JOINED — legacy widened the
+        # letter slot from ``\s[IVXLCDM]+\b`` to ``\s[^\W\d_]`` (any letter,
+        # including capitals). Base/balanced/aggressive keep the Roman-only slot.
+        self.RE_NUM_LOW_JOIN = re.compile(r"\.(?=(\s\d|\s+\(|\s\?\?(?!\?)|\s[^\W\d_]" + cjk + r"))")
         self.RE_NUM_QQ = re.compile(r"\.(?=\s\?\?(?!\?))")  # the PLACEHOLDER alternative, isolated
         # Lookbehind-anchored full patterns for the GLOBAL realization pass, keyed by
         # the suffix that drove the decision. Built lazily per (am_escaped, suffix).
@@ -135,6 +171,21 @@ class PeriodClassifier:
         if self.data.elision_chars and am and am[0] in self.data.elision_chars:
             return am[1:]
         return am
+
+    def _follower_is_upper(self, c: Candidate) -> bool:
+        """Whether *c*'s follower counts as the capital-is-boundary cue (@652).
+
+        Gated by ``CAPITALIZED_FOLLOWER_IS_BOUNDARY_CUE`` (off for most languages).
+        ``AbbrPolicy.ascii_only_upper_heuristic`` (en_es_zh) further restricts the
+        cue to ASCII uppercase, so a non-ASCII capital ("Sr. Élena") is NOT a
+        boundary cue and flows through the normal protection branches.
+        """
+        ch = c.follower_char
+        if not ch or not self.r.CAPITALIZED_FOLLOWER_IS_BOUNDARY_CUE:
+            return False
+        if self.policy.ascii_only_upper_heuristic and not ch.isascii():
+            return False
+        return ch.isupper()
 
     # ------------------------------------------------------------------ enumerate
     def enumerate_candidates(self, line: str) -> list[Candidate]:
@@ -184,8 +235,7 @@ class PeriodClassifier:
             if d is not NOT_HANDLED:
                 return Decision.BOUNDARY if d is None else d
         am_lower = self._elision_strip(c.am_stripped).lower()
-        use_heur = self.r.CAPITALIZED_FOLLOWER_IS_BOUNDARY_CUE
-        upper = c.follower_char.isupper() if (c.follower_char and use_heur) else False  # @652
+        upper = self._follower_is_upper(c)  # @652
         prep = self.data.prepositive_set
         num = self.data.number_abbr_set
         # 2) the gate that LEAVES a capital-follower plain abbr as a BOUNDARY (@661 negated):
@@ -219,11 +269,30 @@ class PeriodClassifier:
             return Decision.PROTECT if rx.match(line, i) else Decision.BOUNDARY
         if self.RE_NUM_QQ.match(line, i):  # @623 ?? arm + @626 placeholder
             return Decision.PLACEHOLDER
-        if self.RE_NUM_LOW.match(line, i):  # @623 the rest
+        num_low = self._num_low_pattern()
+        if num_low.match(line, i):  # @623 the rest
             return Decision.PROTECT
         if len(self._elision_strip(c.am_stripped)) > 1:  # @676 multi-char regular fallthrough
+            # en_es_zh guard (legacy ``not (char and char.isupper())`` @141):
+            # under ``ascii_only_upper_heuristic`` a NON-ASCII uppercase follower
+            # ("Fig. Él") reached this branch only because the capital cue was
+            # ASCII-gated and (in 'conservative') the join arm did not catch it;
+            # it must still START A SENTENCE, so the regular fallthrough (whose
+            # ``[^\W\d_]`` class would otherwise PROTECT a capital) is skipped.
+            # Inert for base policy: there ``upper`` is the ungated capital cue,
+            # so any uppercase follower already took the UPPER arm above.
+            if self.policy.ascii_only_upper_heuristic and c.follower_char and c.follower_char.isupper():
+                return Decision.BOUNDARY
             return Decision.PROTECT if self.RE_REGULAR.match(line, i) else Decision.BOUNDARY
         return Decision.BOUNDARY  # single-char 'p' excluded (@676)
+
+    def _num_low_pattern(self) -> re.Pattern[str]:
+        """Select the number-lower suffix: conservative join-variant for
+        ``ascii_only_upper_heuristic`` policies (en_es_zh) in 'conservative'
+        mode, else the Roman-only base pattern."""
+        if self.policy.ascii_only_upper_heuristic and self._leans_join:
+            return self.RE_NUM_LOW_JOIN
+        return self.RE_NUM_LOW
 
     # -------------------------------------------------------- suffix selection
     def _suffix_for(self, c: Candidate, line: str, d: Decision) -> str:
@@ -234,8 +303,7 @@ class PeriodClassifier:
         every occurrence of this abbr on the line.
         """
         am_lower = self._elision_strip(c.am_stripped).lower()
-        use_heur = self.r.CAPITALIZED_FOLLOWER_IS_BOUNDARY_CUE
-        upper = c.follower_char.isupper() if (c.follower_char and use_heur) else False
+        upper = self._follower_is_upper(c)
         prep = self.data.prepositive_set
         num = self.data.number_abbr_set
         if am_lower in prep:
@@ -246,8 +314,9 @@ class PeriodClassifier:
                 return self.RE_NUM_UP_JOIN.pattern if self._leans_join else self.RE_NUM_UP_SPLIT.pattern
             if d is Decision.PLACEHOLDER:
                 return self.RE_NUM_QQ.pattern
-            if self.RE_NUM_LOW.match(line, c.period_idx):
-                return self.RE_NUM_LOW.pattern
+            num_low = self._num_low_pattern()
+            if num_low.match(line, c.period_idx):
+                return num_low.pattern
             # multi-char NUMBER -> REGULAR fallthrough (@676)
             return self.RE_REGULAR.pattern
         return self.RE_REGULAR.pattern
