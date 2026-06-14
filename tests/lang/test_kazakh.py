@@ -103,3 +103,30 @@ def test_kk_latin_initialisms_do_not_split_before_kazakh_continuation(kk_default
 )
 def test_kk_single_period_abbreviations_do_not_split_before_cyrillic_lowercase(kk_default_fixture, text):
     assert kk_default_fixture.segment(text) == [text]
+
+
+# --- Parity assertions re-homed from the retired v2 oracle (tests/v2/oracle.py) ---
+# The deleted differential oracle froze two Kazakh facts about KK_POLICY's
+# follower-class dispatch; they are asserted here directly at segment() level.
+
+
+def test_kk_obl_wide_follower_keeps_period_joined(kk_default_fixture):
+    # "обл. қала" rides the WIDE Kazakh-Cyrillic lowercase follower class
+    # (_KK_WIDE_FOLLOWER_STEMS): the period after 'обл.' is non-terminal before
+    # the lowercase 'қала', so it stays one sentence — while a genuine boundary
+    # ('. ' + capitalized start) still splits.
+    assert kk_default_fixture.segment("обл. қала үлкен.") == ["обл. қала үлкен."]
+    assert kk_default_fixture.segment("обл. қала. Келесі сөйлем.") == ["обл. қала. ", "Келесі сөйлем."]
+
+
+def test_kk_smeglyad_ris_are_unprotected(kk_default_fixture):
+    # "См." / "рис." are NOT registered Kazakh abbreviations: they fall through to
+    # the base ASCII-follower REGULAR branch and are NOT protected (legacy oracle
+    # positions were []), so the period after 'рис.' is a boundary before the
+    # following digit-led clause. (Contrast 'обл.' above, which IS protected.)
+    assert kk_default_fixture.segment("Бұл мысалы. Қараңыз 5-бет. См. рис. 3 ниже.") == [
+        "Бұл мысалы. ",
+        "Қараңыз 5-бет. ",
+        "См. рис. ",
+        "3 ниже.",
+    ]

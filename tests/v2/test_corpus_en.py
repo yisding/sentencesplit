@@ -20,12 +20,16 @@ from tests.v2.corpus_en import green_cases, xfail_cases
 
 
 @pytest.fixture(scope="module")
-def seg() -> Segmenter:
-    return Segmenter("en")
+def segmenters() -> dict[str, Segmenter]:
+    # Cases declare their own language (en or the en_legal specialization); cache
+    # one Segmenter per code so the en_legal-only parity arms can be asserted in
+    # the same corpus without re-instantiating per case.
+    return {"en": Segmenter("en"), "en_legal": Segmenter("en_legal")}
 
 
-@pytest.mark.parametrize("case", green_cases(), ids=lambda c: c.text)
-def test_corpus_en_green(seg: Segmenter, case) -> None:
+@pytest.mark.parametrize("case", green_cases(), ids=lambda c: f"{c.lang}:{c.text}")
+def test_corpus_en_green(segmenters: dict[str, Segmenter], case) -> None:
+    seg = segmenters[case.lang]
     assert seg.segment(case.text) == case.expected, case.note or case.category
 
 
@@ -33,9 +37,10 @@ def test_corpus_en_green(seg: Segmenter, case) -> None:
     not xfail_cases(),
     reason="no Phase-2 xfail targets left (all promoted to GREEN); see corpus_en.py for the strict-xfail promotion mechanism",
 )
-@pytest.mark.parametrize("case", xfail_cases(), ids=lambda c: c.text)
-def test_corpus_en_xfail(seg: Segmenter, case) -> None:
+@pytest.mark.parametrize("case", xfail_cases(), ids=lambda c: f"{c.lang}:{c.text}")
+def test_corpus_en_xfail(segmenters: dict[str, Segmenter], case) -> None:
     # strict xfail: a fix that makes this pass is intentional and must be
     # promoted to a GREEN case (the suite goes red on the unexpected XPASS).
     pytest.xfail(reason=case.note or f"Phase-2 correctness target: {case.category}")
+    seg = segmenters[case.lang]
     assert seg.segment(case.text) == case.expected

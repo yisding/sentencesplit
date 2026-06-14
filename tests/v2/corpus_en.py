@@ -33,6 +33,7 @@ class CorpusCase:
     xfail: bool = False  # True => legacy engine currently diverges from `expected`
     note: str = ""
     tags: tuple[str, ...] = field(default_factory=tuple)
+    lang: str = "en"  # language code the case is segmented under (en / en_legal)
 
 
 # --- Cases the CURRENT engine already segments correctly (must stay green) ----
@@ -263,6 +264,64 @@ _GREEN: list[CorpusCase] = [
             "'9 a.m. Eastern Standard Time' is one time unit: a spelled-out "
             "timezone name after a.m./p.m. is recognized by the ampm zone guard."
         ),
+    ),
+    # ---- en/en_legal parity (re-homed from the retired v2 oracle) -------------
+    # The deleted differential oracle (tests/v2/oracle.py) froze the per-period
+    # protect decisions of the (now-removed) legacy engine. Its load-bearing
+    # English assertion — Dr./Sen./No./Vol. keep their period non-terminal, the
+    # boundary lands at the real sentence break — is captured here directly at the
+    # segment() level so the parity it guarded survives the oracle's deletion.
+    CorpusCase(
+        "Dr. Smith met Sen. Jones. See No. 5 and Vol. IV. The 9th Cir. reversed.",
+        [
+            "Dr. Smith met Sen. Jones. ",
+            "See No. 5 and Vol. IV. ",
+            "The 9th Cir. reversed.",
+        ],
+        "oracle-parity-en",
+        note=(
+            "Re-homed from oracle._LEGACY_SNAPSHOT[('en', ...)] = [2, 17, 32, 43]: "
+            "Dr./Sen./No./Vol. periods stay joined (non-terminal); in plain 'en' "
+            "the 9th Cir. period is NOT a registered prepositive abbreviation, but "
+            "the lowercase follower 'reversed' keeps it joined anyway."
+        ),
+    ),
+    CorpusCase(
+        "See Bankr. Court. The 9th Cir. reversed. Cf. id. at 5.",
+        [
+            "See Bankr. ",
+            "Court. ",
+            "The 9th Cir. reversed. ",
+            "Cf. ",
+            "id. at 5.",
+        ],
+        "oracle-parity-en",
+        note=(
+            "Re-homed from oracle._LEGACY_SNAPSHOT[('en', ...)] = [29]: in plain "
+            "'en', 'Bankr.' is NOT a registered abbreviation, so it splits before "
+            "the capitalized 'Court'; only the lowercase-followed 'Cir.' stays "
+            "joined. Contrast the ('en_legal', ...) case below where 'Bankr.' joins."
+        ),
+    ),
+    # en_legal specializes English: 'Bankr.' (a legal prepositive) keeps its
+    # period non-terminal before the capitalized 'Court', so 'See Bankr. Court.'
+    # is one sentence. This is the en_legal-only arm of the oracle snapshot
+    # (legacy positions [9, 29, 47] included Bankr. at 9; plain 'en' did not).
+    CorpusCase(
+        "See Bankr. Court. The 9th Cir. reversed. Cf. id. at 5.",
+        [
+            "See Bankr. Court. ",
+            "The 9th Cir. reversed. ",
+            "Cf. ",
+            "id. at 5.",
+        ],
+        "oracle-parity-en-legal",
+        note=(
+            "Re-homed from oracle._LEGACY_SNAPSHOT[('en_legal', ...)] = [9, 29, 47]: "
+            "the legal profile registers 'Bankr.' as prepositive, so it joins "
+            "'Bankr. Court' where plain 'en' splits."
+        ),
+        lang="en_legal",
     ),
 ]
 
