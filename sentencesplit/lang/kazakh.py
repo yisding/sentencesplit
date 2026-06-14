@@ -357,7 +357,6 @@ class Kazakh(Common, Standard):
         # This mirrors the Deutsch V2 conversion: keep the reordered ``replace()``
         # for whole-text staging; only the protection step delegates to the
         # classifier.
-        USE_PERIOD_CLASSIFIER = True
         ABBR_POLICY = BASE_POLICY
 
         _LOWERCASE_CONTINUATION_CHARS = "a-zа-яёәғқңөұүһі"

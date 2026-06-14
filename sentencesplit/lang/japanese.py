@@ -58,7 +58,6 @@ class Japanese(CJKBoundaryProfile, Common, Standard):
         # exactly where the legacy override placed it. The PREPOSITIVE / NUMBER
         # branches inherit the base (no-CJK) suffixes, and
         # ``CAPITALIZED_FOLLOWER_IS_BOUNDARY_CUE`` stays False, matching legacy.
-        USE_PERIOD_CLASSIFIER = True
         ABBR_POLICY = JA_POLICY
 
     class CjkAbbreviationRules:

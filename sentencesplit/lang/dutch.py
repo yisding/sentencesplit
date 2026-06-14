@@ -9,9 +9,7 @@ class Dutch(Common, Standard):
         # Dutch overrides zero scan methods and uses no elision, so it rides the
         # base PeriodClassifier (BASE_POLICY) directly. It is NOT one of the
         # CAPITALIZED_FOLLOWER_IS_BOUNDARY_CUE languages, so that flag stays off
-        # (capital followers flow through the split-mode ambiguity dial), matching
-        # the legacy per-line protection on Dutch text.
-        USE_PERIOD_CLASSIFIER = True
+        # (capital followers flow through the split-mode ambiguity dial).
         # Dutch gold contains personal-name initials such as "F.J.G. Buschman";
         # keep balanced mode on the joined side for that 3+ initials ambiguity.
         # This is a language-specific exception: aggressive still splits.

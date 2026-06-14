@@ -94,7 +94,6 @@ class EnglishSpanishChinese(CJKBoundaryProfile, Common, Standard):
         # equals the full abbreviation set and every candidate's abbr is
         # necessarily in it, so the membership test was always True. It is
         # therefore not modeled in the policy.
-        USE_PERIOD_CLASSIFIER = True
         ABBR_POLICY = EN_ES_ZH_POLICY
 
     class CjkAbbreviationRules:

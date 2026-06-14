@@ -5,15 +5,13 @@ from sentencesplit.lang.common import Common, Standard
 class Tagalog(Common, Standard):
     iso_code = "tl"
 
-    class AbbreviationReplacer(Standard.AbbreviationReplacer):
-        # Tagalog overrides zero scan methods and uses no elision, so it rides the
-        # base PeriodClassifier (BASE_POLICY) directly — identical shape to Hindi.
-        # Its prepositive/number abbreviation lists (Dr./G./Gng./Sta./No./Blg./…)
-        # are handled by the base classifier's prepositive and number branches.
-        # Tagalog is NOT one of the CAPITALIZED_FOLLOWER_IS_BOUNDARY_CUE languages,
-        # so that flag stays off and capital followers flow through the split-mode
-        # ambiguity dial, matching the legacy per-line protection on Tagalog text.
-        USE_PERIOD_CLASSIFIER = True
+    # Tagalog overrides zero scan methods and uses no elision, so it rides the
+    # base PeriodClassifier (BASE_POLICY) inherited from Standard directly. Its
+    # prepositive/number abbreviation lists (Dr./G./Gng./Sta./No./Blg./…) are
+    # handled by the base classifier's prepositive and number branches. Tagalog
+    # is NOT one of the CAPITALIZED_FOLLOWER_IS_BOUNDARY_CUE languages, so that
+    # flag stays off and capital followers flow through the split-mode ambiguity
+    # dial.
 
     class Abbreviation(Standard.Abbreviation):
         ABBREVIATIONS = [

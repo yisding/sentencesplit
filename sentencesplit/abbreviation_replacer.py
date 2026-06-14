@@ -107,13 +107,6 @@ class AhoCorasickAutomaton:
         return found
 
 
-def _replace_with_escape(txt: str, escaped: str, suffix_pattern: str, replacement: str, boundary_class: str = r"\s") -> str:
-    """Replace period after abbreviation match using pre-escaped abbreviation."""
-    txt = " " + txt
-    txt = re.sub(rf"(?<=[{boundary_class}]{escaped}){suffix_pattern}", replacement, txt)
-    return txt[1:]
-
-
 # Constant patterns run on every ``replace()`` call. Compiling them once at import
 # (rather than via a raw ``re.sub`` literal each call) skips the per-call pattern
 # cache lookup in the abbreviation hot path.
@@ -202,13 +195,11 @@ class AbbreviationReplacer:
     PROTECT_ALLCAPS_IMPRINT_SUFFIXES = False
     RESTORE_STANDALONE_I_BOUNDARIES = False
 
-    # V2 single-pass period classifier opt-in (per-language feature flag +
-    # parallel-path guardrail). When True, the per-line abbreviation-protection
-    # step routes through PeriodClassifier instead of the legacy per-occurrence
-    # re.sub loop. en/en_legal set it True; other languages flip on only when
-    # green (Phase 4/5). ABBR_POLICY selects the per-language policy by data.
-    USE_PERIOD_CLASSIFIER = False
-    ABBR_POLICY = None  # resolved to period_classifier.BASE_POLICY lazily
+    # V2 single-pass period classifier. The per-line abbreviation-protection step
+    # always routes through PeriodClassifier (the legacy per-occurrence re.sub loop
+    # was retired in Phase 6 / cutover). ABBR_POLICY selects the per-language policy
+    # by data; None resolves to period_classifier.BASE_POLICY lazily.
+    ABBR_POLICY = None
 
     # Opt-in for scripts (e.g. Greek, Cyrillic) that do not capitalize common
     # nouns mid-sentence: there, a capital letter following a multi-period
@@ -595,118 +586,5 @@ class AbbreviationReplacer:
         self.text = _NON_ASCII_AMPM_SPACED_RE.sub(_restore, self.text)
         return self.text
 
-    def replace_period_of_abbr(self, txt: str, abbr: str, escaped: str | None = None) -> str:
-        txt = " " + txt
-        if escaped is None:
-            escaped = re.escape(abbr.strip())
-        boundary = self._data.boundary_class
-        txt = re.sub(
-            r"(?<=[{boundary}]{abbr})\.(?=((\.|\:|-|\?|,)|(\s([a-z]|I\s|I'm|I'll|\d|\())))".format(
-                boundary=boundary, abbr=escaped
-            ),
-            "∯",
-            txt,
-        )
-        return txt[1:]
-
     def search_for_abbreviations_in_string(self, text: str) -> str:
-        if self.USE_PERIOD_CLASSIFIER:
-            return self._period_classifier().rewrite(text)
-        lowered = text.lower()
-        data = self._data
-        found_indices = data.automaton.search(lowered)
-        abbreviations = data.abbreviations
-        for idx in sorted(found_indices):
-            stripped, stripped_lower, escaped, match_re, next_word_re = abbreviations[idx]
-            # Capture each occurrence that is actually followed by a period
-            # together with its OWN following character (the char after
-            # "abbr. ", else ""). Computing both from the same match keeps them
-            # aligned — the previous code zipped two independent findall() lists
-            # of different lengths, so the case heuristic was read from the wrong
-            # occurrence. A period-less occurrence (e.g. a decoy "Cir held"
-            # before the real "Cir.") has no period to protect; processing it
-            # would run a broad global re.sub that wrongly mutates the period of
-            # a *different* occurrence, so it is skipped entirely.
-            occurrences = []
-            for m in match_re.finditer(text):
-                end = m.end()
-                if text[end : end + 1] != ".":
-                    continue
-                char = text[end + 2 : end + 3] if text[end : end + 2] == ". " else ""
-                occurrences.append((m.group(), char))
-            # scan_for_replacements performs a *global* re.sub keyed only on (am,
-            # char), so identical occurrences yield identical, idempotent edits.
-            # Deduplicate them to keep work linear instead of O(occurrences × N)
-            # on long, repetitive, newline-free input.
-            for am, char in dict.fromkeys(occurrences):
-                text = self.scan_for_replacements(text, am, 0, (char,), stripped, escaped)
-        return text
-
-    def _replace_number_abbr(self, txt: str, am_escaped: str, boundary: str, upper: bool) -> str:
-        """Protect period after number abbreviations before digits and Roman numerals."""
-        if upper:
-            if self._leans_join:
-                # conservative: a capitalized follower ("Fig. Several") is read
-                # as a continuation, not a new sentence — protect (join).
-                return _replace_with_escape(txt, am_escaped, r"\.(?=\s[^\W\d_])", "∯", boundary)
-            # balanced/aggressive: protect only before Roman numerals (Vol. IV).
-            # Exclude lone "I" to avoid false joins with the pronoun "I".
-            return _replace_with_escape(txt, am_escaped, r"\.(?=\s(?:[IVXLCDM]{2,}|[VXLCDM])\b)", "∯", boundary)
-        txt = _replace_with_escape(txt, am_escaped, r"\.(?=(\s\d|\s+\(|\s\?\?(?!\?)|\s[IVXLCDM]+\b))", "∯", boundary)
-        return self._protect_number_abbr_unknown_placeholder(txt, am_escaped, boundary)
-
-    def _protect_number_abbr_unknown_placeholder(self, txt: str, am_escaped: str, boundary: str) -> str:
-        txt = " " + txt
-        txt = re.sub(rf"(?<=[{boundary}]{am_escaped}∯)\s\?\?(?!\?)", f" {self._UNKNOWN_PLACEHOLDER}", txt)
-        return txt[1:]
-
-    def _replace_starter_aware_prepositive(self, txt: str, am_escaped: str, boundary: str) -> str:
-        txt = " " + txt
-        pattern = re.compile(rf"(?<=[{boundary}]{am_escaped})\.(?=(\s|:\d+))")
-
-        def _protect_or_restore(match):
-            if txt[match.end() : match.end() + 1] == ":":
-                return "∯"
-            if self._follower_is_likely_sentence_start(txt, match.end()):
-                return "."
-            return "∯"
-
-        return pattern.sub(_protect_or_restore, txt)[1:]
-
-    def scan_for_replacements(
-        self, txt: str, am: str, ind: int, char_array, stripped: str = "", escaped: str | None = None
-    ) -> str:
-        try:
-            char = char_array[ind]
-        except IndexError:
-            char = ""
-        use_case_heuristic = self.CAPITALIZED_FOLLOWER_IS_BOUNDARY_CUE
-        upper = char.isupper() if (char and use_case_heuristic) else False
-        am_stripped = am.strip()
-        # Strip leading elision characters (e.g. apostrophe in "l'Avv") so the
-        # bare abbreviation is used for set lookups and replacement patterns.
-        elision = self._data.elision_chars
-        if elision and am_stripped and am_stripped[0] in elision:
-            am_stripped = am_stripped[1:]
-        am_lower = am_stripped.lower()
-        boundary = self._data.boundary_class
-        if not upper or am_lower in self._data.prepositive_set or am_lower in self._data.number_abbr_set:
-            am_escaped = re.escape(am_stripped)
-            if am_lower in self._data.prepositive_set:
-                should_protect = not (self._leans_split and am_lower in self.AGGRESSIVE_PREPOSITIVE_BOUNDARY_BLOCKLIST)
-                if should_protect:
-                    if am_lower in self.STARTER_AWARE_PREPOSITIVE and self._leans_split:
-                        txt = self._replace_starter_aware_prepositive(txt, am_escaped, boundary)
-                    else:
-                        txt = _replace_with_escape(txt, am_escaped, r"\.(?=(\s|:\d+))", "∯", boundary)
-            elif am_lower in self._data.number_abbr_set:
-                txt = self._replace_number_abbr(txt, am_escaped, boundary, upper)
-                # Multi-char number abbreviations (eq, pt, fig, vol, …) also
-                # need regular abbreviation protection before lowercase text.
-                # Single-char entries like "p" are excluded — they are too
-                # ambiguous (e.g. "p" is also part of "p.m.").
-                if not upper and len(am_stripped) > 1:
-                    txt = self.replace_period_of_abbr(txt, am_stripped, am_escaped)
-            else:
-                txt = self.replace_period_of_abbr(txt, am_stripped, am_escaped)
-        return txt
+        return self._period_classifier().rewrite(text)

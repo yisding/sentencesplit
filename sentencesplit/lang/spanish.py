@@ -5,12 +5,10 @@ from sentencesplit.lang.common import Common, Standard
 class Spanish(Common, Standard):
     iso_code = "es"
 
-    class AbbreviationReplacer(Standard.AbbreviationReplacer):
-        # Spanish overrides zero scan methods and uses no elision, so it rides
-        # the base PeriodClassifier (BASE_POLICY) directly. It is NOT one of the
-        # five CAPITALIZED_FOLLOWER_IS_BOUNDARY_CUE languages, so that flag stays
-        # off (capital followers flow through the split-mode ambiguity dial).
-        USE_PERIOD_CLASSIFIER = True
+    # Spanish overrides zero scan methods and uses no elision, so it rides the
+    # base PeriodClassifier (BASE_POLICY) inherited from Standard directly. It is
+    # NOT one of the five CAPITALIZED_FOLLOWER_IS_BOUNDARY_CUE languages, so that
+    # flag stays off (capital followers flow through the split-mode ambiguity dial).
 
     class Abbreviation(Standard.Abbreviation):
         ABBREVIATIONS = [

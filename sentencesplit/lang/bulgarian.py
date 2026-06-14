@@ -107,5 +107,4 @@ class Bulgarian(Common, Standard):
         # It overrides ONLY the regular branch; Bulgarian's PREPOSITIVE and NUMBER
         # abbreviation lists are empty, so every abbreviation is regular. The
         # legacy unescaped-lookbehind wildcard quirk is fixed (see BG_POLICY docs).
-        USE_PERIOD_CLASSIFIER = True
         ABBR_POLICY = BG_POLICY

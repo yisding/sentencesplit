@@ -219,7 +219,6 @@ class Deutsch(Common, Standard):
         # imprint / standalone-I passes) is preserved below — only the protection
         # step now delegates to the classifier. The legacy unescaped-``{am}``
         # quirk is FIXED: ``_full_pattern`` re.escapes the abbreviation.
-        USE_PERIOD_CLASSIFIER = True
         ABBR_POLICY = DE_POLICY
 
         def replace(self):
@@ -236,9 +235,9 @@ class Deutsch(Common, Standard):
                 SingleLowerCaseLetterAtStartOfLineRule,
             )
 
-            # Whole-text (not per-line) abbreviation protection. With
-            # USE_PERIOD_CLASSIFIER True this routes through the V2 classifier's
-            # single-pass rewrite (same DE_POLICY decision on every candidate).
+            # Whole-text (not per-line) abbreviation protection; this routes
+            # through the V2 classifier's single-pass rewrite (same DE_POLICY
+            # decision on every candidate).
             self.text = self.search_for_abbreviations_in_string(self.text)
             self.replace_multi_period_abbreviations()
             # German never restored non-ASCII a.m./p.m. boundaries; keep that

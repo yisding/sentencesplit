@@ -20,7 +20,6 @@ class Greek(Common, Standard):
         # passes (replace_multi_period_abbreviations, the all-caps imprint /
         # uppercase-initialism restores) that V2 leaves untouched, so no policy
         # hook is needed.
-        USE_PERIOD_CLASSIFIER = True
         CAPITALIZED_FOLLOWER_IS_BOUNDARY_CUE = True
         PROTECT_ALLCAPS_IMPRINT_SUFFIXES = True
         # Greek does not capitalize common nouns mid-sentence, so a capital after

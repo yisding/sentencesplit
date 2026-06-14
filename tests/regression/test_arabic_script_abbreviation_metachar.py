@@ -2,12 +2,13 @@
 """Regression: Arabic-script abbreviation replacers must escape the matched
 abbreviation before splicing it into the period-protecting lookbehind.
 
-``ArabicScriptProfile.AbbreviationReplacer.scan_for_replacements`` built a
+The retired legacy ``ArabicScriptProfile.AbbreviationReplacer`` built a
 lookbehind from the raw matched text. Abbreviations such as Persian "e.g"/"i.e"
 or Arabic "ا.د" contain a literal ".", which acted as a regex wildcard, so the
 period after an *unrelated* word that happened to match the pattern (e.g. "egg."
 matches the lookbehind "(?<= e.g)") was wrongly protected and the sentence never
-split.
+split. The V2 ``AR_POLICY`` path uses the pre-escaped abbreviation in the
+classifier's lookbehind, so the literal "." stays escaped and this case splits.
 """
 
 import sentencesplit

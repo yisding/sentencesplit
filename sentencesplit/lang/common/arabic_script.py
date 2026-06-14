@@ -25,5 +25,4 @@ class ArabicScriptProfile:
         # cue). The pre-escaped abbreviation in the classifier's lookbehind keeps a
         # dotted form like "e.g" from wildcard-matching an unrelated "egg."
         # (tests/regression/test_arabic_script_abbreviation_metachar.py).
-        USE_PERIOD_CLASSIFIER = True
         ABBR_POLICY = AR_POLICY

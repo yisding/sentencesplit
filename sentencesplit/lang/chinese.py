@@ -26,7 +26,6 @@ class Chinese(CJKBoundaryProfile, Common, Standard):
         # (``cjk_follower_regular_only``), exactly where the legacy override placed
         # it. The PREPOSITIVE / NUMBER branches inherit the base (no-CJK) suffixes,
         # and ``CAPITALIZED_FOLLOWER_IS_BOUNDARY_CUE`` stays False, matching legacy.
-        USE_PERIOD_CLASSIFIER = True
         ABBR_POLICY = ZH_POLICY
 
     class CjkAbbreviationRules:

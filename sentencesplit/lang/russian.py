@@ -108,7 +108,6 @@ class Russian(Common, Standard):
         # downstream-context reads so two "ср." on one line can decide differently.
         # SENTENCE_FINAL_ABBREVIATIONS stays here as the language data table; the
         # policy reads it off the replacer back-reference.
-        USE_PERIOD_CLASSIFIER = True
         ABBR_POLICY = RU_POLICY
 
         SENTENCE_FINAL_ABBREVIATIONS = {

@@ -41,7 +41,6 @@ class Slovak(Common, Standard):
         # ``SK_POLICY`` (``period_classifier._sk_classify_special`` +
         # ``_sk_protect_edit``). It overrides ONLY the regular branch; the
         # PREPOSITIVE / NUMBER branches inherit the base classifier unchanged.
-        USE_PERIOD_CLASSIFIER = True
         ABBR_POLICY = SK_POLICY
 
     class Abbreviation(Standard.Abbreviation):

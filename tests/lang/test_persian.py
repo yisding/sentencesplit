@@ -17,10 +17,10 @@ def test_fa_sbd(fa_default_fixture, text, expected_sents):
 def test_fa_handles_embedded_english_abbreviation(fa_default_fixture):
     """An English honorific in Persian text must not split inside `Dr.`.
 
-    Exercises the Persian-specific AbbreviationReplacer.scan_for_replacements
-    override, which protects the period after each registered abbreviation
-    (`dr`, `mr`, etc., inherited from Standard) by substituting it with a
-    placeholder before sentence boundary detection runs.
+    Exercises the Persian AR_POLICY path in the V2 period classifier, which
+    protects the period after each registered abbreviation (`dr`, `mr`, etc.,
+    inherited from Standard) by substituting it with a sentinel before sentence
+    boundary detection runs.
     """
     text = "He met Dr. Smith. آنها صحبت کردند."
     segments = fa_default_fixture.segment(text)
