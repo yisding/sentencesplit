@@ -172,7 +172,15 @@ class _AbbreviationData:
             # bare form merely appears inside other words (e.g. "al" in "called",
             # "no" in "no one") with no following period — the dominant cost on
             # real prose, where common short abbreviations match everywhere.
-            self.automaton.add_pattern(stripped_lower + ".", idx)
+            #
+            # Exception: the automaton is searched on ``text.lower()`` and U+0130
+            # 'İ' is the only Unicode char whose .lower() changes length ('İ' ->
+            # 'i' + U+0307 combining dot). An occurrence ending in 'İ' followed by
+            # a period lowers to '...i̇.', so the "<abbr>." key (e.g. "vi.") would
+            # not match. Abbreviations ending in 'i' therefore keep the bare key
+            # (the original, always-correct behavior).
+            key = stripped_lower if stripped_lower.endswith("i") else stripped_lower + "."
+            self.automaton.add_pattern(key, idx)
         self.automaton.build()
         self.abbr_set = frozenset(a.strip().lower() for a in raw)
         self.prepositive_set = frozenset(a.lower() for a in lang_abbreviation_class.PREPOSITIVE_ABBREVIATIONS)

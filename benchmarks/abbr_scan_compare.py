@@ -46,9 +46,10 @@ def _bench(fn, text: str) -> float:
 def main() -> None:
     data = _AbbreviationData(LANGUAGE_CODES["en"].Abbreviation)
     automaton = data.automaton
-    # The automaton is keyed on "<abbr>." (the trailing period pre-filter), so the
-    # equivalent naive loop tests for "<abbr>." too.
-    abbr_keys = [a[1] + "." for a in data.abbreviations]  # stripped, lowercased, + '.'
+    # The automaton is keyed on "<abbr>." (the trailing-period pre-filter), except
+    # 'i'-ending abbreviations which keep the bare key (U+0130 'İ' caveat). Mirror
+    # that here so the naive loop matches the automaton's match set.
+    abbr_keys = [a[1] if a[1].endswith("i") else a[1] + "." for a in data.abbreviations]
 
     def ac_scan(text: str) -> set[int]:
         return automaton.search(text)
