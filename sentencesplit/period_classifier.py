@@ -362,6 +362,46 @@ SK_POLICY = AbbrPolicy(
 )
 
 
+# Bulgarian (Phase 5): the legacy ``Bulgarian.AbbreviationReplacer`` overrode ONLY
+# the regular branch (``replace_period_of_abbr``); both ``PREPOSITIVE_ABBREVIATIONS``
+# and ``NUMBER_ABBREVIATIONS`` are EMPTY, so every Bulgarian abbreviation flows
+# through the regular branch. The override did two things (bulgarian.py:99-113):
+#   1) UNCONDITIONAL trailing-period protection — ``re.sub(r"(?<=\sabbr)\.", "∯")``
+#      protects a known abbreviation's period regardless of what follows. Bulgarian
+#      keeps a single protected period here ("150 г. Саргон" stays "150 г∯ Саргон"
+#      at this stage) and a LATER pass decides the boundary; a capital follower is
+#      NOT a boundary cue at the protection step.
+#   2) WHOLE-SPAN — for Cyrillic multi-period abbreviations ("б.р", "бел.пр",
+#      "к.с") the INTERIOR periods are sentinelized too ("б.р." -> "б∯р∯"), because
+#      the ASCII-only ``WithMultiplePeriodsAndEmailRule`` and the post-trailing-period
+#      ``MULTI_PERIOD_ABBREVIATION_REGEX`` both miss them, so the boundary regex would
+#      otherwise shatter the token ("б.р." -> "б." + "р.").
+# This is structurally IDENTICAL to Slovak's regular-branch override (unconditional
+# whole-span PROTECT, regular branch only, empty-or-inert prepositive/number), so
+# Bulgarian rides the SAME ``_sk_classify_special`` (which returns ``NOT_HANDLED``
+# for prepositive/number — never reached here since both sets are empty — and
+# PROTECT otherwise) and ``_sk_protect_edit`` (the whole-span splice). ``classify_special``
+# overrides ONLY the regular branch; the (unused) PREPOSITIVE/NUMBER branches inherit
+# the base classifier.
+#
+# Quirk FIXED (BC not required, plan §3, reviewed Golden-Rule-anchored): the legacy
+# trailing-period regex interpolated the abbreviation UNescaped into a lookbehind
+# (``r"(?<=\s{abbr})\.".format(abbr=abbr)``), so each interior ``.`` of a multi-period
+# abbreviation became a regex WILDCARD. When a genuine ``б.р.`` fired the automaton,
+# the global ``re.sub`` then ALSO protected an unrelated decoy on the same line whose
+# shape matched the wildcard ("…б.р. … бхр. …" -> the spurious "бхр∯"). The V2 path
+# classifies + splices only the candidates the reachability gate (word-boundary,
+# re.escape-d ``match_re``) actually enumerates, so only the genuine ``б.р.`` is
+# protected and the decoy keeps its boundary period — linguistically correct, and
+# exercised by no Golden Rule (every Bulgarian Golden Rule + Cyrillic regression case
+# is byte-identical between the two paths).
+BG_POLICY = AbbrPolicy(
+    classify_special=_sk_classify_special,
+    protect_edit=_sk_protect_edit,
+    realize_per_occurrence=True,
+)
+
+
 class PeriodClassifier:
     """PORT-FIRST engine; constructed once per replacer instance, cached.
 

@@ -3,6 +3,7 @@ import re
 
 from sentencesplit.abbreviation_replacer import AbbreviationReplacer
 from sentencesplit.lang.common import Common, Standard
+from sentencesplit.period_classifier import BG_POLICY
 
 
 class Bulgarian(Common, Standard):
@@ -96,18 +97,15 @@ class Bulgarian(Common, Standard):
         PREPOSITIVE_ABBREVIATIONS = []
 
     class AbbreviationReplacer(AbbreviationReplacer):
-        def replace_period_of_abbr(self, txt, abbr, escaped=None):
-            abbr = abbr.strip()
-            txt = re.sub(r"(?<=\s{abbr})\.|(?<=^{abbr})\.".format(abbr=abbr), "∯", txt)
-            # For Cyrillic multi-period abbreviations (e.g. "б.р", "к.с",
-            # "бел.пр") the trailing period is protected above, but their
-            # INTERIOR periods are never sentinel-protected by the shared
-            # logic — the ASCII-only WithMultiplePeriodsAndEmailRule and the
-            # MULTI_PERIOD_ABBREVIATION_REGEX (after the trailing period is
-            # already consumed) both miss them — so the boundary regex would
-            # split mid-token ("б.р." -> "б." + "р."). Protect the abbreviation's
-            # own interior periods explicitly.
-            if "." in abbr:
-                escaped_body = re.escape(abbr).replace(r"\.", "∯")
-                txt = re.sub(r"(?<=\s){abbr}(?=∯)|(?<=^){abbr}(?=∯)".format(abbr=re.escape(abbr)), escaped_body, txt)
-            return txt
+        # V2 PeriodClassifier (Phase 5). The legacy ``replace_period_of_abbr``
+        # override — an UNCONDITIONAL trailing-period protect plus a WHOLE-SPAN
+        # interior-period protect for Cyrillic multi-period abbreviations ("б.р",
+        # "бел.пр", "к.с") so the boundary regex does not shatter the token
+        # ("б.р." -> "б." + "р.") — is reimplemented as ``BG_POLICY``
+        # (``period_classifier._sk_classify_special`` + ``_sk_protect_edit``,
+        # shared with Slovak's structurally-identical regular-branch override).
+        # It overrides ONLY the regular branch; Bulgarian's PREPOSITIVE and NUMBER
+        # abbreviation lists are empty, so every abbreviation is regular. The
+        # legacy unescaped-lookbehind wildcard quirk is fixed (see BG_POLICY docs).
+        USE_PERIOD_CLASSIFIER = True
+        ABBR_POLICY = BG_POLICY
