@@ -3,6 +3,7 @@ import re
 
 from sentencesplit.abbreviation_replacer import AbbreviationReplacer
 from sentencesplit.lang.common import Common, Standard
+from sentencesplit.period_classifier import BASE_POLICY
 from sentencesplit.processor import Processor
 from sentencesplit.utils import Rule, apply_rules
 
@@ -325,6 +326,40 @@ class Kazakh(Common, Standard):
         NUMBER_ABBREVIATIONS = []
 
     class AbbreviationReplacer(AbbreviationReplacer):
+        # V2: route the per-line abbreviation-protection step through the
+        # PeriodClassifier. Kazakh overrode ZERO scan methods
+        # (``scan_for_replacements`` / ``replace_period_of_abbr`` are inherited;
+        # ``PREPOSITIVE_ABBREVIATIONS`` and ``NUMBER_ABBREVIATIONS`` are empty;
+        # ``CAPITALIZED_FOLLOWER_IS_BOUNDARY_CUE`` stays False), so its per-line
+        # step is the BASE REGULAR branch verbatim — ``BASE_POLICY`` reproduces it
+        # byte-for-byte (verified by the differential oracle over every Kazakh
+        # Golden Rule + regression case).
+        #
+        # All Kazakh-specific behavior lives in the THREE whole-text passes that
+        # wrap the base ``replace()`` and CANNOT collapse into the per-line
+        # classifier:
+        #   1. (pre) Cyrillic single-uppercase-letter initials -> ``∯`` (run on
+        #      the whole text before line-splitting; ``^`` anchors the document
+        #      start);
+        #   2. (pre) ``replace_single_period_abbreviations`` — the dotted Kazakh
+        #      abbreviations ("обл.", "тех.", "м." …) are stored WITH a trailing
+        #      dot, so the automaton keys them as "<abbr>.." and the base step
+        #      never enumerates "обл." as a candidate. This pass protects their
+        #      period before a Kazakh-Cyrillic-lowercase / Latin-lowercase / "I" /
+        #      digit / "(" continuation (``_LOWERCASE_CONTINUATION_CHARS``), which
+        #      the base ``[a-z]`` follower class would miss; it sentinelizes the
+        #      period BEFORE the classifier runs, so those periods are no longer
+        #      "." candidates by the time the per-line step sees them;
+        #   3. (post) ``protect_multi_period_abbreviations_before_parenthesis`` —
+        #      runs AFTER ``replace_multi_period_abbreviations`` (it matches interior
+        #      ``∯`` that pass produced via ``[.∯]``), so it must stay a whole-text
+        #      post-pass, not a per-line classifier stage.
+        # This mirrors the Deutsch V2 conversion: keep the reordered ``replace()``
+        # for whole-text staging; only the protection step delegates to the
+        # classifier.
+        USE_PERIOD_CLASSIFIER = True
+        ABBR_POLICY = BASE_POLICY
+
         _LOWERCASE_CONTINUATION_CHARS = "a-zа-яёәғқңөұүһі"
 
         def replace(self) -> str:

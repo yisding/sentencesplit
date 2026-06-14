@@ -73,16 +73,40 @@ def test_oracle_does_not_crash_across_languages(code: str) -> None:
         assert samples[code][p] == "."
 
 
-def test_classifier_unavailable_for_non_opted_languages() -> None:
-    # Languages that have NOT opted into the V2 classifier
-    # (``USE_PERIOD_CLASSIFIER`` is False/unset) still raise loudly, so the
-    # debugging-aid oracle never silently no-ops for a non-migrated language.
-    # ``kk`` (Kazakh) remains on the legacy path; ``zh``/``de``/``ru``/``sk``/
-    # ``bg``/``ar``/``fa`` opted in at Phase 5.
-    with pytest.raises(ClassifierUnavailable):
-        classifier_protect_positions("Бұл мысалы. Қараңыз 5-бет.", "kk")
-    with pytest.raises(ClassifierUnavailable):
-        diff_positions("Бұл мысалы. Қараңыз 5-бет.", "kk")
+def test_classifier_unavailable_when_flag_off() -> None:
+    # A language whose ``USE_PERIOD_CLASSIFIER`` is False/unset must still raise
+    # loudly, so the debugging-aid oracle never silently no-ops for a
+    # non-migrated language. Every shipping language has now opted in (Kazakh was
+    # the last, at Phase 5), so this guard is exercised by temporarily forcing the
+    # flag off on a real language — the mechanic, not the per-language policy, is
+    # what matters here.
+    from sentencesplit.lang.kazakh import Kazakh
+
+    replacer_cls = Kazakh.AbbreviationReplacer
+    prior = replacer_cls.USE_PERIOD_CLASSIFIER
+    replacer_cls.USE_PERIOD_CLASSIFIER = False
+    try:
+        with pytest.raises(ClassifierUnavailable):
+            classifier_protect_positions("Бұл мысалы. Қараңыз 5-бет.", "kk")
+        with pytest.raises(ClassifierUnavailable):
+            diff_positions("Бұл мысалы. Қараңыз 5-бет.", "kk")
+    finally:
+        replacer_cls.USE_PERIOD_CLASSIFIER = prior
+
+
+def test_classifier_available_and_at_parity_for_kazakh() -> None:
+    # Kazakh opted into the V2 classifier at Phase 5. Its per-line protection step
+    # is the BASE REGULAR branch verbatim (zero scan-method overrides; empty
+    # prepositive/number sets; capital-follower cue off), so the classifier must
+    # produce byte-identical protected positions vs the legacy per-line step. All
+    # Kazakh-specific behavior lives in the three whole-text passes that wrap the
+    # base ``replace()`` (outside the per-line step the oracle measures).
+    text = "Бұл мысалы. Қараңыз 5-бет. См. рис. 3 ниже."
+    positions = classifier_protect_positions(text, "kk")
+    for p in positions:
+        assert text[p] == ".", f"position {p} is not a period in {text!r}"
+    legacy_only, new_only = diff_positions(text, "kk")
+    assert (legacy_only, new_only) == ([], []), f"classifier diverges from legacy for kk: {legacy_only=} {new_only=}"
 
 
 @pytest.mark.parametrize("code", ["en", "en_legal"])
