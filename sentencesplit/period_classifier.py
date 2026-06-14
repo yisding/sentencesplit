@@ -1,0 +1,344 @@
+# -*- coding: utf-8 -*-
+"""Single-pass period classifier for abbreviation boundary protection (V2 engine).
+
+This module implements the ``PeriodClassifier`` that replaces ONLY the per-line
+abbreviation-protection step inside
+``AbbreviationReplacer.search_for_abbreviations_in_string``
+(``abbreviation_replacer.py:582``). Everything else in ``replace()`` is unchanged:
+the upstream single-letter/possessive rules, ``replace_multi_period_abbreviations``,
+the compact-ampm / uppercase-initialism / allcaps-imprint / ampm / standalone-I
+passes all still run after this step and still see the same ``∯``/``.`` mix.
+
+Design (per ``analysis/ABBREVIATION_ENGINE_V2_PLAN.md`` §2): each candidate period
+is classified ONCE from the ORIGINAL line text (never from a sentinel left by a
+prior decision), into one of three decisions — PROTECT (``.`` -> ``∯``), BOUNDARY
+(``.`` stays), or PLACEHOLDER (the rare number-abbr ``??`` case). The decisions
+are then realized GLOBALLY per (abbr, follower-char) unit — mirroring the legacy
+``re.sub`` semantics — and the line is rebuilt in a single pass.
+
+Zero third-party dependencies: stdlib ``re``/``enum``/``dataclasses`` plus the
+package's own ``split_mode_rank``.
+"""
+
+from __future__ import annotations
+
+import enum
+import re
+from dataclasses import dataclass, field
+from enum import auto
+from typing import Callable
+
+from sentencesplit.utils import split_mode_rank
+
+
+class Decision(enum.Enum):
+    PROTECT = auto()
+    BOUNDARY = auto()
+    PLACEHOLDER = auto()
+
+
+# Tri-state sentinel for ``AbbrPolicy.classify_special``: distinct from ``None``
+# (which means BOUNDARY) and from any ``Decision`` (which is honored verbatim).
+NOT_HANDLED = object()
+
+
+@dataclass(frozen=True, slots=True)
+class Edit:
+    """A position-anchored splice over the original line.
+
+    PROTECT      -> Edit(p, p+1, "∯", p)
+    PLACEHOLDER  -> Edit(p, qq_end, "∯ &ᓷ&&ᓷ&", p)  where qq_end spans the trailing " ??"
+    BOUNDARY     -> no Edit emitted
+    """
+
+    start: int  # original-line index where the splice begins
+    end: int  # original-line index (exclusive) the splice overwrites
+    replacement: str
+    period_idx: int  # the original index of the candidate '.' (for oracle reporting)
+
+
+@dataclass(frozen=True, slots=True)
+class Candidate:
+    period_idx: int  # index of the '.' in the ORIGINAL line (== match.end())
+    occ_start: int  # m.start() (for elision/possessive context if ever needed)
+    am_stripped: str  # abbreviation text as stored (elision NOT yet stripped)
+    am_escaped: str  # data.abbreviations[idx][2], the pre-built re.escape
+    follower_char: str  # char after "abbr. " (line[end+2:end+3] if line[end:end+2]==". " else "")
+
+
+@dataclass(frozen=True, slots=True)
+class AbbrPolicy:
+    """Per-language descriptor; english/en_legal ride ``BASE_POLICY`` with zero code.
+
+    The classifier reads the English flags (``CAPITALIZED_FOLLOWER_IS_BOUNDARY_CUE``,
+    ``STARTER_AWARE_PREPOSITIVE``, ``AGGRESSIVE_PREPOSITIVE_BOUNDARY_BLOCKLIST``) and
+    ``split_mode`` off the replacer back-reference (single source), so they are NOT
+    duplicated here.
+    """
+
+    # REGULAR-branch lowercase follower class; en_es_zh -> "[^\\W\\d_]".
+    # boundary_class is NOT stored here: it is read off ``_AbbreviationData.boundary_class``
+    # at construction so fr/it elision ("\\s’'") is automatic and never duplicated.
+    follower_class: str = "[a-z]"
+    # Override seams (base = inert).
+    # classify_special returns Decision.{PROTECT,BOUNDARY,PLACEHOLDER}, the module
+    # sentinel NOT_HANDLED to fall through to the generic 3-branch dispatch, or
+    # None == BOUNDARY. A language may override ONE branch and inherit the other two.
+    classify_special: Callable[["PeriodClassifier", str, Candidate], object] | None = None
+    candidate_filter: Callable[[Candidate, str], bool] | None = None  # base None == accept all
+    pre_stages: tuple = field(default_factory=tuple)  # tuple[Callable[[str, replacer], str]]; base empty
+    post_stages: tuple = field(default_factory=tuple)  # base empty
+
+
+BASE_POLICY = AbbrPolicy()  # module-level frozen constant; shared, read-only (free-threaded-safe)
+# Built/used in Phase 5; defined here so the seam exists.
+EN_ES_ZH_POLICY = AbbrPolicy(follower_class=r"[^\W\d_]")
+
+
+class PeriodClassifier:
+    """PORT-FIRST engine; constructed once per replacer instance, cached.
+
+    All ``RE_*`` patterns are SUFFIX-ONLY (no lookbehind): the legacy
+    ``(?<=[B]{escaped})`` lookbehind is DISCHARGED by candidate enumeration (the
+    period already sits right after a word-boundary ``<abbr>``), so we never
+    re-test it. Each is matched with ``.match(line, c.period_idx)`` — the ``.``
+    itself is at ``period_idx`` and the suffix lookaheads test from there.
+    """
+
+    def __init__(self, replacer, data, policy: AbbrPolicy) -> None:
+        self.r = replacer  # back-ref: flags + STARTER_AWARE_PREPOSITIVE + helpers + split_mode
+        self.data = data  # the SAME _AbbreviationData (automaton, abbreviations, sets, boundary_class)
+        self.policy = policy
+        self.rank = split_mode_rank(replacer.split_mode)
+        # data.boundary_class ("\\s" or "\\s<escaped-elision>") is read off `data`
+        # in _full_pattern; the suffix patterns below are lookbehind-free.
+        fc = policy.follower_class
+        self.RE_REGULAR = re.compile(r"\.(?=((\.|\:|-|\?|,)|(\s(" + fc + r"|I\s|I'm|I'll|\d|\())))")
+        self.RE_PREPOSITIVE = re.compile(r"\.(?=(\s|:\d+))")
+        self.RE_NUM_UP_JOIN = re.compile(r"\.(?=\s[^\W\d_])")
+        self.RE_NUM_UP_SPLIT = re.compile(r"\.(?=\s(?:[IVXLCDM]{2,}|[VXLCDM])\b)")
+        self.RE_NUM_LOW = re.compile(r"\.(?=(\s\d|\s+\(|\s\?\?(?!\?)|\s[IVXLCDM]+\b))")
+        self.RE_NUM_QQ = re.compile(r"\.(?=\s\?\?(?!\?))")  # the PLACEHOLDER alternative, isolated
+        # Lookbehind-anchored full patterns for the GLOBAL realization pass, keyed by
+        # the suffix that drove the decision. Built lazily per (am_escaped, suffix).
+        self._full_cache: dict[tuple[str, str], re.Pattern[str]] = {}
+
+    @property
+    def _leans_split(self) -> bool:
+        return self.rank >= 2
+
+    @property
+    def _leans_join(self) -> bool:
+        return self.rank <= 0
+
+    def _elision_strip(self, am: str) -> str:
+        if self.data.elision_chars and am and am[0] in self.data.elision_chars:
+            return am[1:]
+        return am
+
+    # ------------------------------------------------------------------ enumerate
+    def enumerate_candidates(self, line: str) -> list[Candidate]:
+        """Reproduce the reachability gate EXACTLY (search_for_abbreviations_in_string @582-611).
+
+        Enumerate candidates via the automaton ``<abbr>.`` prefilter (key @190, with
+        the U+0130 İ bare-key exception inherited by reusing ``data.automaton``
+        verbatim — never rebuild keys), then ``match_re.finditer(line)`` on the
+        ORIGINAL line, period-less skip ``if line[end:end+1] != '.'`` @601, and
+        follower-char ``line[end+2:end+3] if line[end:end+2]=='. ' else ''`` @603
+        read from the SAME occurrence. Dedup by (elision-stripped am_lower,
+        follower_char) @609, paired with GLOBAL-per-unit realization in ``rewrite``.
+        """
+        lowered = line.lower()
+        found = self.data.automaton.search(lowered)
+        cands: list[Candidate] = []
+        for idx in sorted(found):  # legacy ID order (@587)
+            stripped, _stripped_lower, escaped, match_re, _next_word_re = self.data.abbreviations[idx]
+            for m in match_re.finditer(line):  # ORIGINAL line, word-boundary-prefixed, IGNORECASE
+                end = m.end()
+                if line[end : end + 1] != ".":  # period-less skip (@601)
+                    continue
+                fch = line[end + 2 : end + 3] if line[end : end + 2] == ". " else ""  # follower-char (@603)
+                cands.append(Candidate(end, m.start(), stripped, escaped, fch))
+        # DEDUP exactly as legacy @609: classify ONE representative per
+        # (elision-stripped am_lower, follower_char); each PROTECT is realized
+        # GLOBALLY over the line in rewrite().
+        seen: dict[tuple[str, str], bool] = {}
+        out: list[Candidate] = []
+        for c in cands:
+            a_low = self._elision_strip(c.am_stripped).lower()
+            k = (a_low, c.follower_char)
+            if k not in seen:
+                seen[k] = True
+                out.append(c)
+        return out
+
+    # ------------------------------------------------------------------- classify
+    def classify(self, c: Candidate, line: str) -> Decision:
+        """PURE: reads ONLY *c* + the ORIGINAL *line*; never a sentinel.
+
+        Reproduces the branch dispatch from scan_for_replacements @644-680.
+        """
+        # 1) language override seam (inert for BASE_POLICY)
+        if self.policy.classify_special is not None:
+            d = self.policy.classify_special(self, line, c)
+            if d is not NOT_HANDLED:
+                return Decision.BOUNDARY if d is None else d
+        am_lower = self._elision_strip(c.am_stripped).lower()
+        use_heur = self.r.CAPITALIZED_FOLLOWER_IS_BOUNDARY_CUE
+        upper = c.follower_char.isupper() if (c.follower_char and use_heur) else False  # @652
+        prep = self.data.prepositive_set
+        num = self.data.number_abbr_set
+        # 2) the gate that LEAVES a capital-follower plain abbr as a BOUNDARY (@661 negated):
+        if upper and am_lower not in prep and am_lower not in num:
+            return Decision.BOUNDARY  # period stays '.'
+        # 3) PREPOSITIVE branch (@663-669)
+        if am_lower in prep:
+            return self._classify_prepositive(c, line, am_lower)
+        # 4) NUMBER branch (@613-624, @670-677)
+        if am_lower in num:
+            return self._classify_number(c, line, upper)
+        # 5) REGULAR branch (@568/574/679)
+        return Decision.PROTECT if self.RE_REGULAR.match(line, c.period_idx) else Decision.BOUNDARY
+
+    def _classify_prepositive(self, c: Candidate, line: str, am_lower: str) -> Decision:
+        """PREPOSITIVE branch (scan_for_replacements @663-669)."""
+        if self._leans_split and am_lower in self.r.AGGRESSIVE_PREPOSITIVE_BOUNDARY_BLOCKLIST:
+            return Decision.BOUNDARY  # should_protect False (@664)
+        if am_lower in self.r.STARTER_AWARE_PREPOSITIVE and self._leans_split:  # @666 callback (@631-642)
+            i = c.period_idx
+            if line[i + 1 : i + 2] == ":":
+                return Decision.PROTECT
+            return Decision.BOUNDARY if self.r._follower_is_likely_sentence_start(line, i + 1) else Decision.PROTECT
+        return Decision.PROTECT if self.RE_PREPOSITIVE.match(line, c.period_idx) else Decision.BOUNDARY  # @669
+
+    def _classify_number(self, c: Candidate, line: str, upper: bool) -> Decision:
+        """NUMBER branch (_replace_number_abbr @613-624, dispatch @670-677)."""
+        i = c.period_idx
+        if upper:
+            rx = self.RE_NUM_UP_JOIN if self._leans_join else self.RE_NUM_UP_SPLIT  # @619 / @622
+            return Decision.PROTECT if rx.match(line, i) else Decision.BOUNDARY
+        if self.RE_NUM_QQ.match(line, i):  # @623 ?? arm + @626 placeholder
+            return Decision.PLACEHOLDER
+        if self.RE_NUM_LOW.match(line, i):  # @623 the rest
+            return Decision.PROTECT
+        if len(self._elision_strip(c.am_stripped)) > 1:  # @676 multi-char regular fallthrough
+            return Decision.PROTECT if self.RE_REGULAR.match(line, i) else Decision.BOUNDARY
+        return Decision.BOUNDARY  # single-char 'p' excluded (@676)
+
+    # -------------------------------------------------------- suffix selection
+    def _suffix_for(self, c: Candidate, line: str, d: Decision) -> str:
+        """Return the suffix pattern (sans lookbehind) that drove decision *d*.
+
+        Used to re-anchor the global realization pass. Mirrors classify()'s branch
+        selection so the SAME suffix that PROTECTed/PLACEHOLDERed is applied to
+        every occurrence of this abbr on the line.
+        """
+        am_lower = self._elision_strip(c.am_stripped).lower()
+        use_heur = self.r.CAPITALIZED_FOLLOWER_IS_BOUNDARY_CUE
+        upper = c.follower_char.isupper() if (c.follower_char and use_heur) else False
+        prep = self.data.prepositive_set
+        num = self.data.number_abbr_set
+        if am_lower in prep:
+            # STARTER_AWARE / base prepositive both protect via the PREPOSITIVE suffix.
+            return self.RE_PREPOSITIVE.pattern
+        if am_lower in num:
+            if upper:
+                return self.RE_NUM_UP_JOIN.pattern if self._leans_join else self.RE_NUM_UP_SPLIT.pattern
+            if d is Decision.PLACEHOLDER:
+                return self.RE_NUM_QQ.pattern
+            if self.RE_NUM_LOW.match(line, c.period_idx):
+                return self.RE_NUM_LOW.pattern
+            # multi-char NUMBER -> REGULAR fallthrough (@676)
+            return self.RE_REGULAR.pattern
+        return self.RE_REGULAR.pattern
+
+    def _full_pattern(self, am_escaped: str, suffix: str) -> re.Pattern[str]:
+        key = (am_escaped, suffix)
+        pat = self._full_cache.get(key)
+        if pat is None:
+            # The stored ``am_escaped`` is the lowercase abbreviation form, but the
+            # line carries the occurrence's ORIGINAL case ("Dr."). Legacy escapes
+            # the original-case ``am.strip()`` and runs a case-SENSITIVE ``re.sub``
+            # per occurrence; the union over every IGNORECASE occurrence of this
+            # abbr (all sharing one classify decision via ``am_lower``) is an
+            # IGNORECASE match of the ABBREVIATION only — while the suffix follower
+            # class (e.g. base ``[a-z]``) must stay case-SENSITIVE so "Ltd. She"
+            # (capital follower) does NOT match the lowercase-follower regular
+            # suffix. Scope IGNORECASE to the lookbehind abbreviation only via the
+            # inline ``(?i:...)`` group; the suffix keeps the pattern's default
+            # (case-sensitive) flags.
+            pat = re.compile(
+                r"(?<=[" + self.data.boundary_class + r"](?i:" + am_escaped + r"))" + suffix,
+            )
+            self._full_cache[key] = pat
+        return pat
+
+    @staticmethod
+    def _qq_span(line: str, p: int) -> str:
+        """Return the trailing ' ??' substring after the period at *p* (incl. leading space)."""
+        # period at p; matched RE_NUM_QQ means line[p+1:] starts with \s\?\?(?!\?)
+        # capture exactly the single whitespace + the two '?'.
+        return line[p + 1 : p + 4]  # e.g. " ??"
+
+    # -------------------------------------------------------------------- rewrite
+    def _collect_edits(self, line: str) -> list[Edit]:
+        edits: list[Edit] = []
+        for c in self.enumerate_candidates(line):
+            if self.policy.candidate_filter is not None and not self.policy.candidate_filter(c, line):
+                continue
+            d = self.classify(c, line)  # decided ONCE from original text for this (am, char)
+            if d is Decision.BOUNDARY:
+                continue
+            suffix = self._suffix_for(c, line, d)
+            # Realize GLOBALLY over the line (legacy global re.sub semantics): the
+            # chosen suffix regex, re-anchored with the lookbehind, applied to EVERY
+            # occurrence of THIS abbr on the line. Leading-space prefix matches the
+            # legacy _replace_with_escape/replace_period_of_abbr " " + txt trick.
+            full = self._full_pattern(c.am_escaped, suffix)
+            probe = " " + line
+            for m in full.finditer(probe):
+                p = m.start() - 1  # original-line period index
+                if d is Decision.PROTECT:
+                    edits.append(Edit(p, p + 1, "∯", p))
+                else:  # PLACEHOLDER
+                    qq_end = (p + 1) + len(self._qq_span(line, p))
+                    edits.append(Edit(p, qq_end, "∯ " + self.r._UNKNOWN_PLACEHOLDER, p))
+        return edits
+
+    @staticmethod
+    def _dedup_sorted(edits: list[Edit]) -> list[Edit]:
+        # A doubly protected period (multi-char NUMBER hitting both NUM_LOW and
+        # REGULAR realizations) collapses to one edit — idempotent, matches legacy's
+        # two idempotent re.subs. Dedup by (start, end, replacement).
+        seen: dict[tuple[int, int, str], Edit] = {}
+        for e in edits:
+            k = (e.start, e.end, e.replacement)
+            if k not in seen:
+                seen[k] = e
+        return sorted(seen.values(), key=lambda e: (e.start, e.end))
+
+    @staticmethod
+    def _rebuild(line: str, edits: list[Edit]) -> str:
+        parts: list[str] = []
+        cur = 0
+        for e in edits:
+            assert e.start >= cur, f"overlapping edits at {e.start} (cur={cur})"  # loud non-overlap guard
+            parts.append(line[cur : e.start])
+            parts.append(e.replacement)
+            cur = e.end
+        parts.append(line[cur:])
+        return "".join(parts)
+
+    def rewrite(self, line: str) -> str:
+        edits = self._dedup_sorted(self._collect_edits(line))
+        if not edits:
+            return line
+        return self._rebuild(line, edits)
+
+    # ------------------------------------------------------------ oracle adapter
+    def protect_positions(self, line: str) -> list[int]:
+        """Oracle adapter: period indices protected on *line* (matches oracle.py:184).
+
+        PLACEHOLDER contributes ONLY its period_idx (oracle.py:105-109).
+        """
+        return sorted({e.period_idx for e in self._dedup_sorted(self._collect_edits(line))})

@@ -202,6 +202,14 @@ class AbbreviationReplacer:
     PROTECT_ALLCAPS_IMPRINT_SUFFIXES = False
     RESTORE_STANDALONE_I_BOUNDARIES = False
 
+    # V2 single-pass period classifier opt-in (per-language feature flag +
+    # parallel-path guardrail). When True, the per-line abbreviation-protection
+    # step routes through PeriodClassifier instead of the legacy per-occurrence
+    # re.sub loop. en/en_legal set it True; other languages flip on only when
+    # green (Phase 4/5). ABBR_POLICY selects the per-language policy by data.
+    USE_PERIOD_CLASSIFIER = False
+    ABBR_POLICY = None  # resolved to period_classifier.BASE_POLICY lazily
+
     # Opt-in for scripts (e.g. Greek, Cyrillic) that do not capitalize common
     # nouns mid-sentence: there, a capital letter following a multi-period
     # abbreviation's final period reliably marks a new sentence. The default
@@ -253,6 +261,28 @@ class AbbreviationReplacer:
             if abbr_class not in AbbreviationReplacer._data_cache:
                 AbbreviationReplacer._data_cache[abbr_class] = _AbbreviationData(lang.Abbreviation)
             self._data = AbbreviationReplacer._data_cache[abbr_class]
+
+    def _period_classifier(self):
+        """Lazily build + cache the V2 PeriodClassifier on this instance.
+
+        Per-instance is fine; instances are per-call. The classifier reuses the
+        SAME _AbbreviationData (automaton + sets) — it never rebuilds the keys or
+        the automaton, preserving the U+0130 İ exception and the publish-after-build
+        thread-safety invariant.
+        """
+        pc = getattr(self, "_pc", None)
+        if pc is None:
+            # Local import keeps the legacy path import-free and avoids a cycle.
+            from sentencesplit.period_classifier import BASE_POLICY, PeriodClassifier
+
+            policy = self.ABBR_POLICY if self.ABBR_POLICY is not None else BASE_POLICY
+            pc = PeriodClassifier(self, self._data, policy)
+            self._pc = pc
+        return pc
+
+    def classifier_protect_positions_for_line(self, line: str) -> list[int]:
+        """Oracle adapter (tests/v2/oracle.py:166,184): protected period offsets in *line*."""
+        return self._period_classifier().protect_positions(line)
 
     @property
     def _leans_split(self) -> bool:
@@ -580,6 +610,8 @@ class AbbreviationReplacer:
         return txt[1:]
 
     def search_for_abbreviations_in_string(self, text: str) -> str:
+        if self.USE_PERIOD_CLASSIFIER:
+            return self._period_classifier().rewrite(text)
         lowered = text.lower()
         data = self._data
         found_indices = data.automaton.search(lowered)

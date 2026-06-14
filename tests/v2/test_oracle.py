@@ -73,8 +73,25 @@ def test_oracle_does_not_crash_across_languages(code: str) -> None:
         assert samples[code][p] == "."
 
 
-def test_classifier_stub_raises_until_v2_lands() -> None:
+def test_classifier_unavailable_for_non_opted_languages() -> None:
+    # Languages that have NOT opted into the V2 classifier
+    # (``USE_PERIOD_CLASSIFIER`` is False/unset) still raise loudly, so the
+    # debugging-aid oracle never silently no-ops for a non-migrated language.
     with pytest.raises(ClassifierUnavailable):
-        classifier_protect_positions("Dr. Smith arrived.", "en")
+        classifier_protect_positions("Das ist z.B. wichtig.", "de")
     with pytest.raises(ClassifierUnavailable):
-        diff_positions("Dr. Smith arrived.", "en")
+        diff_positions("Das ist z.B. wichtig.", "de")
+
+
+@pytest.mark.parametrize("code", ["en", "en_legal"])
+def test_classifier_available_and_at_parity_for_english(code: str) -> None:
+    # en/en_legal opted into the V2 PeriodClassifier; it must be reachable and,
+    # for English (whose legacy output is known-good), produce byte-identical
+    # protected positions vs the legacy per-line step (the Phase-2 equality
+    # TARGET). A divergence here is a real regression to adjudicate, not noise.
+    text = "Dr. Smith met Sen. Jones. See No. 5 and Vol. IV. The 9th Cir. reversed."
+    positions = classifier_protect_positions(text, code)
+    for p in positions:
+        assert text[p] == ".", f"position {p} is not a period in {text!r}"
+    legacy_only, new_only = diff_positions(text, code)
+    assert (legacy_only, new_only) == ([], []), f"classifier diverges from legacy for {code}: {legacy_only=} {new_only=}"

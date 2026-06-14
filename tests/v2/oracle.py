@@ -73,8 +73,20 @@ def _apply_upstream_rules(lang, text: str) -> str:
 
 
 def _protect_line(replacer, line: str) -> str:
-    """Run only the per-line abbreviation-protection step on a single line."""
-    return replacer.search_for_abbreviations_in_string(line)
+    """Run only the LEGACY per-line abbreviation-protection step on a single line.
+
+    Once a language opts into the V2 classifier (``USE_PERIOD_CLASSIFIER = True``),
+    ``search_for_abbreviations_in_string`` routes through the classifier. To keep
+    this a genuine *differential* oracle (legacy vs new), force the legacy branch
+    for this measurement by disabling the flag on this per-call replacer instance;
+    the instance is discarded after the oracle runs, so nothing else is affected.
+    """
+    prior = replacer.USE_PERIOD_CLASSIFIER
+    replacer.USE_PERIOD_CLASSIFIER = False
+    try:
+        return replacer.search_for_abbreviations_in_string(line)
+    finally:
+        replacer.USE_PERIOD_CLASSIFIER = prior
 
 
 def _diff_line_positions(original_line: str, protected_line: str) -> set[int]:
