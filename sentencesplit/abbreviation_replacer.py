@@ -132,6 +132,15 @@ class _AbbreviationData:
         "automaton",
         "elision_chars",
         "boundary_class",
+        # Persistent cache of PeriodClassifier instances keyed by
+        # ``(id(policy), split_mode)``. The classifier's compiled ``RE_*`` suffix
+        # patterns and its ``_full_cache`` are line-independent and depend only on
+        # ``(policy, split_mode, data)`` — all immutable for a given
+        # ``_AbbreviationData`` — so reusing one classifier across the per-call
+        # ``AbbreviationReplacer`` instances avoids recompiling ~9 regexes and
+        # rebuilding the full-pattern cache on every ``segment()`` call. Published
+        # after full construction under ``AbbreviationReplacer._cache_lock``.
+        "_classifier_cache",
     )
 
     def __init__(self, lang_abbreviation_class):
@@ -186,6 +195,7 @@ class _AbbreviationData:
         self.abbr_set = frozenset(a.strip().lower() for a in raw)
         self.prepositive_set = frozenset(a.lower() for a in lang_abbreviation_class.PREPOSITIVE_ABBREVIATIONS)
         self.number_abbr_set = frozenset(a.lower() for a in lang_abbreviation_class.NUMBER_ABBREVIATIONS)
+        self._classifier_cache: dict[tuple[int, str], object] = {}
 
 
 class AbbreviationReplacer:
@@ -254,21 +264,43 @@ class AbbreviationReplacer:
             self._data = AbbreviationReplacer._data_cache[abbr_class]
 
     def _period_classifier(self):
-        """Lazily build + cache the V2 PeriodClassifier on this instance.
+        """Return a V2 PeriodClassifier, reusing the per-(policy, split_mode) one
+        cached on the shared ``_AbbreviationData``.
 
-        Per-instance is fine; instances are per-call. The classifier reuses the
-        SAME _AbbreviationData (automaton + sets) — it never rebuilds the keys or
-        the automaton, preserving the U+0130 İ exception and the publish-after-build
+        The classifier's compiled ``RE_*`` suffix patterns and ``_full_cache`` are
+        line-independent and depend only on ``(policy, split_mode, data)`` — all
+        immutable for a given ``_AbbreviationData`` — so one classifier serves every
+        per-call ``AbbreviationReplacer`` instance, avoiding ~9 regex compiles and a
+        cold full-pattern cache on each ``segment()`` call. It reuses the SAME
+        ``_AbbreviationData`` (automaton + sets), never rebuilding the keys or the
+        automaton, preserving the U+0130 İ exception and the publish-after-build
         thread-safety invariant.
+
+        The cached classifier's back-reference ``self.r`` is rebound to this live
+        instance on every retrieval. The methods/attributes it reads through that
+        back-ref (``CAPITALIZED_FOLLOWER_IS_BOUNDARY_CUE``, ``STARTER_AWARE_PREPOSITIVE``,
+        ``_follower_is_likely_sentence_start``, ``_UNKNOWN_PLACEHOLDER`` …) are all
+        class-level on the replacer; split_mode is captured separately in the cache
+        key, so the rebind is for correctness under any future per-instance state.
         """
         pc = getattr(self, "_pc", None)
-        if pc is None:
-            # Local import keeps the legacy path import-free and avoids a cycle.
-            from sentencesplit.period_classifier import BASE_POLICY, PeriodClassifier
+        if pc is not None:
+            return pc
+        # Local import keeps imports lazy and avoids a cycle.
+        from sentencesplit.period_classifier import BASE_POLICY, PeriodClassifier
 
-            policy = self.ABBR_POLICY if self.ABBR_POLICY is not None else BASE_POLICY
+        policy = self.ABBR_POLICY if self.ABBR_POLICY is not None else BASE_POLICY
+        key = (id(policy), self.split_mode)
+        cache = self._data._classifier_cache
+        pc = cache.get(key)
+        if pc is None:
             pc = PeriodClassifier(self, self._data, policy)
-            self._pc = pc
+            with AbbreviationReplacer._cache_lock:
+                # Publish after full construction; first writer wins (the value is
+                # behavior-identical for a given key, so a benign race is harmless).
+                pc = cache.setdefault(key, pc)
+        pc.r = self  # rebind back-ref to the live replacer instance
+        self._pc = pc
         return pc
 
     def classifier_protect_positions_for_line(self, line: str) -> list[int]:

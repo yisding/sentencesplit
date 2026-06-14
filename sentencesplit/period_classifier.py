@@ -651,28 +651,47 @@ class PeriodClassifier:
     def classify(self, c: Candidate, line: str) -> Decision:
         """PURE: reads ONLY *c* + the ORIGINAL *line*; never a sentinel.
 
-        Reproduces the branch dispatch from scan_for_replacements @644-680.
+        Reproduces the branch dispatch from scan_for_replacements @644-680. Thin
+        wrapper over ``_classify_with_suffix`` (oracle / per-occurrence callers want
+        just the decision); the global-realize hot path calls the combined method
+        directly to avoid recomputing ``am_lower``/``upper``/the branch in
+        ``_suffix_for``.
+        """
+        return self._classify_with_suffix(c, line)[0]
+
+    def _classify_with_suffix(self, c: Candidate, line: str) -> tuple[Decision, str | None]:
+        """Decide *c* AND return the global-realization suffix in one pass.
+
+        The suffix is ``None`` for BOUNDARY (no realization) and for decisions made
+        by ``classify_special`` (the per-occurrence / ``realize_suffix`` paths handle
+        their own realization). Otherwise it is the SAME suffix pattern that drove
+        the decision, so the caller never re-derives ``am_lower``/``upper``/the
+        branch in a second ``_suffix_for`` pass.
         """
         # 1) language override seam (inert for BASE_POLICY)
         if self.policy.classify_special is not None:
             d = self.policy.classify_special(self, line, c)
             if d is not NOT_HANDLED:
-                return Decision.BOUNDARY if d is None else d
+                # realize_suffix / realize_per_occurrence own realization for these.
+                return (Decision.BOUNDARY if d is None else d), None
         am_lower = self._elision_strip(c.am_stripped).lower()
         upper = self._follower_is_upper(c)  # @652
         prep = self.data.prepositive_set
         num = self.data.number_abbr_set
         # 2) the gate that LEAVES a capital-follower plain abbr as a BOUNDARY (@661 negated):
         if upper and am_lower not in prep and am_lower not in num:
-            return Decision.BOUNDARY  # period stays '.'
+            return Decision.BOUNDARY, None  # period stays '.'
         # 3) PREPOSITIVE branch (@663-669)
         if am_lower in prep:
-            return self._classify_prepositive(c, line, am_lower)
+            d = self._classify_prepositive(c, line, am_lower)
+            return d, (self.RE_PREPOSITIVE.pattern if d is not Decision.BOUNDARY else None)
         # 4) NUMBER branch (@613-624, @670-677)
         if am_lower in num:
-            return self._classify_number(c, line, upper)
+            return self._classify_number_with_suffix(c, line, upper)
         # 5) REGULAR branch (@568/574/679)
-        return Decision.PROTECT if self.RE_REGULAR.match(line, c.period_idx) else Decision.BOUNDARY
+        if self.RE_REGULAR.match(line, c.period_idx):
+            return Decision.PROTECT, self.RE_REGULAR.pattern
+        return Decision.BOUNDARY, None
 
     def _classify_prepositive(self, c: Candidate, line: str, am_lower: str) -> Decision:
         """PREPOSITIVE branch (scan_for_replacements @663-669)."""
@@ -687,15 +706,24 @@ class PeriodClassifier:
 
     def _classify_number(self, c: Candidate, line: str, upper: bool) -> Decision:
         """NUMBER branch (_replace_number_abbr @613-624, dispatch @670-677)."""
+        return self._classify_number_with_suffix(c, line, upper)[0]
+
+    def _classify_number_with_suffix(self, c: Candidate, line: str, upper: bool) -> tuple[Decision, str | None]:
+        """NUMBER branch returning ``(decision, realization-suffix)`` in one pass.
+
+        Suffix mirrors ``_suffix_for``'s number arm exactly; ``None`` for BOUNDARY.
+        """
         i = c.period_idx
         if upper:
             rx = self.RE_NUM_UP_JOIN if self._leans_join else self.RE_NUM_UP_SPLIT  # @619 / @622
-            return Decision.PROTECT if rx.match(line, i) else Decision.BOUNDARY
+            if rx.match(line, i):
+                return Decision.PROTECT, rx.pattern
+            return Decision.BOUNDARY, None
         if self.RE_NUM_QQ.match(line, i):  # @623 ?? arm + @626 placeholder
-            return Decision.PLACEHOLDER
+            return Decision.PLACEHOLDER, self.RE_NUM_QQ.pattern
         num_low = self._num_low_pattern()
         if num_low.match(line, i):  # @623 the rest
-            return Decision.PROTECT
+            return Decision.PROTECT, num_low.pattern
         if len(self._elision_strip(c.am_stripped)) > 1:  # @676 multi-char regular fallthrough
             # en_es_zh guard (legacy ``not (char and char.isupper())`` @141):
             # under ``ascii_only_upper_heuristic`` a NON-ASCII uppercase follower
@@ -706,9 +734,11 @@ class PeriodClassifier:
             # Inert for base policy: there ``upper`` is the ungated capital cue,
             # so any uppercase follower already took the UPPER arm above.
             if self.policy.ascii_only_upper_heuristic and c.follower_char and c.follower_char.isupper():
-                return Decision.BOUNDARY
-            return Decision.PROTECT if self.RE_REGULAR.match(line, i) else Decision.BOUNDARY
-        return Decision.BOUNDARY  # single-char 'p' excluded (@676)
+                return Decision.BOUNDARY, None
+            if self.RE_REGULAR.match(line, i):
+                return Decision.PROTECT, self.RE_REGULAR.pattern
+            return Decision.BOUNDARY, None
+        return Decision.BOUNDARY, None  # single-char 'p' excluded (@676)
 
     def _num_low_pattern(self) -> re.Pattern[str]:
         """Select the number-lower suffix: conservative join-variant for
@@ -778,13 +808,18 @@ class PeriodClassifier:
     # -------------------------------------------------------------------- rewrite
     def _collect_edits(self, line: str) -> list[Edit]:
         edits: list[Edit] = []
+        per_occurrence = self.policy.realize_per_occurrence
+        candidate_filter = self.policy.candidate_filter
         for c in self.enumerate_candidates(line):
-            if self.policy.candidate_filter is not None and not self.policy.candidate_filter(c, line):
+            if candidate_filter is not None and not candidate_filter(c, line):
                 continue
-            d = self.classify(c, line)  # decided ONCE from original text for this (am, char)
+            # Decided ONCE from original text for this (am, char); the combined call
+            # also yields the global-realization suffix so the global path never
+            # re-derives am_lower/upper/branch in a second pass.
+            d, suffix = self._classify_with_suffix(c, line)
             if d is Decision.BOUNDARY:
                 continue
-            if self.policy.realize_per_occurrence:
+            if per_occurrence:
                 # Anchor the edit to THIS occurrence's own period only — never a
                 # global re-anchored suffix — so position-dependent decisions
                 # (russian ``ср.``) are honored per occurrence. Mirrors the legacy
@@ -801,7 +836,11 @@ class PeriodClassifier:
                     qq_end = (p + 1) + len(self._qq_span(line, p))
                     edits.append(Edit(p, qq_end, "∯ " + self.r._UNKNOWN_PLACEHOLDER, p))
                 continue
-            suffix = self._suffix_for(c, line, d)
+            # ``_classify_with_suffix`` returns None for decisions made by
+            # ``classify_special`` (the ``realize_suffix`` policies own realization):
+            # fall back to ``_suffix_for`` there, which honors ``policy.realize_suffix``.
+            if suffix is None:
+                suffix = self._suffix_for(c, line, d)
             # Realize GLOBALLY over the line (legacy global re.sub semantics): the
             # chosen suffix regex, re-anchored with the lookbehind, applied to EVERY
             # occurrence of THIS abbr on the line. Leading-space prefix matches the
