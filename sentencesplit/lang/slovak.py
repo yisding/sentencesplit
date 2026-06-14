@@ -159,7 +159,6 @@ class Slovak(Common, Standard):
             "m. n. m",
             "zz",
             "roz",
-            "atď.",
             "ev",
             "v.sp",
             "v. sp",
