@@ -37,9 +37,14 @@ jobs:
         run: uv python install 3.13
 
       - name: Install benchmark dependencies
-        # Only the project + the isolated `bench` group (pytest + pytest-codspeed),
-        # not the full dev matrix.
+        # Only the project + the isolated `bench` group (pytest, pytest-codspeed,
+        # and the competitive peers pysbd + nltk), not the full dev matrix.
         run: uv sync --python 3.13 --no-default-groups --group bench
+
+      - name: Download punkt model
+        # nltk's sent_tokenize needs the punkt data. Fetch it here (outside the
+        # CodSpeed run) so no network/model-load work happens under instrumentation.
+        run: uv run --no-sync --python 3.13 python -c "import nltk; nltk.download('punkt_tab', quiet=True); nltk.download('punkt', quiet=True)"
 
       - name: Run CodSpeed benchmarks
         uses: CodSpeedHQ/action@v3
@@ -48,4 +53,8 @@ jobs:
           # without an implicit re-sync, which would otherwise pull the default
           # `dev` group back in (defeating isolation) and run install work under
           # CodSpeed instrumentation.
-          run: uv run --no-sync --python 3.13 pytest benchmarks/test_latency_codspeed.py --codspeed
+          run: >-
+            uv run --no-sync --python 3.13 pytest
+            benchmarks/test_latency_codspeed.py
+            benchmarks/test_competitive_codspeed.py
+            --codspeed
