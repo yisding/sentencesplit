@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import enum
 import re
+import unicodedata
 from dataclasses import dataclass, field
 from enum import auto
 from typing import Callable
@@ -106,6 +107,16 @@ class AbbrPolicy:
     # PROTECT is realized over every occurrence with the same rule that decided it.
     # base None == fall back to the branch-derived suffix.
     realize_suffix: Callable[["PeriodClassifier", Candidate, str, "Decision"], str] | None = None
+    # When True the line is rewritten PER OCCURRENCE rather than per (abbr, char)
+    # unit: every occurrence is classified from its own ORIGINAL context and its
+    # edit is anchored to its own period, never realized globally. Required when
+    # the decision is genuinely position-dependent so two same-key occurrences may
+    # decide differently (russian ``ср.``: ``classify_special`` reads downstream
+    # context — ``_sr_continues_compare_phrase`` / ``_starts_with_cyrillic_upper``
+    # — that a single global re-anchored suffix cannot distinguish). This mirrors
+    # the legacy per-match ``re.sub`` callback semantics exactly (russian.py:159).
+    # base False == the global per-unit realization above.
+    realize_per_occurrence: bool = False
     pre_stages: tuple = field(default_factory=tuple)  # tuple[Callable[[str, replacer], str]]; base empty
     post_stages: tuple = field(default_factory=tuple)  # base empty
 
@@ -161,6 +172,97 @@ def _de_realize_suffix(pc: "PeriodClassifier", c: Candidate, line: str, d: "Deci
 DE_POLICY = AbbrPolicy(
     classify_special=_de_classify_special,
     realize_suffix=_de_realize_suffix,
+)
+
+
+# Russian (Phase 5): the legacy ``Russian.AbbreviationReplacer`` overrode ONLY the
+# regular branch (``replace_period_of_abbr``); PREPOSITIVE/NUMBER lists are empty,
+# so every Russian abbreviation flows through it. The override protects a known
+# abbreviation's period UNCONDITIONALLY (no follower-class lookahead — the legacy
+# ``re.sub(r"(^|\s)(abbr)\.")`` matches any period, so "5 куб.м." protects ``куб.``
+# even though a Cyrillic ``м`` follows immediately with no space), EXCEPT:
+#   - a SENTENCE_FINAL language-tag abbreviation (``рус.`` / ``англ.`` / ``др.`` …)
+#     directly before a Cyrillic capital stays a BOUNDARY ("…и др. Она" splits),
+#     unless the capital is a foreign-language gloss (``англ. Moscow`` → Latin, no
+#     split) handled by the Cyrillic-capital gate; and
+#   - ``ср.`` ("cf.") carries its own compare-phrase heuristic (russian.py:159-177).
+# ``classify_special`` handles EVERY candidate (never NOT_HANDLED), so the base
+# trichotomy never runs. ``realize_per_occurrence`` honors the per-match context
+# the legacy callback read (``_sr_continues_compare_phrase`` scans downstream), so
+# two ``ср.`` on one line may decide differently.
+#
+# Offset mapping from the legacy regex groups: legacy ``match.end()`` (just after
+# the period) == ``period_idx + 1``; legacy ``match.start(2)`` (the abbreviation
+# start) == ``period_idx - len(am_stripped)``.
+_RU_CONJUNCTION_CONTINUATION_RE = re.compile(r"\sи\s+[А-ЯЁ]")
+_RU_SENTENCE_START_OPENERS = frozenset("\"'“”‘’«„([{")
+
+
+def _ru_content_start(text: str, start: int) -> int:
+    index = start
+    n = len(text)
+    while index < n and (text[index].isspace() or text[index] in _RU_SENTENCE_START_OPENERS):
+        index += 1
+    return index
+
+
+def _ru_starts_with_cyrillic_upper(text: str, start: int) -> bool:
+    index = _ru_content_start(text, start)
+    if index >= len(text):
+        return False
+    char = text[index]
+    return char.isupper() and unicodedata.name(char, "").startswith("CYRILLIC")
+
+
+def _ru_is_embedded_occurrence(text: str, abbr_start: int) -> bool:
+    index = abbr_start - 1
+    while index >= 0 and text[index].isspace():
+        index -= 1
+    if index < 0:
+        return False
+    return text[index] not in ".!?\r\n"
+
+
+def _ru_continues_compare_phrase(text: str, start: int) -> bool:
+    index = _ru_content_start(text, start)
+    sentence_end = len(text)
+    for boundary in ".!?":
+        found = text.find(boundary, index)
+        if found != -1:
+            sentence_end = min(sentence_end, found)
+    return _RU_CONJUNCTION_CONTINUATION_RE.search(text[index:sentence_end]) is not None
+
+
+def _ru_classify_special(pc: "PeriodClassifier", line: str, c: Candidate) -> object:
+    """Russian regular-branch override (russian.py:154-179), per occurrence.
+
+    Returns PROTECT/BOUNDARY for every candidate (never NOT_HANDLED), reading the
+    candidate's own ORIGINAL context. Mirrors the legacy ``replacement`` callback:
+    ``match.group()[:-1] + "∯"`` == PROTECT, ``match.group()`` == BOUNDARY.
+    """
+    abbr_lower = c.am_stripped.strip().lower()
+    period_idx = c.period_idx
+    match_end = period_idx + 1  # legacy match.end()
+    abbr_start = period_idx - len(c.am_stripped.strip())  # legacy match.start(2)
+    if abbr_lower == "ср":
+        if not _ru_starts_with_cyrillic_upper(line, match_end):
+            return Decision.PROTECT
+        if _ru_is_embedded_occurrence(line, abbr_start):
+            return Decision.PROTECT
+        if _ru_continues_compare_phrase(line, match_end):
+            return Decision.BOUNDARY if pc._leans_split else Decision.PROTECT
+        if pc._leans_join:
+            return Decision.PROTECT
+        return Decision.BOUNDARY
+    sentence_final = getattr(pc.r, "SENTENCE_FINAL_ABBREVIATIONS", frozenset())
+    if abbr_lower in sentence_final and _ru_starts_with_cyrillic_upper(line, match_end):
+        return Decision.BOUNDARY
+    return Decision.PROTECT
+
+
+RU_POLICY = AbbrPolicy(
+    classify_special=_ru_classify_special,
+    realize_per_occurrence=True,
 )
 
 
@@ -259,6 +361,15 @@ class PeriodClassifier:
                     continue
                 fch = line[end + 2 : end + 3] if line[end : end + 2] == ". " else ""  # follower-char (@603)
                 cands.append(Candidate(end, m.start(), stripped, escaped, fch))
+        # PER-OCCURRENCE policies (russian) classify + anchor every occurrence at
+        # its own period from its own ORIGINAL context, so the (am, char) dedup
+        # that the global-realize model relies on would lose distinct positions.
+        # Keep every occurrence; only collapse exact-duplicate periods (same idx).
+        if self.policy.realize_per_occurrence:
+            by_idx: dict[int, Candidate] = {}
+            for c in cands:
+                by_idx.setdefault(c.period_idx, c)
+            return [by_idx[i] for i in sorted(by_idx)]
         # DEDUP exactly as legacy @609: classify ONE representative per
         # (elision-stripped am_lower, follower_char); each PROTECT is realized
         # GLOBALLY over the line in rewrite().
@@ -408,6 +519,18 @@ class PeriodClassifier:
                 continue
             d = self.classify(c, line)  # decided ONCE from original text for this (am, char)
             if d is Decision.BOUNDARY:
+                continue
+            if self.policy.realize_per_occurrence:
+                # Anchor the edit to THIS occurrence's own period only — never a
+                # global re-anchored suffix — so position-dependent decisions
+                # (russian ``ср.``) are honored per occurrence. Mirrors the legacy
+                # per-match ``re.sub`` callback returning ``group()[:-1] + "∯"``.
+                p = c.period_idx
+                if d is Decision.PROTECT:
+                    edits.append(Edit(p, p + 1, "∯", p))
+                else:  # PLACEHOLDER (unused by current per-occurrence policies)
+                    qq_end = (p + 1) + len(self._qq_span(line, p))
+                    edits.append(Edit(p, qq_end, "∯ " + self.r._UNKNOWN_PLACEHOLDER, p))
                 continue
             suffix = self._suffix_for(c, line, d)
             # Realize GLOBALLY over the line (legacy global re.sub semantics): the

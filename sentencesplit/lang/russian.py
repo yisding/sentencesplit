@@ -1,13 +1,7 @@
 # -*- coding: utf-8 -*-
-import re
-import unicodedata
-
 from sentencesplit.abbreviation_replacer import AbbreviationReplacer
 from sentencesplit.lang.common import Common, Standard
-
-# Constant pattern compiled once: " и " followed by a Cyrillic capital, used to
-# detect a conjunction continuation when deciding an abbreviation boundary.
-_RUSSIAN_CONJUNCTION_CONTINUATION_RE = re.compile(r"\sи\s+[А-ЯЁ]")
+from sentencesplit.period_classifier import RU_POLICY
 
 
 class Russian(Common, Standard):
@@ -101,6 +95,22 @@ class Russian(Common, Standard):
         NUMBER_ABBREVIATIONS = []
 
     class AbbreviationReplacer(AbbreviationReplacer):
+        # V2: route abbreviation protection through the PeriodClassifier. The
+        # legacy override touched ONLY the regular branch (PREPOSITIVE/NUMBER lists
+        # are empty), so RU_POLICY.classify_special re-encodes it as data:
+        #   - protect a known abbreviation's period unconditionally (no follower
+        #     lookahead — "5 куб.м." keeps "куб." even with no space before "м");
+        #   - keep a BOUNDARY for a SENTENCE_FINAL language-tag abbreviation before
+        #     a Cyrillic capital ("…и др. Она" splits; "англ. Moscow" — Latin gloss
+        #     — does not), per the data table below; and
+        #   - apply the "ср." compare-phrase heuristic.
+        # ``realize_per_occurrence`` preserves the legacy per-match callback's
+        # downstream-context reads so two "ср." on one line can decide differently.
+        # SENTENCE_FINAL_ABBREVIATIONS stays here as the language data table; the
+        # policy reads it off the replacer back-reference.
+        USE_PERIOD_CLASSIFIER = True
+        ABBR_POLICY = RU_POLICY
+
         SENTENCE_FINAL_ABBREVIATIONS = {
             "англ",
             "греч",
@@ -115,65 +125,3 @@ class Russian(Common, Standard):
             "фр",
             "чуваш",
         }
-        _SENTENCE_START_OPENERS = frozenset("\"'“”‘’«„([{")
-
-        @classmethod
-        def _content_start(cls, text, start=0):
-            index = start
-            while index < len(text) and (text[index].isspace() or text[index] in cls._SENTENCE_START_OPENERS):
-                index += 1
-            return index
-
-        @classmethod
-        def _starts_with_cyrillic_upper(cls, text, start=0):
-            index = cls._content_start(text, start)
-            if index >= len(text):
-                return False
-            char = text[index]
-            return char.isupper() and unicodedata.name(char, "").startswith("CYRILLIC")
-
-        @staticmethod
-        def _is_embedded_occurrence(text, abbr_start):
-            index = abbr_start - 1
-            while index >= 0 and text[index].isspace():
-                index -= 1
-            if index < 0:
-                return False
-            return text[index] not in ".!?\r\n"
-
-        @classmethod
-        def _sr_continues_compare_phrase(cls, text, start=0):
-            index = cls._content_start(text, start)
-            sentence_end = len(text)
-            for boundary in ".!?":
-                found = text.find(boundary, index)
-                if found != -1:
-                    sentence_end = min(sentence_end, found)
-            return _RUSSIAN_CONJUNCTION_CONTINUATION_RE.search(text[index:sentence_end]) is not None
-
-        def replace_period_of_abbr(self, txt, abbr, escaped=None):
-            abbr = abbr.strip()
-            escaped = escaped or re.escape(abbr)
-            abbr_lower = abbr.lower()
-
-            def replacement(match):
-                match_end = match.end()
-                if abbr_lower == "ср":
-                    if not self._starts_with_cyrillic_upper(txt, match_end):
-                        return match.group()[:-1] + "∯"
-                    if self._is_embedded_occurrence(txt, match.start(2)):
-                        return match.group()[:-1] + "∯"
-                    if self._sr_continues_compare_phrase(txt, match_end):
-                        return match.group() if self._leans_split else match.group()[:-1] + "∯"
-                    if self._leans_join:
-                        return match.group()[:-1] + "∯"
-                    return match.group()
-                if (
-                    abbr_lower != "ср"
-                    and abbr_lower in self.SENTENCE_FINAL_ABBREVIATIONS
-                    and self._starts_with_cyrillic_upper(txt, match_end)
-                ):
-                    return match.group()
-                return match.group()[:-1] + "∯"
-
-            return re.sub(r"(^|\s)({abbr})\.".format(abbr=escaped), replacement, txt, flags=re.IGNORECASE)
