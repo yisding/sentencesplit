@@ -98,10 +98,15 @@ def test_unknown_snapshot_input_raises() -> None:
 
 
 def test_classifier_available_and_at_parity_for_kazakh() -> None:
-    # Kazakh rides the V2 classifier with BASE_POLICY. Its per-line protection
-    # step is the BASE REGULAR branch verbatim (zero scan-method overrides; empty
-    # prepositive/number sets; capital-follower cue off), so the classifier must
-    # produce byte-identical protected positions vs the frozen legacy snapshot.
+    # Kazakh rides the V2 classifier with KK_POLICY. Its single-token abbreviations
+    # are now stored dotless (the automaton enumerates them directly), so the
+    # retired whole-text ``replace_single_period_abbreviations`` pass is gone.
+    # KK_POLICY reproduces it byte-for-byte: the formerly-dotted stems are
+    # classified against the WIDE Kazakh-Cyrillic + Latin lowercase follower class
+    # (so "обл. қала" does NOT split), while every other abbreviation — including
+    # the always-dotless "см" in "См. рис." below — falls through to the base
+    # ASCII-follower REGULAR branch and is NOT protected, exactly as the legacy
+    # pass left it. The frozen legacy positions therefore stay [] and parity holds.
     text = "Бұл мысалы. Қараңыз 5-бет. См. рис. 3 ниже."
     positions = classifier_protect_positions(text, "kk")
     for p in positions:

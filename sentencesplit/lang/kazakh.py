@@ -3,9 +3,98 @@ import re
 
 from sentencesplit.abbreviation_replacer import AbbreviationReplacer
 from sentencesplit.lang.common import Common, Standard
-from sentencesplit.period_classifier import BASE_POLICY
+from sentencesplit.period_classifier import NOT_HANDLED, AbbrPolicy, Decision
 from sentencesplit.processor import Processor
 from sentencesplit.utils import Rule, apply_rules
+
+# Kazakh single-token abbreviations are stored WITHOUT a trailing dot, so the
+# automaton keys them as "<abbr>." and the classifier enumerates each one's
+# trailing period as a candidate. Previously a subset of them ("обл.", "тех.",
+# "м." …) was stored WITH a trailing dot, so the automaton keyed those as
+# "<abbr>.." and never enumerated them; a whole-text
+# ``replace_single_period_abbreviations`` pass compensated by sentinelizing their
+# period before a Kazakh-Cyrillic / Latin lowercase follower (a WIDER class than
+# the base REGULAR branch's ASCII ``[a-z]``) BEFORE the classifier ran. The
+# always-dotless abbreviations ("см", "млн" …) were NOT in that pass — they rode
+# the base ASCII-follower REGULAR branch.
+#
+# To stay byte-for-byte net-neutral while letting the classifier own the work, the
+# WIDE Cyrillic-lowercase follower test must apply ONLY to those formerly-dotted
+# stems, not to every Kazakh abbreviation (else "См. рис." — matching the
+# always-dotless "см" — would newly protect before lowercase " рис", diverging
+# from the retired pass). ``_KK_WIDE_FOLLOWER_STEMS`` is the frozen set of those
+# stems (lowercase, dot already removed); a candidate whose abbreviation is in it
+# is classified against ``_KK_WIDE_REGULAR_RE`` (the base REGULAR shape with the
+# Kazakh-Cyrillic + Latin lowercase follower class), and every other candidate
+# falls through to the base ASCII-follower dispatch. ``base`` policy's REGULAR
+# arms ``\.|:|-|\?|,`` and ``\s(I\s|I'm|I'll|\d|\()`` already match what the pass
+# protected, so only the lowercase-letter slot needs widening for this set.
+_KK_WIDE_FOLLOWER_STEMS = frozenset(
+    {
+        "авг",
+        "акцион",
+        "м",
+        "а",
+        "р",
+        "ғ",
+        "апр",
+        "аум",
+        "биікт",
+        "биол",
+        "геогр",
+        "геол",
+        "қ",
+        "дек",
+        "ж",
+        "жж",
+        "лат",
+        "май",
+        "мыс",
+        "нояб",
+        "обл",
+        "окт",
+        "оңт",
+        "пед",
+        "сент",
+        "солт",
+        "тереңд",
+        "тех",
+        "төм",
+        "т",
+        "и",
+        "с",
+        "ш",
+        "февр",
+        "хим",
+        "экон",
+        "янв",
+        "акад",
+        "мм",
+    }
+)
+
+# Base REGULAR suffix (period_classifier.PeriodClassifier.RE_REGULAR) with the
+# follower class widened from ASCII ``[a-z]`` to Kazakh-Cyrillic + Latin lowercase,
+# matching the retired ``replace_period_of_kazakh_abbr`` lookahead exactly.
+_KK_WIDE_FOLLOWER_CLASS = "[a-zа-яёәғқңөұүһі]"
+_KK_WIDE_REGULAR_SUFFIX = r"\.(?=((\.|\:|-|\?|,)|(\s(" + _KK_WIDE_FOLLOWER_CLASS + r"|I\s|I'm|I'll|\d|\())))"
+_KK_WIDE_REGULAR_RE = re.compile(_KK_WIDE_REGULAR_SUFFIX)
+
+
+def _kk_classify_special(pc, line, c):
+    """Apply the WIDE Cyrillic-lowercase follower test to the formerly-dotted stems
+    only; defer every other candidate to the base ASCII-follower dispatch."""
+    if pc._elision_strip(c.am_stripped).lower() not in _KK_WIDE_FOLLOWER_STEMS:
+        return NOT_HANDLED
+    return Decision.PROTECT if _KK_WIDE_REGULAR_RE.match(line, c.period_idx) else Decision.BOUNDARY
+
+
+def _kk_realize_suffix(pc, c, line, d):
+    """Global-realization suffix for the WIDE-follower PROTECT decisions."""
+    return _KK_WIDE_REGULAR_SUFFIX
+
+
+KK_POLICY = AbbrPolicy(classify_special=_kk_classify_special, realize_suffix=_kk_realize_suffix)
 
 
 class Kazakh(Common, Standard):
@@ -94,31 +183,29 @@ class Kazakh(Common, Standard):
             "zdf",
             "әқбк",
             "аақ",
-            "авг.",
+            "авг",
             "aбб",
             "аек",
             "ак",
             "ақ",
-            "акцион.",
+            "акцион",
             "акср",
             "ақш",
             "англ",
             "аөсшк",
             "апр",
-            "м.",
-            "а.",
-            "р.",
-            "ғ.",
-            "апр.",
-            "аум.",
+            "а",
+            "р",
+            "ғ",
+            "аум",
             "ацат",
             "әч",
             "т. б.",
             "б. з. б.",
             "б. з. д.",
-            "биікт.",
+            "биікт",
             "б. т.",
-            "биол.",
+            "биол",
             "биохим",
             "бө",
             "б. э. д.",
@@ -126,8 +213,8 @@ class Kazakh(Common, Standard):
             "бұұ",
             "вич",
             "всоонл",
-            "геогр.",
-            "геол.",
+            "геогр",
+            "геол",
             "гленкор",
             "гэс",
             "қк",
@@ -137,8 +224,8 @@ class Kazakh(Common, Standard):
             "млрд",
             "т",
             "ғ. с.",
-            "қ.",
-            "дек.",
+            "қ",
+            "дек",
             "днқ",
             "дсұ",
             "еақк",
@@ -148,8 +235,8 @@ class Kazakh(Common, Standard):
             "еуразэқ",
             "еуроодақ",
             "еұу",
-            "ж.",
-            "жж.",
+            "ж",
+            "жж",
             "жоо",
             "жіө",
             "жсдп",
@@ -178,11 +265,11 @@ class Kazakh(Common, Standard):
             "қмдб",
             "қр",
             "қхр",
-            "лат.",
+            "лат",
             "м²",
             "м³",
             "магатэ",
-            "май.",
+            "май",
             "максам",
             "мб",
             "мвт",
@@ -190,21 +277,21 @@ class Kazakh(Common, Standard):
             "м",
             "мсоп",
             "мтк",
-            "мыс.",
+            "мыс",
             "наса",
             "нато",
             "нквд",
-            "нояб.",
-            "обл.",
+            "нояб",
+            "обл",
             "огпу",
-            "окт.",
-            "оңт.",
+            "окт",
+            "оңт",
             "опек",
             "оеб",
             "өзенмұнайгаз",
             "өф",
             "пәк",
-            "пед.",
+            "пед",
             "ркфср",
             "рнқ",
             "рсфср",
@@ -213,10 +300,10 @@ class Kazakh(Common, Standard):
             "сву",
             "сду",
             "сес",
-            "сент.",
+            "сент",
             "см",
             "снпс",
-            "солт.",
+            "солт",
             "сооно",
             "ссро",
             "сср",
@@ -225,35 +312,34 @@ class Kazakh(Common, Standard):
             "сэс",
             "дк",
             "тв",
-            "тереңд.",
-            "тех.",
+            "тереңд",
+            "тех",
             "тжқ",
             "тмд",
-            "төм.",
+            "төм",
             "трлн",
             "тр",
-            "т.",
-            "и.",
-            "с.",
-            "ш.",
+            "и",
+            "с",
+            "ш",
             "т. с. с.",
             "тэц",
             "уаз",
             "уефа",
             "ұқк",
             "ұқшұ",
-            "февр.",
+            "февр",
             "фққ",
             "фсб",
-            "хим.",
+            "хим",
             "хқко",
             "шұар",
             "шыұ",
-            "экон.",
+            "экон",
             "экспо",
             "цтп",
             "цас",
-            "янв.",
+            "янв",
             "dvd",
             "жкт",
             "ққс",
@@ -318,48 +404,41 @@ class Kazakh(Common, Standard):
             "б.б.",
             "руб",
             "мин",
-            "акад.",
+            "акад",
             "мм",
-            "мм.",
         ]
         PREPOSITIVE_ABBREVIATIONS = []
         NUMBER_ABBREVIATIONS = []
 
     class AbbreviationReplacer(AbbreviationReplacer):
         # V2: route the per-line abbreviation-protection step through the
-        # PeriodClassifier. Kazakh overrode ZERO scan methods
+        # PeriodClassifier. Kazakh overrides ZERO scan methods
         # (``scan_for_replacements`` / ``replace_period_of_abbr`` are inherited;
         # ``PREPOSITIVE_ABBREVIATIONS`` and ``NUMBER_ABBREVIATIONS`` are empty;
         # ``CAPITALIZED_FOLLOWER_IS_BOUNDARY_CUE`` stays False), so its per-line
-        # step is the BASE REGULAR branch verbatim — ``BASE_POLICY`` reproduces it
-        # byte-for-byte (verified by the differential oracle over every Kazakh
-        # Golden Rule + regression case).
+        # step is the BASE REGULAR branch with one widened arm: ``KK_POLICY``
+        # swaps the ASCII ``[a-z]`` follower class for the Kazakh-Cyrillic + Latin
+        # lowercase class ``[a-zа-яёәғқңөұүһі]`` so "обл. қала" does NOT split.
         #
-        # All Kazakh-specific behavior lives in the THREE whole-text passes that
-        # wrap the base ``replace()`` and CANNOT collapse into the per-line
-        # classifier:
-        #   1. (pre) Cyrillic single-uppercase-letter initials -> ``∯`` (run on
-        #      the whole text before line-splitting; ``^`` anchors the document
-        #      start);
-        #   2. (pre) ``replace_single_period_abbreviations`` — the dotted Kazakh
-        #      abbreviations ("обл.", "тех.", "м." …) are stored WITH a trailing
-        #      dot, so the automaton keys them as "<abbr>.." and the base step
-        #      never enumerates "обл." as a candidate. This pass protects their
-        #      period before a Kazakh-Cyrillic-lowercase / Latin-lowercase / "I" /
-        #      digit / "(" continuation (``_LOWERCASE_CONTINUATION_CHARS``), which
-        #      the base ``[a-z]`` follower class would miss; it sentinelizes the
-        #      period BEFORE the classifier runs, so those periods are no longer
-        #      "." candidates by the time the per-line step sees them;
-        #   3. (post) ``protect_multi_period_abbreviations_before_parenthesis`` —
+        # Previously the single-token Kazakh abbreviations ("обл.", "тех.", "м." …)
+        # were stored WITH a trailing dot, so the automaton keyed them as
+        # "<abbr>.." and never enumerated them; a whole-text
+        # ``replace_single_period_abbreviations`` pass compensated by sentinelizing
+        # their period before a lowercase follower BEFORE the classifier ran. The
+        # data now stores them dotless (keyed "<abbr>."), the classifier enumerates
+        # them directly, and ``KK_POLICY``'s follower class reproduces exactly what
+        # the retired pass protected — so that whole-text pass (and its
+        # ``_LOWERCASE_CONTINUATION_CHARS`` helper) is gone.
+        #
+        # Two Kazakh-specific whole-text passes remain in ``replace()`` because they
+        # cannot collapse into the per-line classifier:
+        #   1. (pre) Cyrillic single-uppercase-letter initials -> ``∯`` (run on the
+        #      whole text before line-splitting; ``^`` anchors the document start);
+        #   2. (post) ``protect_multi_period_abbreviations_before_parenthesis`` —
         #      runs AFTER ``replace_multi_period_abbreviations`` (it matches interior
         #      ``∯`` that pass produced via ``[.∯]``), so it must stay a whole-text
         #      post-pass, not a per-line classifier stage.
-        # This mirrors the Deutsch V2 conversion: keep the reordered ``replace()``
-        # for whole-text staging; only the protection step delegates to the
-        # classifier.
-        ABBR_POLICY = BASE_POLICY
-
-        _LOWERCASE_CONTINUATION_CHARS = "a-zа-яёәғқңөұүһі"
+        ABBR_POLICY = KK_POLICY
 
         def replace(self) -> str:
             SingleUpperCaseCyrillicLetterAtStartOfLineRule = Rule(r"(?<=^[А-ЯЁ])\.(?=\s)", "∯")
@@ -369,29 +448,9 @@ class Kazakh(Common, Standard):
                 SingleUpperCaseCyrillicLetterAtStartOfLineRule,
                 SingleUpperCaseCyrillicLetterRule,
             )
-            self.replace_single_period_abbreviations()
             self.text = super().replace()
             self.protect_multi_period_abbreviations_before_parenthesis()
             return self.text
-
-        def replace_single_period_abbreviations(self) -> None:
-            for abbreviation in self.lang.Abbreviation.ABBREVIATIONS:
-                abbreviation = abbreviation.strip()
-                if abbreviation.endswith(".") and abbreviation.count(".") == 1:
-                    abbreviation_without_period = abbreviation[:-1]
-                    self.text = self.replace_period_of_kazakh_abbr(abbreviation_without_period)
-
-        def replace_period_of_kazakh_abbr(self, abbreviation: str) -> str:
-            text = " " + self.text
-            escaped = rf"(?i:{re.escape(abbreviation)})"
-            boundary = self._data.boundary_class
-            lowercase = self._LOWERCASE_CONTINUATION_CHARS
-            text = re.sub(
-                rf"(?<=[{boundary}]{escaped})\.(?=(?:\.|:|-|\?|,|\s(?:[{lowercase}]|I\s|I'm|I'll|\d|[(])))",
-                "∯",
-                text,
-            )
-            return text[1:]
 
         def protect_multi_period_abbreviations_before_parenthesis(self) -> None:
             for abbreviation in self.lang.Abbreviation.ABBREVIATIONS:
