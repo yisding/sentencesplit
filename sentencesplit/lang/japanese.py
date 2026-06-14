@@ -11,8 +11,15 @@ from sentencesplit.lang.common.cjk import (
     CJKProcessor,
     make_cjk_abbreviation_rules,
 )
-from sentencesplit.period_classifier import JA_POLICY
+from sentencesplit.period_classifier import _cjk_regular_only_policy
 from sentencesplit.utils import Rule, apply_rules
+
+# Japanese (Phase 5): structurally identical to ``ZH_POLICY`` (regular-branch-only
+# CJK follower), but the follower range widens the CJK-ideograph block to also
+# include the kana blocks (``぀``..``ヿ``), because Japanese prose continues a
+# sentence in hiragana/katakana directly after an abbreviation period
+# ("ver.あいうえお") where Chinese would not.
+JA_POLICY = _cjk_regular_only_policy("[぀-ヿ一-鿿]")  # kana (U+3040..U+30FF) + CJK ideographs (U+4E00..U+9FFF)
 
 
 class Japanese(CJKBoundaryProfile, Common, Standard):

@@ -9,7 +9,15 @@ from sentencesplit.lang.common.cjk import (
     CJKProcessor,
     make_cjk_abbreviation_rules,
 )
-from sentencesplit.period_classifier import ZH_POLICY
+from sentencesplit.period_classifier import _cjk_regular_only_policy
+
+# Standalone Chinese (Phase 5): regular-branch-only CJK follower (see
+# ``_cjk_regular_only_policy``). Range ``[一-鿿]`` (U+4E00..U+9FFF, BMP only,
+# no Ext-A) matches the legacy ``Chinese.AbbreviationReplacer`` override literally;
+# this is narrower than ``EN_ES_ZH_POLICY``'s ``[㐀-鿿]`` (which includes Ext-A to
+# match its own resplit regexes) and keeps the base ``[a-z]`` follower class
+# (en_es_zh widened it to ``[^\W\d_]`` to also segment accented Spanish/English).
+ZH_POLICY = _cjk_regular_only_policy("[一-鿿]")  # CJK Unified Ideographs (U+4E00..U+9FFF, BMP only)
 
 
 class Chinese(CJKBoundaryProfile, Common, Standard):

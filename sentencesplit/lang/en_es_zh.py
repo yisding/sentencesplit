@@ -14,7 +14,7 @@ from sentencesplit.lang.common.cjk import (
     make_cjk_abbreviation_rules,
 )
 from sentencesplit.lang.spanish import Spanish
-from sentencesplit.period_classifier import EN_ES_ZH_POLICY
+from sentencesplit.period_classifier import AbbrPolicy
 from sentencesplit.processor import (
     _CJK_BANG_RESPLIT_RE,
     _CJK_QUOTE_RESPLIT_RE,
@@ -26,6 +26,18 @@ from sentencesplit.processor import (
 from sentencesplit.utils import _next_nonspace_char_starts_sentence
 
 _CJK_FOLLOWING_CHAR_RE = re.compile(r"[\u3400-\u9FFF]")
+
+# Combined en/es/zh profile (Phase 5): any-Unicode-letter follower class, a CJK
+# ideograph follower that protects even without an intervening space, and the
+# ASCII-only restriction on the capital-follower-is-boundary heuristic. This
+# reproduces the legacy ``EnglishSpanishChinese.AbbreviationReplacer``
+# (``replace_period_of_abbr`` + ``scan_for_replacements`` overrides) as data.
+EN_ES_ZH_POLICY = AbbrPolicy(
+    follower_class=r"[^\W\d_]",
+    cjk_follower_class="[\u3400-\u9fff]",  # CJK unified ideographs (Ext-A start .. BMP end)
+    ascii_only_upper_heuristic=True,
+)
+
 _SENTENCE_START_WRAPPERS = frozenset("\"'“‘«‹([{「『【（《")
 _SPANISH_INVERTED_SENTENCE_OPENERS = frozenset("¿¡")
 # Closers that mark an embedded CJK quote/title; a lowercase Latin continuation
