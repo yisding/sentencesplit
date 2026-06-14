@@ -42,6 +42,10 @@ class BetweenPunctuation:
         return self.sub_punctuation_between_quotes_and_parens(self.text)
 
     def sub_punctuation_between_quotes_and_parens(self, txt: str) -> str:
+        # Each sub is called unconditionally so language subclasses that override
+        # one (e.g. German repurposes ``sub_punctuation_between_double_quotes``
+        # for „…“) keep running. The cheap "is my opener present?" early-out lives
+        # inside each base method instead, where it stays correct under override.
         txt = self.sub_punctuation_between_single_quotes(txt)
         txt = self.sub_punctuation_between_single_quote_slanted(txt)
         txt = self.sub_punctuation_between_double_quotes(txt)
@@ -52,28 +56,49 @@ class BetweenPunctuation:
         txt = self.sub_punctuation_between_quotes_slanted(txt)
         return txt
 
+    # Each base regex below is anchored on its opening delimiter, so when that
+    # opener is absent the sub is a guaranteed no-op. The ``in`` check turns the
+    # full-text regex pass into a cheap membership test on quote/paren-free prose
+    # (the common short-string case) with byte-identical output.
+
     def sub_punctuation_between_parens(self, txt: str) -> str:
+        if "(" not in txt:
+            return txt
         return self.BETWEEN_PARENS_REGEX_2.sub(replace_punctuation, txt)
 
     def sub_punctuation_between_square_brackets(self, txt: str) -> str:
+        if "[" not in txt:
+            return txt
         return self.BETWEEN_SQUARE_BRACKETS_REGEX_2.sub(replace_punctuation, txt)
 
     def sub_punctuation_between_single_quotes(self, txt: str) -> str:
+        if "'" not in txt:
+            return txt
         if self.WORD_WITH_LEADING_APOSTROPHE.search(txt) and (not self._QUOTE_SPACE_RE.search(txt)):
             return txt
         return self.BETWEEN_SINGLE_QUOTES_REGEX.sub(partial(replace_punctuation, match_type="single"), txt)
 
     def sub_punctuation_between_single_quote_slanted(self, txt: str) -> str:
+        if "‘" not in txt:
+            return txt
         return self.BETWEEN_SINGLE_QUOTE_SLANTED_REGEX.sub(replace_punctuation, txt)
 
     def sub_punctuation_between_double_quotes(self, txt: str) -> str:
+        if '"' not in txt:
+            return txt
         return self.BETWEEN_DOUBLE_QUOTES_REGEX_2.sub(replace_punctuation, txt)
 
     def sub_punctuation_between_quotes_arrow(self, txt: str) -> str:
+        if "«" not in txt:
+            return txt
         return self.BETWEEN_QUOTE_ARROW_REGEX_2.sub(replace_punctuation, txt)
 
     def sub_punctuation_between_em_dashes(self, txt: str) -> str:
+        if "--" not in txt:
+            return txt
         return self.BETWEEN_EM_DASHES_REGEX_2.sub(replace_punctuation, txt)
 
     def sub_punctuation_between_quotes_slanted(self, txt: str) -> str:
+        if "“" not in txt:
+            return txt
         return self.BETWEEN_QUOTE_SLANTED_REGEX_2.sub(replace_punctuation, txt)
