@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
-import re
-
 from sentencesplit.abbreviation_replacer import AbbreviationReplacer
+from sentencesplit.period_classifier import AR_POLICY
 from sentencesplit.utils import Rule
 
 
@@ -19,10 +18,12 @@ class ArabicScriptProfile:
     ReplaceColonBetweenNumbersRule = Rule(r"(?<=\d):(?=\d)", "♭")
 
     class AbbreviationReplacer(AbbreviationReplacer):
-        def scan_for_replacements(self, txt, am, index, character_array, stripped=None, escaped=None):
-            # ``am`` is the matched abbreviation occurrence (with its leading
-            # boundary char). It must be escaped before being spliced into the
-            # lookbehind: abbreviations such as "e.g"/"i.e"/"ا.د" contain a literal
-            # ".", which would otherwise act as a regex wildcard and protect the
-            # period after unrelated words (e.g. "egg." after seeing "e.g").
-            return re.sub(r"(?<={0})\.".format(re.escape(am)), "∯", txt)
+        # V2 single-pass classifier (Phase 5). ``AR_POLICY`` reproduces the legacy
+        # bare-period protect (any follower) as an ``AbbrPolicy`` hook: the matched
+        # abbreviation occurs at a word boundary and its period is always
+        # non-terminal (Arabic script has no letter case, so no capital-follower
+        # cue). The pre-escaped abbreviation in the classifier's lookbehind keeps a
+        # dotted form like "e.g" from wildcard-matching an unrelated "egg."
+        # (tests/regression/test_arabic_script_abbreviation_metachar.py).
+        USE_PERIOD_CLASSIFIER = True
+        ABBR_POLICY = AR_POLICY
