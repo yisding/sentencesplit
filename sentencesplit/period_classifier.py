@@ -98,6 +98,14 @@ class AbbrPolicy:
     # None == BOUNDARY. A language may override ONE branch and inherit the other two.
     classify_special: Callable[["PeriodClassifier", str, Candidate], object] | None = None
     candidate_filter: Callable[[Candidate, str], bool] | None = None  # base None == accept all
+    # When a policy collapses every branch onto ONE suffix (german: protect any
+    # period before whitespace, regardless of follower case), the branch-based
+    # ``_suffix_for`` selection no longer describes the decision that
+    # ``classify_special`` actually made. ``realize_suffix`` lets the policy name
+    # the lookbehind-free suffix used for the GLOBAL realization pass directly, so
+    # PROTECT is realized over every occurrence with the same rule that decided it.
+    # base None == fall back to the branch-derived suffix.
+    realize_suffix: Callable[["PeriodClassifier", Candidate, str, "Decision"], str] | None = None
     pre_stages: tuple = field(default_factory=tuple)  # tuple[Callable[[str, replacer], str]]; base empty
     post_stages: tuple = field(default_factory=tuple)  # base empty
 
@@ -112,6 +120,47 @@ EN_ES_ZH_POLICY = AbbrPolicy(
     follower_class=r"[^\W\d_]",
     cjk_follower_class="[㐀-鿿]",  # CJK unified ideographs (Ext-A start .. BMP end)
     ascii_only_upper_heuristic=True,
+)
+
+# German (Phase 5): the legacy ``Deutsch.AbbreviationReplacer`` overrode
+# ``scan_for_replacements`` to a SINGLE rule, ``re.sub(r"(?<={am})\.(?=\s)", "∯")``,
+# bypassing the base prepositive / number / regular trichotomy entirely. The
+# effective behavior: PROTECT a known abbreviation's period whenever it is
+# followed by whitespace, REGARDLESS of the follower's case — so "Dr. med. Meyer"
+# keeps both periods even though "Meyer" is capitalized (German capitalizes all
+# nouns, so a capital follower is NOT a sentence-start cue). ``classify_special``
+# below replaces every branch; ``realize_suffix`` pins the realization pass to the
+# same ``\.(?=\s)`` suffix so global PROTECT matches the decision exactly.
+#
+# Quirk FIXED (BC not required, plan §3): the legacy interpolated ``{am}``
+# (== ``m.group()``, the boundary char + abbreviation) UNescaped into the
+# lookbehind. ``_full_pattern`` re.escapes the abbreviation, so the V2 path is
+# escape-everything-correct. The legacy "" works only by accident of the German
+# abbreviation list containing no regex metacharacters; the V2 path is robust.
+_DE_PROTECT_BEFORE_WHITESPACE = re.compile(r"\.(?=\s)")
+
+
+def _de_classify_special(pc: "PeriodClassifier", line: str, c: Candidate) -> object:
+    """German: every candidate period before whitespace PROTECTs; else BOUNDARY.
+
+    Reproduces ``Deutsch.AbbreviationReplacer.scan_for_replacements`` (one rule,
+    all branches collapsed). The candidate is already a known ``<abbr>.`` at a
+    word boundary (enumeration's reachability gate), so only the suffix
+    ``\\.(?=\\s)`` is tested here.
+    """
+    if _DE_PROTECT_BEFORE_WHITESPACE.match(line, c.period_idx):
+        return Decision.PROTECT
+    return Decision.BOUNDARY
+
+
+def _de_realize_suffix(pc: "PeriodClassifier", c: Candidate, line: str, d: "Decision") -> str:
+    """German global-realization suffix: ``\\.(?=\\s)`` for every PROTECT."""
+    return _DE_PROTECT_BEFORE_WHITESPACE.pattern
+
+
+DE_POLICY = AbbrPolicy(
+    classify_special=_de_classify_special,
+    realize_suffix=_de_realize_suffix,
 )
 
 
@@ -302,6 +351,8 @@ class PeriodClassifier:
         selection so the SAME suffix that PROTECTed/PLACEHOLDERed is applied to
         every occurrence of this abbr on the line.
         """
+        if self.policy.realize_suffix is not None:
+            return self.policy.realize_suffix(self, c, line, d)
         am_lower = self._elision_strip(c.am_stripped).lower()
         upper = self._follower_is_upper(c)
         prep = self.data.prepositive_set

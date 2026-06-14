@@ -4,6 +4,7 @@ import re
 from sentencesplit.abbreviation_replacer import AbbreviationReplacer
 from sentencesplit.between_punctuation import BetweenPunctuation
 from sentencesplit.lang.common import Common, Standard
+from sentencesplit.period_classifier import DE_POLICY
 from sentencesplit.processor import Processor
 from sentencesplit.punctuation_replacer import replace_punctuation
 from sentencesplit.utils import Rule, apply_rules
@@ -205,6 +206,22 @@ class Deutsch(Common, Standard):
         NUMBER_ABBREVIATIONS = ["art", "ca", "no", "nos", "nr", "pp"]
 
     class AbbreviationReplacer(AbbreviationReplacer):
+        # V2: route the abbreviation-protection step through the PeriodClassifier.
+        # DE_POLICY re-encodes the formerly-overridden ``scan_for_replacements``
+        # (one rule, all branches collapsed) as data:
+        #   - classify_special: PROTECT a known abbreviation's period whenever it
+        #     is followed by whitespace, regardless of follower case (German
+        #     capitalizes all nouns, so a capital follower is not a boundary cue);
+        #     so "Dr. med. Meyer" keeps both periods.
+        #   - realize_suffix: pin the global realization to the same ``\.(?=\s)``.
+        # The reordered German ``replace()`` (whole-text protection; no
+        # Kommanditgesellschaft / compact-ampm / uppercase-initialism / allcaps
+        # imprint / standalone-I passes) is preserved below — only the protection
+        # step now delegates to the classifier. The legacy unescaped-``{am}``
+        # quirk is FIXED: ``_full_pattern`` re.escapes the abbreviation.
+        USE_PERIOD_CLASSIFIER = True
+        ABBR_POLICY = DE_POLICY
+
         def replace(self):
             # Rubular: http://rubular.com/r/B4X33QKIL8
             SingleLowerCaseLetterRule = Rule(r"(?<=\s[a-z])\.(?=\s)", "∯")
@@ -219,6 +236,9 @@ class Deutsch(Common, Standard):
                 SingleLowerCaseLetterAtStartOfLineRule,
             )
 
+            # Whole-text (not per-line) abbreviation protection. With
+            # USE_PERIOD_CLASSIFIER True this routes through the V2 classifier's
+            # single-pass rewrite (same DE_POLICY decision on every candidate).
             self.text = self.search_for_abbreviations_in_string(self.text)
             self.replace_multi_period_abbreviations()
             # German never restored non-ASCII a.m./p.m. boundaries; keep that
@@ -228,10 +248,6 @@ class Deutsch(Common, Standard):
             # pronoun, so RESTORE_STANDALONE_I_BOUNDARIES stays False for German
             # (only english / en_legal / en_es_zh enable it).
             return self.text
-
-        def scan_for_replacements(self, txt, am, index, character_array, stripped=None, escaped=None):
-            txt = re.sub(r"(?<={am})\.(?=\s)".format(am=am), "∯", txt)
-            return txt
 
     class BetweenPunctuation(BetweenPunctuation):
         def sub_punctuation_between_double_quotes(self, txt):

@@ -77,10 +77,11 @@ def test_classifier_unavailable_for_non_opted_languages() -> None:
     # Languages that have NOT opted into the V2 classifier
     # (``USE_PERIOD_CLASSIFIER`` is False/unset) still raise loudly, so the
     # debugging-aid oracle never silently no-ops for a non-migrated language.
+    # ``ru`` (Russian) remains on the legacy path; ``de`` opted in at Phase 5.
     with pytest.raises(ClassifierUnavailable):
-        classifier_protect_positions("Das ist z.B. wichtig.", "de")
+        classifier_protect_positions("Это рус. Большой текст.", "ru")
     with pytest.raises(ClassifierUnavailable):
-        diff_positions("Das ist z.B. wichtig.", "de")
+        diff_positions("Это рус. Большой текст.", "ru")
 
 
 @pytest.mark.parametrize("code", ["en", "en_legal"])
