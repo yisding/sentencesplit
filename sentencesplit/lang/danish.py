@@ -30,6 +30,12 @@ class Danish(Common, Standard):
         All = Common.Numbers.All + [NumberPeriodSpaceRule, NegativeNumberPeriodSpaceRule]
 
     class AbbreviationReplacer(AbbreviationReplacer):
+        # Danish overrides zero scan methods and uses no elision, so it rides the
+        # base PeriodClassifier (BASE_POLICY) directly. The classifier reads the
+        # CAPITALIZED_FOLLOWER_IS_BOUNDARY_CUE flag off this replacer, so no
+        # policy hook is needed; PROTECT_ALLCAPS_IMPRINT_SUFFIXES runs in a later
+        # pass that V2 leaves untouched.
+        USE_PERIOD_CLASSIFIER = True
         CAPITALIZED_FOLLOWER_IS_BOUNDARY_CUE = True
         PROTECT_ALLCAPS_IMPRINT_SUFFIXES = True
 
