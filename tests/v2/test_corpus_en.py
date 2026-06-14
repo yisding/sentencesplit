@@ -29,6 +29,10 @@ def test_corpus_en_green(seg: Segmenter, case) -> None:
     assert seg.segment(case.text) == case.expected, case.note or case.category
 
 
+@pytest.mark.skipif(
+    not xfail_cases(),
+    reason="no Phase-2 xfail targets left (all promoted to GREEN); see corpus_en.py for the strict-xfail promotion mechanism",
+)
 @pytest.mark.parametrize("case", xfail_cases(), ids=lambda c: c.text)
 def test_corpus_en_xfail(seg: Segmenter, case) -> None:
     # strict xfail: a fix that makes this pass is intentional and must be
