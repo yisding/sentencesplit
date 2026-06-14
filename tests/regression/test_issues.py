@@ -476,8 +476,8 @@ def test_english_smart_quotes_unaffected():
 @pytest.mark.parametrize("issue_no,text,expected_sents_w_spans", TEST_ISSUE_DATA_CHAR_SPANS)
 def test_issues_with_char_spans(issue_no, text, expected_sents_w_spans):
     """pySBD issues tests from https://github.com/nipunsadvilkar/pySBD/issues/"""
-    seg = sentencesplit.Segmenter(language="en", clean=False, char_span=True)
-    segments = seg.segment(text)
+    seg = sentencesplit.Segmenter(language="en", clean=False)
+    segments = seg.segment_spans(text)
     expected_text_spans = [TextSpan(sent_w_span[0], sent_w_span[1], sent_w_span[2]) for sent_w_span in expected_sents_w_spans]
     assert segments == expected_text_spans
     # clubbing sentences and matching with original text
@@ -506,13 +506,13 @@ def test_issues_with_char_spans(issue_no, text, expected_sents_w_spans):
 )
 def test_cjk_quote_splitting_not_gated_by_uppercase(language, text, expected):
     """CJK closing-quote boundaries must split without requiring an uppercase start."""
-    seg = sentencesplit.Segmenter(language=language, clean=False, char_span=False)
+    seg = sentencesplit.Segmenter(language=language, clean=False)
     assert [s.strip() for s in seg.segment(text)] == expected
 
 
 def test_compact_ampm_before_non_ascii_uppercase():
     """Compact 6p.m. form should split before non-ASCII uppercase sentence starts."""
-    seg = sentencesplit.Segmenter(language="en", clean=False, char_span=False)
+    seg = sentencesplit.Segmenter(language="en", clean=False)
     assert [s.strip() for s in seg.segment("He left at 6p.m. \u00c9lodie arrived.")] == [
         "He left at 6p.m.",
         "\u00c9lodie arrived.",
@@ -523,13 +523,13 @@ def test_bare_ampm_initialism_before_name_stays_joined():
     """Without a preceding number, P.M./A.M. is a generic two-part initialism."""
     for text in ("Met with P.M. Trudeau today.", "The A.M. Smith papers arrived."):
         for mode in ("conservative", "balanced", "aggressive"):
-            seg = sentencesplit.Segmenter(language="en", clean=False, char_span=False, split_mode=mode)
+            seg = sentencesplit.Segmenter(language="en", clean=False, split_mode=mode)
             assert [s.strip() for s in seg.segment(text)] == [text]
 
 
 def test_eq_abbreviation_before_roman_numeral():
     """Eq. before a Roman numeral should stay joined like Fig."""
-    seg = sentencesplit.Segmenter(language="en", clean=False, char_span=False)
+    seg = sentencesplit.Segmenter(language="en", clean=False)
     assert [s.strip() for s in seg.segment("Eq. IV shows the result. Next sentence.")] == [
         "Eq. IV shows the result.",
         "Next sentence.",
@@ -538,7 +538,7 @@ def test_eq_abbreviation_before_roman_numeral():
 
 def test_pt_abbreviation_before_roman_numeral():
     """Pt. before a Roman numeral should stay joined (number abbreviation)."""
-    seg = sentencesplit.Segmenter(language="en", clean=False, char_span=False)
+    seg = sentencesplit.Segmenter(language="en", clean=False)
     assert [s.strip() for s in seg.segment("Pt. II discusses methods. Next sentence.")] == [
         "Pt. II discusses methods.",
         "Next sentence.",
@@ -549,11 +549,11 @@ def test_two_letter_initialism_before_non_ascii_uppercase_follows_split_mode():
     """Two-letter initialisms split before capital followers using split_mode."""
     text = "He moved from the U.S. \u00c9lodie arrived."
 
-    seg = sentencesplit.Segmenter(language="en", clean=False, char_span=False, split_mode="conservative")
+    seg = sentencesplit.Segmenter(language="en", clean=False, split_mode="conservative")
     assert [s.strip() for s in seg.segment(text)] == [text]
 
     for mode in ("balanced", "aggressive"):
-        seg = sentencesplit.Segmenter(language="en", clean=False, char_span=False, split_mode=mode)
+        seg = sentencesplit.Segmenter(language="en", clean=False, split_mode=mode)
         assert [s.strip() for s in seg.segment(text)] == ["He moved from the U.S.", "\u00c9lodie arrived."]
 
 
@@ -573,7 +573,7 @@ def test_two_letter_initialism_before_non_ascii_uppercase_follows_split_mode():
 def test_en_es_zh_latin_abbreviation_before_cjk(text, expected):
     """Latin abbreviations in en_es_zh stay joined before CJK continuations —
     CJK chars are not reliable sentence-start signals for abbreviation boundary logic."""
-    seg = sentencesplit.Segmenter(language="en_es_zh", clean=False, char_span=False)
+    seg = sentencesplit.Segmenter(language="en_es_zh", clean=False)
     assert [s.strip() for s in seg.segment(text)] == expected
 
 
@@ -593,7 +593,7 @@ def test_en_es_zh_latin_abbreviation_before_cjk(text, expected):
 def test_en_es_zh_ordinary_abbreviation_before_cjk_stays_joined(text, expected):
     """Ordinary English abbreviations (etc., Univ.) in en_es_zh must NOT split
     before CJK continuations — CJK text is not a sentence-start signal."""
-    seg = sentencesplit.Segmenter(language="en_es_zh", clean=False, char_span=False)
+    seg = sentencesplit.Segmenter(language="en_es_zh", clean=False)
     assert [s.strip() for s in seg.segment(text)] == expected
 
 
@@ -601,11 +601,11 @@ def test_three_part_initialism_before_non_ascii_uppercase_follows_split_mode():
     """Non-ASCII Latin capitals are still capital followers for the acronym dial."""
     text = "He works for the U.S.A. \u00c9lodie Foundation."
 
-    seg = sentencesplit.Segmenter(language="en", clean=False, char_span=False, split_mode="conservative")
+    seg = sentencesplit.Segmenter(language="en", clean=False, split_mode="conservative")
     assert [s.strip() for s in seg.segment(text)] == [text]
 
     for mode in ("balanced", "aggressive"):
-        seg = sentencesplit.Segmenter(language="en", clean=False, char_span=False, split_mode=mode)
+        seg = sentencesplit.Segmenter(language="en", clean=False, split_mode=mode)
         assert [s.strip() for s in seg.segment(text)] == [
             "He works for the U.S.A.",
             "\u00c9lodie Foundation.",
@@ -624,13 +624,13 @@ def test_three_part_initialism_before_non_ascii_uppercase_follows_split_mode():
 )
 def test_en_es_zh_number_abbreviations_before_lowercase(text, expected):
     """Number abbreviations (eq, pt) in en_es_zh must stay joined before lowercase text."""
-    seg = sentencesplit.Segmenter(language="en_es_zh", clean=False, char_span=False)
+    seg = sentencesplit.Segmenter(language="en_es_zh", clean=False)
     assert [s.strip() for s in seg.segment(text)] == expected
 
 
 @pytest.mark.parametrize("split_mode", ["conservative", "balanced", "aggressive"])
 def test_en_es_zh_number_abbreviation_before_unknown_placeholder(split_mode):
-    seg = sentencesplit.Segmenter(language="en_es_zh", clean=False, char_span=False, split_mode=split_mode)
+    seg = sentencesplit.Segmenter(language="en_es_zh", clean=False, split_mode=split_mode)
 
     assert [s.strip() for s in seg.segment("As shown in Fig. ??")] == ["As shown in Fig. ??"]
 
@@ -661,7 +661,7 @@ def test_number_abbreviation_does_not_partially_attach_long_question_run(languag
 def test_greek_uppercase_not_treated_as_sentence_start():
     """Greek/Cyrillic uppercase (e.g. Δ) should not trigger sentence splits —
     only accented Latin uppercase (e.g. É) should."""
-    seg = sentencesplit.Segmenter(language="en", clean=False, char_span=False)
+    seg = sentencesplit.Segmenter(language="en", clean=False)
     assert [s.strip() for s in seg.segment("The reading was taken at 6 p.m. ΔF508 remained detectable.")] == [
         "The reading was taken at 6 p.m. ΔF508 remained detectable.",
     ]
@@ -669,7 +669,7 @@ def test_greek_uppercase_not_treated_as_sentence_start():
 
 def test_en_es_zh_accented_uppercase_splits_after_number_abbreviation():
     """Accented uppercase starters like Él must split after number abbreviations in en_es_zh."""
-    seg = sentencesplit.Segmenter(language="en_es_zh", clean=False, char_span=False)
+    seg = sentencesplit.Segmenter(language="en_es_zh", clean=False)
     assert [s.strip() for s in seg.segment("Fig. Él explica el resultado. Siguiente.")] == [
         "Fig.",
         "Él explica el resultado.",
@@ -687,7 +687,7 @@ def test_en_es_zh_accented_uppercase_splits_after_number_abbreviation():
 )
 def test_latin_quote_resplit_not_triggered_by_cjk(language, text, expected):
     """Latin profiles must not resplit after quoted punctuation before CJK text."""
-    seg = sentencesplit.Segmenter(language=language, clean=False, char_span=False)
+    seg = sentencesplit.Segmenter(language=language, clean=False)
     assert [s.strip() for s in seg.segment(text)] == expected
 
 
@@ -710,7 +710,7 @@ def test_latin_quote_resplit_not_triggered_by_cjk(language, text, expected):
 )
 def test_en_es_zh_abbreviation_protection_for_non_latin1_letters(text, expected):
     """en_es_zh abbreviation protection must cover non-Latin-1 letters like č and Δ."""
-    seg = sentencesplit.Segmenter(language="en_es_zh", clean=False, char_span=False)
+    seg = sentencesplit.Segmenter(language="en_es_zh", clean=False)
     assert [s.strip() for s in seg.segment(text)] == expected
 
 
@@ -748,7 +748,7 @@ def test_en_es_zh_abbreviation_protection_for_non_latin1_letters(text, expected)
 )
 def test_trailing_zero_width_space_not_emitted_as_sentence(text, expected):
     """Wikipedia U+200B reference markers must not produce phantom/leading-char sentences."""
-    seg = sentencesplit.Segmenter(language="es", clean=False, char_span=False)
+    seg = sentencesplit.Segmenter(language="es", clean=False)
     assert [s.strip() for s in seg.segment(text)] == expected
 
 
@@ -794,9 +794,9 @@ def test_russian_abbreviations_no_false_split(text, expected):
 
 def test_trailing_zero_width_space_preserves_char_spans():
     """Dropping zero-width chars must keep char-span mapping non-destructive."""
-    seg = sentencesplit.Segmenter(language="es", clean=False, char_span=True)
+    seg = sentencesplit.Segmenter(language="es", clean=False)
     text = "Frase uno.​ Frase dos.​"
-    spans = seg.segment(text)
+    spans = seg.segment_spans(text)
     # Each returned span's text must be an exact slice of the original text.
     for span in spans:
         assert text[span.start : span.end] == span.sent
@@ -1411,7 +1411,7 @@ def test_en_es_zh_resplits_protected_number_abbreviation_unknown_placeholder(tex
 
     assert seg.segment(text) == expected
 
-    span_seg = sentencesplit.Segmenter(language="en_es_zh", clean=False, char_span=True)
-    spans = span_seg.segment(text)
+    span_seg = sentencesplit.Segmenter(language="en_es_zh", clean=False)
+    spans = span_seg.segment_spans(text)
     assert [span.sent for span in spans] == expected
     assert "".join(span.sent for span in spans) == text

@@ -40,24 +40,23 @@ def test_segmenter_doesnt_mutate_input(
 
 
 def test_segment_spans_helper_returns_textspans(text="My name is Jonas E. Smith. Please turn to p. 55."):
-    seg = sentencesplit.Segmenter(language="en", clean=False, char_span=False)
+    seg = sentencesplit.Segmenter(language="en", clean=False)
     spans = seg.segment_spans(text)
     assert all(isinstance(span, TextSpan) for span in spans)
     assert text == "".join([seg_span.sent for seg_span in spans])
 
 
-def test_segment_spans_is_canonical_and_ignores_char_span_flag():
-    """segment_spans() is the canonical spans API: identical output whether the
-    instance was built with char_span True or False. The char_span flag is
-    deprecated but kept for back-compat — segment(char_span=True) must equal it."""
+def test_segment_spans_is_canonical():
+    """segment_spans() is the canonical spans API: it always returns
+    ``list[TextSpan]`` and round-trips the source byte-for-byte, while
+    segment() always returns ``list[str]``."""
     text = "My name is Jonas E. Smith. Please turn to p. 55."
-    plain_seg = sentencesplit.Segmenter(language="en", clean=False, char_span=False)
-    span_seg = sentencesplit.Segmenter(language="en", clean=False, char_span=True)
+    seg = sentencesplit.Segmenter(language="en", clean=False)
 
-    canonical = plain_seg.segment_spans(text)
-    assert span_seg.segment_spans(text) == canonical
-    # Back-compat: the deprecated char_span=True flag still yields the same spans.
-    assert span_seg.segment(text) == canonical
+    canonical = seg.segment_spans(text)
+    assert all(isinstance(span, TextSpan) for span in canonical)
+    # segment() is the plain-string API.
+    assert seg.segment(text) == [span.sent for span in canonical]
     # Round-trip contract.
     assert "".join(s.sent for s in canonical) == text
 
@@ -66,7 +65,7 @@ def test_segment_spans_whitespace_only_input_roundtrips():
     """Regression: whitespace-only input used to return [] from segment_spans(),
     dropping the source bytes and breaking the round-trip. It must now tile the
     whole source (the trailing-remainder branch of _match_spans)."""
-    seg = sentencesplit.Segmenter(language="en", clean=False, char_span=False)
+    seg = sentencesplit.Segmenter(language="en", clean=False)
     for text in ("\n", "   ", "\t\t", " \n "):
         spans = seg.segment_spans(text)
         assert "".join(s.sent for s in spans) == text
@@ -78,7 +77,7 @@ def test_segment_spans_whitespace_only_input_roundtrips():
 
 def test_no_clean_segment_preserves_leading_whitespace():
     text = "\n  Hello.  World."
-    seg = sentencesplit.Segmenter(language="en", clean=False, char_span=False)
+    seg = sentencesplit.Segmenter(language="en", clean=False)
 
     segments = seg.segment(text)
 
@@ -88,7 +87,7 @@ def test_no_clean_segment_preserves_leading_whitespace():
 
 def test_segment_spans_preserve_leading_whitespace():
     text = "\n  Hello.  World."
-    seg = sentencesplit.Segmenter(language="en", clean=False, char_span=False)
+    seg = sentencesplit.Segmenter(language="en", clean=False)
 
     spans = seg.segment_spans(text)
 
@@ -100,8 +99,8 @@ def test_segment_spans_preserve_leading_whitespace():
 
 
 def test_segment_clean_helper_matches_clean_segmenter(text="This is the U.S. Senate my friends. <em>Yes.</em>"):
-    seg = sentencesplit.Segmenter(language="en", clean=False, char_span=False)
-    clean_seg = sentencesplit.Segmenter(language="en", clean=True, char_span=False)
+    seg = sentencesplit.Segmenter(language="en", clean=False)
+    clean_seg = sentencesplit.Segmenter(language="en", clean=True)
     assert seg.segment_clean(text) == clean_seg.segment(text)
 
 
@@ -119,7 +118,7 @@ def test_segment_clean_helper_matches_clean_segmenter(text="This is the U.S. Sen
 )
 def test_sbd_char_span(en_no_clean_with_span_fixture, text, expected):
     """Test sentences with character offsets"""
-    segments = en_no_clean_with_span_fixture.segment(text)
+    segments = en_no_clean_with_span_fixture.segment_spans(text)
     expected_text_spans = [TextSpan(sent_w_span[0], sent_w_span[1], sent_w_span[2]) for sent_w_span in expected]
     assert segments == expected_text_spans
     # clubbing sentences and matching with original text
@@ -156,7 +155,7 @@ My life is too complicated right now trying to do my job.
         TextSpan(sent="My life is too complicated right now trying to do my job.\n", start=335, end=393),
         TextSpan(sent="(Laughter.)", start=393, end=404),
     ]
-    segments_w_spans = en_no_clean_with_span_fixture.segment(text)
+    segments_w_spans = en_no_clean_with_span_fixture.segment_spans(text)
     assert segments_w_spans == expected_text_spans
     # check for non-destruction
     # clubbing sentences and matching with original text
@@ -165,11 +164,10 @@ My life is too complicated right now trying to do my job.
 
 def test_nondestructive_when_processed_sentence_cannot_be_matched_exactly():
     text = 'S";!fR-.\'UOEV(txU(yZci2(3WsgIExZ(XQBEFL[megJ3HXr\nA]6jx.SnLA-w",'
-    seg = sentencesplit.Segmenter(language="en", clean=False, char_span=False)
-    spans_seg = sentencesplit.Segmenter(language="en", clean=False, char_span=True)
+    seg = sentencesplit.Segmenter(language="en", clean=False)
 
     segments = seg.segment(text)
-    spans = spans_seg.segment(text)
+    spans = seg.segment_spans(text)
 
     assert "".join(segments) == text
     assert "".join(span.sent for span in spans) == text
@@ -181,11 +179,10 @@ def test_nondestructive_when_processed_sentence_diverges_from_original_text():
     # whitespace-flexible regex matching (triggers _unmatched_span /
     # _next_sentence_start / fallback fill-in branches in _match_spans).
     text = "].;YZ2Yb{♟,(cc♟0X\nX\tb2c\n♬\t2[♟?2♬),)1.3Z\n♟]2"
-    seg = sentencesplit.Segmenter(language="en", clean=False, char_span=False)
-    spans_seg = sentencesplit.Segmenter(language="en", clean=False, char_span=True)
+    seg = sentencesplit.Segmenter(language="en", clean=False)
 
     segments = seg.segment(text)
-    spans = spans_seg.segment(text)
+    spans = seg.segment_spans(text)
 
     # The key invariant under the fallback branches: even when individual
     # processed sentences cannot be matched verbatim, concatenating the
@@ -203,25 +200,18 @@ def test_nondestructive_when_processed_sentence_diverges_from_original_text():
 
 
 def test_segment_spans_raises_with_clean_true():
-    seg = sentencesplit.Segmenter(language="en", clean=True, char_span=False)
+    seg = sentencesplit.Segmenter(language="en", clean=True)
     with pytest.raises(ValueError, match="requires clean=False"):
         seg.segment_spans("Anything.")
 
 
 def test_segment_spans_handles_empty_and_none_input():
-    seg = sentencesplit.Segmenter(language="en", clean=False, char_span=False)
+    seg = sentencesplit.Segmenter(language="en", clean=False)
     assert seg.segment_spans("") == []
     assert seg.segment_spans(None) == []
 
 
 def test_segment_clean_handles_empty_and_none_input():
-    seg = sentencesplit.Segmenter(language="en", clean=False, char_span=False)
+    seg = sentencesplit.Segmenter(language="en", clean=False)
     assert seg.segment_clean("") == []
     assert seg.segment_clean(None) == []
-
-
-def test_exception_with_both_clean_and_span_true():
-    """Test to not allow clean=True and char_span=True"""
-    with pytest.raises(ValueError) as e:
-        sentencesplit.Segmenter(language="en", clean=True, char_span=True)
-    assert str(e.value) == "char_span must be False if clean is True. Since `clean=True` will modify original text."

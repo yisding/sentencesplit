@@ -94,7 +94,7 @@ def main() -> None:
     for cls, name, label in _TARGETS:
         _wrap(cls, name, label)
 
-    seg = Segmenter(language="en", clean=False, char_span=False)
+    seg = Segmenter(language="en", clean=False)
     text = _SAMPLES[args.size]
     for _ in range(5):
         seg.segment(text)

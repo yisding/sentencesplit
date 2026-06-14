@@ -256,7 +256,7 @@ def test_char_span_offsets_match_segment_spans():
     stream = StreamSegmenter(language="en", char_span=True)
     stream.feed(text)
     spans = stream.get_completed_sentences() + stream.flush()
-    expected = sentencesplit.Segmenter(language="en", char_span=True).segment(text)
+    expected = sentencesplit.Segmenter(language="en").segment_spans(text)
     assert spans == expected
 
 

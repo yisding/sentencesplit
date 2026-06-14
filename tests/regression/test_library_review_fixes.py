@@ -35,8 +35,8 @@ def test_sentinel_chars_in_input_are_non_destructive(text):
 
 @pytest.mark.parametrize("text", _SENTINEL_INPUTS)
 def test_sentinel_chars_preserved_with_char_spans(text):
-    seg = sentencesplit.Segmenter(language="en", char_span=True)
-    spans = seg.segment(text)
+    seg = sentencesplit.Segmenter(language="en")
+    spans = seg.segment_spans(text)
     assert "".join(s.sent for s in spans) == text
     # spans must tile the original contiguously
     prev_end = 0

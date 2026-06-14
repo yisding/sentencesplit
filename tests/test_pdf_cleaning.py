@@ -14,19 +14,7 @@ def test_exception_with_doc_type_pdf_and_clean_false():
     """
     with pytest.raises(ValueError) as e:
         sentencesplit.Segmenter(language="en", clean=False, doc_type="pdf")
-    assert str(e.value) == (
-        "`doc_type='pdf'` should have `clean=True` & `char_span` should be False since original text will be modified."
-    )
-
-
-def test_exception_with_doc_type_pdf_and_both_clean_char_span_true():
-    """
-    Test to raise ValueError exception when doc_type="pdf" and
-    both clean=True and char_span=True
-    """
-    with pytest.raises(ValueError) as e:
-        sentencesplit.Segmenter(language="en", clean=True, doc_type="pdf", char_span=True)
-    assert str(e.value) == "char_span must be False if clean is True. Since `clean=True` will modify original text."
+    assert str(e.value) == ("`doc_type='pdf'` should have `clean=True` since original text will be modified.")
 
 
 PDF_TEST_DATA = [

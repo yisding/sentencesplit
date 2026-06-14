@@ -19,9 +19,9 @@ Design — only the unemitted tail is ever re-segmented
 -----------------------------------------------------
 The invariant that keeps this simple and correct: **once bytes are emitted they
 are dropped from the buffer and never looked at again.** Each :meth:`feed`
-re-segments only the still-unemitted tail (``self._buffer``) with the byte-exact,
-char_span-independent :meth:`Segmenter.segment_spans`, projecting to plain strings
-only at the output boundary (see :meth:`_to_output`). Because emitted text is
+re-segments only the still-unemitted tail (``self._buffer``) with the byte-exact
+:meth:`Segmenter.segment_spans`, projecting to plain strings only at the output
+boundary (see :meth:`_to_output`). Because emitted text is
 immutable:
 
 - a segment can never "grow" after emission (no delta reconciliation);
@@ -83,8 +83,9 @@ _CLUSTER_TERMINALS = frozenset(".!?")
 class StreamSegmenter:
     """Stateful streaming wrapper over :class:`Segmenter`.
 
-    Parameters mirror :class:`Segmenter` (``language``, ``char_span``,
-    ``split_mode``) plus a streaming-specific ``buffering_mode`` and an optional
+    Parameters mirror :class:`Segmenter` (``language``, ``split_mode``) plus a
+    ``char_span`` flag that selects :class:`TextSpan` vs plain-string output (see
+    :meth:`_to_output`), a streaming-specific ``buffering_mode``, and an optional
     ``max_buffer_size`` guard against pathological unbounded tails. ``clean=True``
     is not supported (see the module docstring).
     """
@@ -110,11 +111,11 @@ class StreamSegmenter:
             )
         if max_buffer_size is not None and max_buffer_size <= 0:
             raise InvalidConfigurationError("max_buffer_size must be a positive integer or None.")
-        # The wrapped Segmenter validates language/split_mode and emits the
-        # one-time char_span DeprecationWarning itself (clean is fixed to False).
-        # segment_spans()/should_wait_for_more() are char_span-independent, so the
-        # flag only governs the user-facing output shape (see _to_output).
-        self._segmenter = Segmenter(language=language, clean=False, char_span=char_span, split_mode=split_mode)
+        # The wrapped Segmenter validates language/split_mode (clean is fixed to
+        # False). It always works in spans internally; this class's own
+        # ``char_span`` flag only governs the user-facing output shape (see
+        # ``_to_output``).
+        self._segmenter = Segmenter(language=language, clean=False, split_mode=split_mode)
         self.language = language
         self.clean = False
         self.char_span = char_span
@@ -277,7 +278,8 @@ class StreamSegmenter:
         # boundary lookahead verdict; computing them separately would segment the
         # buffer twice on every delta.
         if self._buffer:
-            spans, self._last_should_wait = self._segmenter.segment_spans_with_lookahead(self._buffer)
+            lookahead = self._segmenter.segment_spans_with_lookahead(self._buffer)
+            spans, self._last_should_wait = lookahead.segments, lookahead.should_wait_for_more
         else:
             spans, self._last_should_wait = [], False
         if not spans:

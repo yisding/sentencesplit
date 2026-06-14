@@ -154,7 +154,7 @@ def test_zh_mixed_cjk_latin(zh_default_fixture):
 def test_zh_char_spans(zh_no_clean_with_span_fixture):
     """Char spans round-trip correctly for Chinese text."""
     text = "这是第一句。这是第二句。"
-    spans = zh_no_clean_with_span_fixture.segment(text)
+    spans = zh_no_clean_with_span_fixture.segment_spans(text)
     assert text == "".join(s.sent for s in spans)
     assert spans[0].start == 0
     assert spans[-1].end == len(text)
@@ -175,7 +175,7 @@ def test_zh_fullwidth_double_punctuation(zh_default_fixture):
 def test_zh_corner_quote_spans(zh_no_clean_with_span_fixture):
     """Char spans round-trip correctly with corner brackets."""
     text = "他说：「今天先这样。」然后离开。"
-    spans = zh_no_clean_with_span_fixture.segment(text)
+    spans = zh_no_clean_with_span_fixture.segment_spans(text)
     assert text == "".join(s.sent for s in spans)
 
 

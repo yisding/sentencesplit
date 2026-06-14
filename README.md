@@ -55,7 +55,7 @@ seg.segment_spans("My name is Jonas E. Smith. Please turn to p. 55.")
 #  TextSpan(sent='Please turn to p. 55.', start=27, end=48)]
 ```
 
-`segment_spans()` always returns `TextSpan` objects with `.sent`, `.start`, `.end` regardless of the `char_span` constructor flag.
+`segment_spans()` always returns `TextSpan` objects with `.sent`, `.start`, `.end`; `segment()` always returns plain strings. Spans are byte-for-byte faithful: every span is an exact slice of the source and reassembling them reproduces it verbatim.
 
 ### Streaming / lookahead
 
@@ -101,7 +101,7 @@ stream.feed(full_text)
 assert stream.get_completed_sentences() + stream.flush() == Segmenter(language="en").segment(full_text)
 ```
 
-`StreamSegmenter` accepts the same `language` / `clean` / `char_span` / `split_mode` params as `Segmenter`, plus a streaming-specific `buffering_mode` (`"conservative"` (default) / `"balanced"` / `"aggressive"`) and an optional `max_buffer_size` guard against an unbounded tail.
+`StreamSegmenter` accepts the same `language` / `clean` / `split_mode` params as `Segmenter`, plus a `char_span` flag selecting `TextSpan` vs plain-string output, a streaming-specific `buffering_mode` (`"conservative"` (default) / `"balanced"` / `"aggressive"`), and an optional `max_buffer_size` guard against an unbounded tail.
 
 See [examples/streaming_to_tts_recipe.py](examples/streaming_to_tts_recipe.py) for a runnable LLM-to-TTS recipe.
 
@@ -226,7 +226,7 @@ seg = sentencesplit.Segmenter(language="en", clean=False)
 seg.segment("My name is Jonas E. Smith. Please turn to p. 55.")
 ```
 
-`Segmenter(language=..., clean=..., char_span=...)`, `segment()`, and the `TextSpan` fields (`.sent`, `.start`, `.end`) all behave as they do in pySBD, and the English [Golden Rules](https://github.com/diasks2/pragmatic_segmenter#the-golden-rules) pass identically. What you gain on top:
+`Segmenter(language=..., clean=...)`, `segment()`, and the `TextSpan` fields (`.sent`, `.start`, `.end`) all behave as they do in pySBD, and the English [Golden Rules](https://github.com/diasks2/pragmatic_segmenter#the-golden-rules) pass identically. The one break: pySBD's `char_span=True` constructor flag is gone — call `segment_spans()` for `TextSpan` output instead (`Segmenter(char_span=True).segment(text)` → `Segmenter().segment_spans(text)`). What you gain on top:
 
 - **Streaming/lookahead** — `segment_with_lookahead()` / `should_wait_for_more()` for incremental input, plus the higher-level [`StreamSegmenter`](#streaming-segmentation) feed/flush wrapper for token-by-token sources (LLM output, ASR partials).
 - **`split_mode`** — a `"conservative"` / `"balanced"` / `"aggressive"` bias for ambiguous boundaries (`"balanced"` is the default and matches the historically tuned output).

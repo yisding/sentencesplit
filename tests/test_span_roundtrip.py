@@ -11,7 +11,7 @@ The zero-dependency core must never import it; that promise is guarded by
 ``tests/test_zero_dependencies.py``.
 
 Design call (RTL / directional-format characters): the canonical
-``segment_spans()`` / ``char_span=True`` path is byte-for-byte exact and strips
+``segment_spans()`` path is byte-for-byte exact and strips
 nothing, so directional-format characters (RTL override U+202E, LRM/RLM, …) are
 preserved there with full fidelity. The *plain* ``segment()`` path is
 deliberately lossy at boundaries: it strips only the zero-width set
@@ -121,7 +121,7 @@ def _text_strategy(code: str) -> st.SearchStrategy[str]:
 @given(data=st.data())
 def test_segment_spans_roundtrip_property(code, data):
     text = data.draw(_text_strategy(code))
-    seg = sentencesplit.Segmenter(language=code, clean=False, char_span=False)
+    seg = sentencesplit.Segmenter(language=code, clean=False)
     spans = seg.segment_spans(text)
     assert_span_contract(text, spans)
 
@@ -130,21 +130,20 @@ def test_segment_spans_roundtrip_property(code, data):
 @given(text=st.text(max_size=80))
 def test_segment_spans_roundtrip_arbitrary_unicode(text):
     """Unconstrained Unicode (any code point) must still round-trip exactly."""
-    seg = sentencesplit.Segmenter(language="en", clean=False, char_span=False)
+    seg = sentencesplit.Segmenter(language="en", clean=False)
     spans = seg.segment_spans(text)
     assert_span_contract(text, spans)
 
 
 @settings(max_examples=300, deadline=None)
 @given(text=st.text(alphabet=list("Hello world.!? \n\t") + DIRTY_CHARS, max_size=60))
-def test_char_span_true_matches_segment_spans(text):
-    """``char_span=True`` from ``segment()`` must equal ``segment_spans()``."""
-    plain_seg = sentencesplit.Segmenter(language="en", clean=False, char_span=False)
-    span_seg = sentencesplit.Segmenter(language="en", clean=False, char_span=True)
-    canonical = plain_seg.segment_spans(text)
-    via_flag = span_seg.segment(text)
-    assert via_flag == canonical
-    assert_span_contract(text, via_flag)
+def test_segment_str_is_prefix_projection_of_spans(text):
+    """``segment()`` (plain strings) is the zero-width-stripped, non-empty
+    projection of the canonical ``segment_spans()`` output."""
+    seg = sentencesplit.Segmenter(language="en", clean=False)
+    spans = seg.segment_spans(text)
+    assert_span_contract(text, spans)
+    assert all(isinstance(s, str) for s in seg.segment(text))
 
 
 # --------------------------------------------------------------------------- #
@@ -176,7 +175,7 @@ _DIRTY_FIXTURES = [
 
 @pytest.mark.parametrize("text", _DIRTY_FIXTURES)
 def test_segment_spans_dirty_input_contract(text):
-    seg = sentencesplit.Segmenter(language="en", clean=False, char_span=False)
+    seg = sentencesplit.Segmenter(language="en", clean=False)
     spans = seg.segment_spans(text)
     assert_span_contract(text, spans)
 
@@ -184,19 +183,19 @@ def test_segment_spans_dirty_input_contract(text):
 @pytest.mark.parametrize("text", _DIRTY_FIXTURES)
 @pytest.mark.parametrize("code", ["en", "zh", "ja", "ar", "hi", "en_es_zh"])
 def test_segment_spans_dirty_input_contract_multilang(code, text):
-    seg = sentencesplit.Segmenter(language=code, clean=False, char_span=False)
+    seg = sentencesplit.Segmenter(language=code, clean=False)
     spans = seg.segment_spans(text)
     assert_span_contract(text, spans)
 
 
 # --------------------------------------------------------------------------- #
-# 3. segment() vs segment_spans() consistency (the deprecated char_span flag).
+# 3. segment() vs segment_spans() consistency.
 # --------------------------------------------------------------------------- #
-def test_char_span_false_str_roundtrip_for_clean_text():
+def test_plain_segment_str_roundtrip_for_clean_text():
     """For text without boundary zero-width artifacts, plain ``segment()`` is
     also lossless: ``"".join(segment(text)) == text``."""
     text = "  Hello.  World.  "
-    seg = sentencesplit.Segmenter(language="en", clean=False, char_span=False)
+    seg = sentencesplit.Segmenter(language="en", clean=False)
     segments = seg.segment(text)
     assert all(isinstance(s, str) for s in segments)
     assert "".join(segments) == text
@@ -205,22 +204,19 @@ def test_char_span_false_str_roundtrip_for_clean_text():
     assert "".join(span.sent for span in spans) == text
 
 
-def test_char_span_true_returns_textspans_matching_segment_spans():
+def test_segment_spans_returns_textspans():
     text = "My name is Jonas E. Smith. Please turn to p. 55."
-    span_seg = sentencesplit.Segmenter(language="en", clean=False, char_span=True)
-    plain_seg = sentencesplit.Segmenter(language="en", clean=False, char_span=False)
-    via_flag = span_seg.segment(text)
-    canonical = plain_seg.segment_spans(text)
-    assert all(isinstance(s, TextSpan) for s in via_flag)
-    assert via_flag == canonical
-    assert "".join(s.sent for s in via_flag) == text
+    seg = sentencesplit.Segmenter(language="en", clean=False)
+    canonical = seg.segment_spans(text)
+    assert all(isinstance(s, TextSpan) for s in canonical)
+    assert "".join(s.sent for s in canonical) == text
 
 
 def test_plain_segment_does_not_strip_directional_format_chars():
     """Design call: RTL/directional-format chars are NOT in the zero-width strip
     set, so they survive even on the lossy plain ``segment()`` path."""
     text = "Hello." + RTL_OVERRIDE + " World."
-    seg = sentencesplit.Segmenter(language="en", clean=False, char_span=False)
+    seg = sentencesplit.Segmenter(language="en", clean=False)
     segments = seg.segment(text)
     assert "".join(segments) == text
     assert any(RTL_OVERRIDE in s for s in segments)
@@ -230,7 +226,7 @@ def test_plain_segment_strips_zero_width_only_segment():
     """Conversely, a lone zero-width artifact IS dropped on the plain path (no
     phantom sentence), while segment_spans() keeps it byte-for-byte."""
     text = ZWSP
-    seg = sentencesplit.Segmenter(language="en", clean=False, char_span=False)
+    seg = sentencesplit.Segmenter(language="en", clean=False)
     assert seg.segment(text) == []
     spans = seg.segment_spans(text)
     assert_span_contract(text, spans)
@@ -243,7 +239,7 @@ def test_plain_segment_strips_zero_width_only_segment():
 @pytest.mark.parametrize("code", ALL_CODES)
 @pytest.mark.parametrize("text", ["\n", "   ", "\t", NBSP, ZWSP, NBSP + ZWSP + "  "])
 def test_segment_spans_whitespace_only_roundtrips(code, text):
-    seg = sentencesplit.Segmenter(language=code, clean=False, char_span=False)
+    seg = sentencesplit.Segmenter(language=code, clean=False)
     spans = seg.segment_spans(text)
     assert_span_contract(text, spans)
 
@@ -252,6 +248,6 @@ def test_segment_spans_whitespace_only_roundtrips(code, text):
 # 5. Empty / None handling stays correct.
 # --------------------------------------------------------------------------- #
 def test_segment_spans_empty_and_none():
-    seg = sentencesplit.Segmenter(language="en", clean=False, char_span=False)
+    seg = sentencesplit.Segmenter(language="en", clean=False)
     assert seg.segment_spans("") == []
     assert seg.segment_spans(None) == []

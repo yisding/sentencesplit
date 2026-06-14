@@ -52,5 +52,5 @@ def test_en_es_zh_sbd(en_es_zh_default_fixture, text, expected_sents):
 
 def test_en_es_zh_char_spans(en_es_zh_no_clean_with_span_fixture):
     text = "Hola Srta. Ledesma. 他说：「今天先这样。」 Then he left."
-    spans = en_es_zh_no_clean_with_span_fixture.segment(text)
+    spans = en_es_zh_no_clean_with_span_fixture.segment_spans(text)
     assert text == "".join(s.sent for s in spans)

@@ -29,12 +29,12 @@ from tests.helpers import assert_span_contract, lookahead_sample_for_language, t
     ],
 )
 def test_should_wait_for_more(text, expected):
-    seg = sentencesplit.Segmenter(language="en", clean=False, char_span=False)
+    seg = sentencesplit.Segmenter(language="en", clean=False)
     assert seg.should_wait_for_more(text) is expected
 
 
 def test_segment_with_lookahead_returns_segments_and_wait_state():
-    seg = sentencesplit.Segmenter(language="en", clean=False, char_span=False)
+    seg = sentencesplit.Segmenter(language="en", clean=False)
 
     result = seg.segment_with_lookahead("The model is GPT 3.")
 
@@ -53,7 +53,7 @@ def test_segment_with_lookahead_returns_segments_and_wait_state():
     ],
 )
 def test_segment_with_lookahead_tracks_only_last_segment(text, expected_segments, expected_wait):
-    seg = sentencesplit.Segmenter(language="en", clean=False, char_span=False)
+    seg = sentencesplit.Segmenter(language="en", clean=False)
 
     result = seg.segment_with_lookahead(text)
 
@@ -64,7 +64,7 @@ def test_segment_with_lookahead_tracks_only_last_segment(text, expected_segments
 
 @pytest.mark.parametrize("language_code", sorted(LANGUAGE_CODES))
 def test_lookahead_probes_are_normalized_for_supported_languages(language_code):
-    seg = sentencesplit.Segmenter(language=language_code, clean=False, char_span=False)
+    seg = sentencesplit.Segmenter(language=language_code, clean=False)
 
     probes_no_space = seg._lookahead_probes_for_text("A.", 1, ".", has_trailing_whitespace=True)
     probes_with_space = seg._lookahead_probes_for_text("A.", 1, ".", has_trailing_whitespace=False)
@@ -84,19 +84,20 @@ def test_lookahead_probes_are_normalized_for_supported_languages(language_code):
         assert f" {stem}" in probes_with_space
 
 
-def test_segment_with_lookahead_char_span_returns_textspans():
-    seg = sentencesplit.Segmenter(language="en", clean=False, char_span=True)
+def test_segment_spans_with_lookahead_returns_textspans():
+    seg = sentencesplit.Segmenter(language="en", clean=False)
     text = "Hello. The model is GPT 3."
 
-    result = seg.segment_with_lookahead(text)
+    result = seg.segment_spans_with_lookahead(text)
 
+    assert isinstance(result, SegmentLookahead)
     assert_span_contract(text, result.segments)
     assert [span.sent for span in result.segments] == ["Hello. ", "The model is GPT 3."]
     assert result.should_wait_for_more is True
 
 
 def test_segment_with_lookahead_handles_empty_and_none_inputs():
-    seg = sentencesplit.Segmenter(language="en", clean=False, char_span=False)
+    seg = sentencesplit.Segmenter(language="en", clean=False)
 
     assert seg.segment_with_lookahead("") == SegmentLookahead([], should_wait_for_more=False)
     assert seg.segment_with_lookahead(None) == SegmentLookahead([], should_wait_for_more=False)
@@ -111,25 +112,23 @@ def test_segment_spans_with_lookahead_matches_separate_calls(language_code):
     byte-for-byte identical to ``segment_spans`` + ``should_wait_for_more`` for
     every supported language (Latin, CJK, Cyrillic, Arabic, Indic, …).
     """
-    seg = sentencesplit.Segmenter(language=language_code, clean=False, char_span=False)
+    seg = sentencesplit.Segmenter(language=language_code, clean=False)
     text = three_sentence_stream_sample(language_code)
 
-    spans, should_wait = seg.segment_spans_with_lookahead(text)
+    result = seg.segment_spans_with_lookahead(text)
 
-    assert spans == seg.segment_spans(text)
-    assert should_wait is seg.should_wait_for_more(text)
+    assert result.segments == seg.segment_spans(text)
+    assert result.should_wait_for_more is seg.should_wait_for_more(text)
     # The spans must still tile the source exactly (non-destructive).
-    assert_span_contract(text, spans)
+    assert_span_contract(text, result.segments)
 
 
 def test_segment_spans_with_lookahead_empty_and_clean_guard():
-    seg = sentencesplit.Segmenter(language="en", clean=False, char_span=False)
-    assert seg.segment_spans_with_lookahead("") == ([], False)
-    assert seg.segment_spans_with_lookahead(None) == ([], False)
+    seg = sentencesplit.Segmenter(language="en", clean=False)
+    assert seg.segment_spans_with_lookahead("") == SegmentLookahead([], should_wait_for_more=False)
+    assert seg.segment_spans_with_lookahead(None) == SegmentLookahead([], should_wait_for_more=False)
 
-    # char_span only governs other APIs' output shape; this one always returns spans.
-    seg_span = sentencesplit.Segmenter(language="en", clean=False, char_span=True)
-    spans, _ = seg_span.segment_spans_with_lookahead("Hello. The model is GPT 3.")
+    spans = seg.segment_spans_with_lookahead("Hello. The model is GPT 3.").segments
     assert [s.sent for s in spans] == ["Hello. ", "The model is GPT 3."]
 
     seg_clean = sentencesplit.Segmenter(language="en", clean=True)
@@ -138,7 +137,7 @@ def test_segment_spans_with_lookahead_empty_and_clean_guard():
 
 
 def test_segment_with_lookahead_ignores_zero_width_only_input():
-    seg = sentencesplit.Segmenter(language="en", clean=False, char_span=False)
+    seg = sentencesplit.Segmenter(language="en", clean=False)
 
     assert seg.segment_with_lookahead("\u200b") == SegmentLookahead([], should_wait_for_more=False)
     assert seg.should_wait_for_more("\u200b") is False
@@ -146,7 +145,7 @@ def test_segment_with_lookahead_ignores_zero_width_only_input():
 
 @pytest.mark.parametrize("zero_width", ZERO_WIDTH_CHARS)
 def test_boundary_zero_width_after_stable_period_does_not_wait(zero_width):
-    seg = sentencesplit.Segmenter(language="en", clean=False, char_span=False)
+    seg = sentencesplit.Segmenter(language="en", clean=False)
     text = f"This is the finale.{zero_width}"
 
     assert seg.segment_with_lookahead(text) == SegmentLookahead(["This is the finale."], should_wait_for_more=False)
@@ -156,7 +155,7 @@ def test_boundary_zero_width_after_stable_period_does_not_wait(zero_width):
 
 @pytest.mark.parametrize("zero_width", ZERO_WIDTH_CHARS)
 def test_boundary_zero_width_after_abbreviation_still_waits(zero_width):
-    seg = sentencesplit.Segmenter(language="en", clean=False, char_span=False)
+    seg = sentencesplit.Segmenter(language="en", clean=False)
     text = f"Dr.{zero_width}"
 
     assert seg.segment_with_lookahead(text) == SegmentLookahead(["Dr."], should_wait_for_more=True)
@@ -172,7 +171,7 @@ def test_boundary_zero_width_after_abbreviation_still_waits(zero_width):
     ],
 )
 def test_boundary_zero_width_before_sentence_closers(text, expected):
-    seg = sentencesplit.Segmenter(language="en", clean=False, char_span=False)
+    seg = sentencesplit.Segmenter(language="en", clean=False)
 
     assert seg.segment_with_lookahead(text) == SegmentLookahead(expected, should_wait_for_more=False)
     assert seg.segment(text) == expected
@@ -210,19 +209,19 @@ def test_boundary_zero_width_before_sentence_closers_is_linear():
     ],
 )
 def test_non_ascii_uppercase_sentence_starters_split_correctly(language, text, expected):
-    seg = sentencesplit.Segmenter(language=language, clean=False, char_span=False)
+    seg = sentencesplit.Segmenter(language=language, clean=False)
 
     assert [s.strip() for s in seg.segment(text)] == expected
 
 
 def test_should_wait_for_more_clean_mode_period_sentence():
-    seg = sentencesplit.Segmenter(language="en", clean=True, char_span=False)
+    seg = sentencesplit.Segmenter(language="en", clean=True)
 
     assert seg.should_wait_for_more("This is the finale.") is False
 
 
 def test_should_wait_for_more_pdf_mode_period_sentence():
-    seg = sentencesplit.Segmenter(language="en", clean=True, doc_type="pdf", char_span=False)
+    seg = sentencesplit.Segmenter(language="en", clean=True, doc_type="pdf")
 
     assert seg.should_wait_for_more("This is the finale.\n") is False
 
@@ -230,7 +229,7 @@ def test_should_wait_for_more_pdf_mode_period_sentence():
 @pytest.mark.parametrize("language_code", sorted(LANGUAGE_CODES))
 def test_segment_with_lookahead_across_all_languages(language_code):
     token, punct = lookahead_sample_for_language(language_code)
-    seg = sentencesplit.Segmenter(language=language_code, clean=False, char_span=False)
+    seg = sentencesplit.Segmenter(language=language_code, clean=False)
 
     closed_text = token + punct
     closed_result = seg.segment_with_lookahead(closed_text)
@@ -255,17 +254,17 @@ def test_segmentation_is_nondestructive_across_all_languages(language_code):
     token, punct = lookahead_sample_for_language(language_code)
     text = f"{token}{punct} {token}{punct}"
 
-    seg = sentencesplit.Segmenter(language=language_code, clean=False, char_span=False)
+    seg = sentencesplit.Segmenter(language=language_code, clean=False)
     assert "".join(seg.segment(text)) == text
 
 
 @pytest.mark.parametrize("language_code", sorted(LANGUAGE_CODES))
-def test_char_spans_tile_original_text_across_all_languages(language_code):
-    """char_span output must contiguously tile the original text (no gaps,
+def test_segment_spans_tile_original_text_across_all_languages(language_code):
+    """segment_spans() output must contiguously tile the original text (no gaps,
     overlaps, or dropped characters) for every registered language."""
     token, punct = lookahead_sample_for_language(language_code)
     text = f"{token}{punct} {token}{punct}"
 
-    seg = sentencesplit.Segmenter(language=language_code, clean=False, char_span=True)
-    spans = seg.segment(text)
+    seg = sentencesplit.Segmenter(language=language_code, clean=False)
+    spans = seg.segment_spans(text)
     assert_span_contract(text, spans)

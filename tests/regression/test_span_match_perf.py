@@ -78,14 +78,14 @@ def test_span_match_fallback_no_worse_than_non_divergent_baseline():
 
 @pytest.mark.perf
 def test_span_match_fallback_not_quadratic_with_char_spans():
-    """The same divergent path is shared by ``char_span=True`` / spans; it must
+    """The same divergent path is shared by ``segment_spans()``; it must
     also stay bounded and contiguously tile the original text."""
     text = '" (' + "b" * 100000 + ') "'
 
-    seg = sentencesplit.Segmenter(language="en", char_span=True)
-    seg.segment("warm up. ok.")
+    seg = sentencesplit.Segmenter(language="en")
+    seg.segment_spans("warm up. ok.")
     start = time.perf_counter()
-    spans = seg.segment(text)
+    spans = seg.segment_spans(text)
     elapsed = time.perf_counter() - start
 
     assert "".join(s.sent for s in spans) == text

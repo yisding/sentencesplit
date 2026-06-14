@@ -53,7 +53,7 @@ _MULTILINGUAL = {
 def en_segmenter() -> Segmenter:
     # Construction (language profile + abbreviation automaton) is amortized
     # across the stream, matching real reuse; benchmark only the per-call work.
-    return Segmenter(language="en", clean=False, char_span=False)
+    return Segmenter(language="en", clean=False)
 
 
 @pytest.fixture(scope="module")
@@ -77,7 +77,7 @@ def test_should_wait_for_more(benchmark, en_segmenter: Segmenter, sample: str) -
 
 @pytest.mark.parametrize("language", ["zh", "ru"])
 def test_segment_multilingual(benchmark, segmenter_cache: dict[str, Segmenter], language: str) -> None:
-    segmenter = segmenter_cache.setdefault(language, Segmenter(language=language, clean=False, char_span=False))
+    segmenter = segmenter_cache.setdefault(language, Segmenter(language=language, clean=False))
     benchmark(segmenter.segment, _MULTILINGUAL[language])
 
 

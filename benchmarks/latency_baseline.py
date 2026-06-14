@@ -58,7 +58,7 @@ def _time_calls(fn, iters: int) -> list[float]:
 
 def bench_oneshot(iters: int) -> None:
     print("\n== one-shot segment()  (reused Segmenter) ==")
-    seg = Segmenter(language="en", clean=False, char_span=False)
+    seg = Segmenter(language="en", clean=False)
     for name, text in SAMPLES.items():
         times = _time_calls(lambda t=text: seg.segment(t), iters)
         print(f"  {name:7} ({len(text):>4} chars): {_stats(times)}")
@@ -66,7 +66,7 @@ def bench_oneshot(iters: int) -> None:
 
 def bench_lookahead(iters: int) -> None:
     print("\n== should_wait_for_more()  (lookahead probe path) ==")
-    seg = Segmenter(language="en", clean=False, char_span=False)
+    seg = Segmenter(language="en", clean=False)
     # A text whose last segment ends in '.' triggers the probe loop.
     for name, text in SAMPLES.items():
         times = _time_calls(lambda t=text: seg.should_wait_for_more(t), iters)
@@ -116,7 +116,7 @@ def main() -> None:
     bench_streaming(max(args.iters // 20, 50))
 
     if args.profile:
-        seg = Segmenter(language="en", clean=False, char_span=False)
+        seg = Segmenter(language="en", clean=False)
         profile_path("segment(MEDIUM)", lambda: seg.segment(MEDIUM), 4000)
         profile_path("should_wait_for_more(MEDIUM)", lambda: seg.should_wait_for_more(MEDIUM), 2000)
 

@@ -58,7 +58,7 @@ def segmenters() -> dict[str, object]:
 
     import sentencesplit
 
-    ours = sentencesplit.Segmenter(language="en", clean=False, char_span=False)
+    ours = sentencesplit.Segmenter(language="en", clean=False)
     sbd = pysbd.Segmenter(language="en", clean=False)
     # Warm punkt so its one-time model load is not measured (nltk caches the
     # loaded tokenizer, so subsequent calls reuse it).
