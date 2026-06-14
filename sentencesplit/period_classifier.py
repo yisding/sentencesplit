@@ -161,6 +161,32 @@ class AbbrPolicy:
 
 
 BASE_POLICY = AbbrPolicy()  # module-level frozen constant; shared, read-only (free-threaded-safe)
+
+
+def _cjk_regular_only_policy(cjk_follower_class: str) -> AbbrPolicy:
+    """zh/ja: base ``[a-z]`` regular follower + a CJK/kana follower woven into the REGULAR branch only.
+
+    The legacy ``Chinese``/``Japanese`` ``AbbreviationReplacer`` overrode ONLY
+    ``replace_period_of_abbr`` (the regular branch), keeping the base regular suffix
+    and appending a follower alternative *cjk_follower_class* with NO leading ``\\s``
+    — so "U.S.标准" / "U.S.標準" / "ver.あいうえお" protect even without an
+    intervening space. They did NOT override ``scan_for_replacements``, so the
+    PREPOSITIVE and NUMBER branches inherit the base (no-CJK) suffixes
+    (``cjk_follower_regular_only=True``), and they did NOT set
+    ``CAPITALIZED_FOLLOWER_IS_BOUNDARY_CUE``, so the capital-follower-is-boundary
+    heuristic never fires (CJK has no letter case; a Latin capital follower flows
+    through the normal split-mode dial in later passes). The base ``[a-z]`` follower
+    class is kept verbatim. Verified order-independent + byte-identical to the legacy
+    zh/ja protection step over every Golden/clean case and an adversarial
+    regular(CJK/kana)/prepositive/number-follower corpus.
+    """
+    return AbbrPolicy(
+        follower_class="[a-z]",
+        cjk_follower_class=cjk_follower_class,
+        cjk_follower_regular_only=True,
+    )
+
+
 # Combined en/es/zh profile (Phase 5): any-Unicode-letter follower class, a CJK
 # ideograph follower that protects even without an intervening space, and the
 # ASCII-only restriction on the capital-follower-is-boundary heuristic. This
@@ -172,68 +198,20 @@ EN_ES_ZH_POLICY = AbbrPolicy(
     ascii_only_upper_heuristic=True,
 )
 
-# Standalone Chinese (Phase 5): the legacy ``Chinese.AbbreviationReplacer``
-# overrode ONLY ``replace_period_of_abbr`` (the regular branch), keeping the base
-# regular suffix and appending a CJK-ideograph follower alternative
-# ``[一-鿿]`` (the CJK Unified Ideographs BMP block, U+4E00..U+9FFF) with
-# NO leading ``\s`` — so "U.S.标准" / "etc.标准" protect even without an
-# intervening space (chinese.py:21-30). It did NOT override
-# ``scan_for_replacements``, so the PREPOSITIVE and NUMBER branches inherit the
-# base (no-CJK) suffixes, and it did NOT set
-# ``CAPITALIZED_FOLLOWER_IS_BOUNDARY_CUE``, so the capital-follower-is-boundary
-# heuristic never fires (CJK has no letter case; a Latin capital follower flows
-# through the normal split-mode dial in later passes). The base ``[a-z]``
-# follower class is kept verbatim.
-#
-# Differences from ``EN_ES_ZH_POLICY``:
-#   - follower_class ``[a-z]`` (base), not ``[^\W\d_]`` — zh's regular suffix is
-#     the unmodified base one; the combined profile widened it to any Unicode
-#     letter because it must also segment Spanish/English prose with accented
-#     followers, which standalone zh never does.
-#   - cjk_follower_class ``[一-鿿]`` (U+4E00..U+9FFF, no Ext-A), matching the zh
-#     override's literal range; the combined profile uses ``[㐀-鿿]``
-#     (U+3400..U+9FFF, includes Ext-A) to match its own resplit regexes.
-#   - cjk_follower_regular_only True — the CJK follower is woven ONLY into the
-#     regular branch, exactly as the zh override placed it, NOT into the
-#     prepositive / number-lower branches (which en_es_zh's whole-method override
-#     did weave it into). Verified order-independent + byte-identical to the
-#     legacy zh protection step over every zh Golden/challenging case and an
-#     adversarial prepositive/number-before-CJK corpus.
-#   - ascii_only_upper_heuristic left False (inert — the capital cue is off here).
-ZH_POLICY = AbbrPolicy(
-    follower_class="[a-z]",
-    cjk_follower_class="[一-鿿]",  # CJK Unified Ideographs (U+4E00..U+9FFF, BMP only)
-    cjk_follower_regular_only=True,
-)
+# Standalone Chinese (Phase 5): regular-branch-only CJK follower (see
+# ``_cjk_regular_only_policy``). Range ``[一-鿿]`` (U+4E00..U+9FFF, BMP only,
+# no Ext-A) matches the legacy ``Chinese.AbbreviationReplacer`` override literally;
+# this is narrower than ``EN_ES_ZH_POLICY``'s ``[㐀-鿿]`` (which includes Ext-A to
+# match its own resplit regexes) and keeps the base ``[a-z]`` follower class
+# (en_es_zh widened it to ``[^\W\d_]`` to also segment accented Spanish/English).
+ZH_POLICY = _cjk_regular_only_policy("[一-鿿]")  # CJK Unified Ideographs (U+4E00..U+9FFF, BMP only)
 
-# Japanese (Phase 5): the legacy ``Japanese.AbbreviationReplacer`` overrode ONLY
-# the regular branch (``replace_period_of_abbr``), keeping the base regular suffix
-# and appending a kana+CJK-ideograph follower alternative
-# ``[぀-ヿ一-鿿]`` (Hiragana U+3040..U+309F + Katakana
-# U+30A0..U+30FF + CJK Unified Ideographs U+4E00..U+9FFF) with NO leading ``\s`` —
-# so "U.S.標準" / "etc.標準" / "ver.あいうえお" protect even without an
-# intervening space (japanese.py:50-61). It did NOT override
-# ``scan_for_replacements``, so the PREPOSITIVE and NUMBER branches inherit the
-# base (no-CJK) suffixes, and it did NOT set
-# ``CAPITALIZED_FOLLOWER_IS_BOUNDARY_CUE``, so the capital-follower-is-boundary
-# heuristic never fires (a Latin capital follower flows through the normal
-# split-mode dial in later passes). The base ``[a-z]`` follower class is kept
-# verbatim.
-#
-# This is structurally IDENTICAL to standalone Chinese (``ZH_POLICY``): regular
-# branch only, CJK follower woven there alone (``cjk_follower_regular_only``),
-# base prepositive/number inherited, capital cue off. The ONLY difference is the
-# follower range: Japanese widens the CJK-ideograph block ``[一-鿿]`` to also
-# include the kana blocks (``぀``..``ヿ``), because Japanese prose
-# continues a sentence in hiragana/katakana directly after an abbreviation period
-# ("ver.あいうえお") where Chinese would not. Verified order-independent +
-# byte-identical to the legacy ja protection step over every ja Golden/clean case
-# and an adversarial regular(CJK/kana)/prepositive/number-follower corpus.
-JA_POLICY = AbbrPolicy(
-    follower_class="[a-z]",
-    cjk_follower_class="[぀-ヿ一-鿿]",  # kana (U+3040..U+30FF) + CJK ideographs (U+4E00..U+9FFF)
-    cjk_follower_regular_only=True,
-)
+# Japanese (Phase 5): structurally identical to ``ZH_POLICY`` (regular-branch-only
+# CJK follower), but the follower range widens the CJK-ideograph block to also
+# include the kana blocks (``぀``..``ヿ``), because Japanese prose continues a
+# sentence in hiragana/katakana directly after an abbreviation period
+# ("ver.あいうえお") where Chinese would not.
+JA_POLICY = _cjk_regular_only_policy("[぀-ヿ一-鿿]")  # kana (U+3040..U+30FF) + CJK ideographs (U+4E00..U+9FFF)
 
 # German (Phase 5): the legacy ``Deutsch.AbbreviationReplacer`` overrode
 # ``scan_for_replacements`` to a SINGLE rule, ``re.sub(r"(?<={am})\.(?=\s)", "∯")``,
