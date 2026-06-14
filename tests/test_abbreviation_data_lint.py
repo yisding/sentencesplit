@@ -16,28 +16,33 @@ possible context to protect (the base REGULAR branch's follower class is
 
 QUARANTINE (discoverable backlog)
 ---------------------------------
-~95 declared entries fail this contract today. They are NOT bugs introduced
-here; they are a pre-existing, now-*measured* gap. Rather than red CI, each known
-failure is listed in ``QUARANTINE`` below and converted to an ``xfail`` at
-runtime (``pytest.xfail`` is unaffected by the global ``xfail_strict=true``, so a
-quarantined entry that later starts working simply turns GREEN — it never
-XPASS-reds the suite). The allowlist is the backlog for S6 (the engine-gap fix);
-promote entries out of it as they are made to work.
+~70 declared entries fail this contract today (down from ~95: S6 made the base
+``MULTI_PERIOD_ABBREVIATION_REGEX`` Unicode-aware and sentinel-aware, promoting
+the ~26 non-ASCII single-final-letter multi-period initialisms out of the list).
+The remaining failures are NOT bugs introduced here; they are a pre-existing,
+now-*measured* gap. Rather than red CI, each known failure is listed in
+``QUARANTINE`` below and converted to an ``xfail`` at runtime (``pytest.xfail`` is
+unaffected by the global ``xfail_strict=true``, so a quarantined entry that later
+starts working simply turns GREEN — it never XPASS-reds the suite). The allowlist
+is the remaining backlog for S6's successors; promote entries out of it as they
+are made to work.
 
-The known failures fall into two families (see ``analysis/V2_REFACTOR_ROADMAP.md``
-S5/S6):
+The remaining failures fall into two families (see
+``analysis/V2_REFACTOR_ROADMAP.md`` S5/S6):
 
-1. **Mid-token breaks (~80).** The entry contains structure the engine cannot
-   carry through one ``match_re`` + automaton key:
-   - non-ASCII multi-period initialisms (``d.å``, ``o.ä``, ``μ.χ``, ``ا.ش.ا``):
-     ``MULTI_PERIOD_ABBREVIATION_REGEX`` is ASCII-only, so the interior dots are
-     never protected and the entry splits mid-token;
+1. **Mid-token breaks.** The entry contains structure the engine cannot carry
+   through one ``match_re`` + automaton key — and which the now-Unicode base
+   MULTI_PERIOD regex still does not span (it only protects single-final-letter
+   ``LETTER{1,3}`` chains, never a hyphen / ``&`` / ``(`` / ``!`` / ``/`` / quote
+   / inter-token space):
    - hyphenated initialisms (``c.-à-d``, ``dipl.-ing``, ``r.-v``, ``адм.-терр``);
    - ``&`` / ``(`` / ``!`` / ``/`` / quote entries (``b.&w``, ``magg.(maj)``,
      ``news!``, ``pag./p``, ``riv.dir.int."le priv``);
    - 3+ token spaced entries (``cod. proc. civ``, ``rass. avv. stato``,
-     ``trav.com.ét.et lég.not``, ``т. б.``).
-2. **Single-letter false positives (~15).** A one-character NUMBER abbreviation
+     ``trav.com.ét.et lég.not``, ``т. б.``);
+   - multi-letter-*final* initialisms (``κ.λπ``) that exceed the base regex's
+     single-final-letter limit (kept to avoid mis-matching ``example.co.uk.``).
+2. **Single-letter false positives.** A one-character NUMBER abbreviation
    (``p`` in most languages, ``s`` in Danish, ``č`` in Slovak) never protects a
    period before a plain lowercase word: the NUMBER branch only joins before a
    digit / ``(`` / ``??`` / Roman numeral, and the multi-char REGULAR fallthrough
@@ -59,10 +64,15 @@ from sentencesplit.segmenter import Segmenter
 # newly-rotted or newly-added-but-broken abbreviation is caught at once. Keep
 # this list minimal — remove an entry the moment the engine can keep it joined.
 QUARANTINE: dict[str, frozenset[str]] = {
-    "ar": frozenset({"ا.ش.ا", "ت.ب", "ج.ب", "ج.م.ع", "س.ت", "ص.ب", "ص.ب."}),
-    "da": frozenset({"d.å", "d.æ", "f.å", "s", "s.å", "u.å", "ø.f"}),
-    "de": frozenset({"c.-à-d", "dipl.-ing", "o.univ.-prof", "o.ä", "u.ä", "univ.-doz", "univ.-prof"}),
-    "el": frozenset({"p", "ε.ε", "κ.ά", "κ.λπ", "μ.χ", "π.χ"}),
+    # S6 promoted the non-ASCII multi-period initialisms (Arabic ``ا.ش.ا``/``ص.ب``,
+    # Danish ``d.å``, German ``o.ä``, Greek ``μ.χ``, the single-final-letter Dutch
+    # chains) out of this list once the base MULTI_PERIOD regex became Unicode and
+    # sentinel-aware; what remains here is genuinely out of reach of that fix
+    # (hyphenated, ``&``/``(``/``!``/``/`` / quote, 3+-token-spaced, or
+    # single-letter NUMBER entries).
+    "da": frozenset({"s"}),
+    "de": frozenset({"c.-à-d", "dipl.-ing", "o.univ.-prof", "univ.-doz", "univ.-prof"}),
+    "el": frozenset({"p", "κ.λπ"}),
     "en": frozenset({"p"}),
     "en_es_zh": frozenset({"bs. as", "ff. aa", "n. del t", "ntra. sra", "p", "rr. hh"}),
     "en_legal": frozenset({"p"}),
@@ -99,24 +109,18 @@ QUARANTINE: dict[str, frozenset[str]] = {
             "bull.trim.b.dr.comp",
             "c.& f",
             "c.& f.p",
-            "chron.d.s",
             "comm.v.en v",
             "confl.w.huwbetr",
             "harv.l.rev",
-            "jb.kred.c.s",
             "l'exp.-compt.b.",
             "ll.(l.)l.r",
             "l’exp.-compt.b",
             "p.& b",
-            "regl.r.t",
             "rev.dr.étr",
-            "rev.trim.d.h",
             'riv.dir.int."le priv',
             "trav.com.ét.et lég.not",
-            "uitv.besl.l.b",
             "v.& f",
             "v.toep.r.vert",
-            "verdrag benel.i.z",
         }
     ),
     "pl": frozenset({"pod red.", "sp. z o.o"}),

@@ -27,11 +27,12 @@ class Greek(Common, Standard):
         # boundary even for a pure single-letter initialism.
         NON_LATIN_CAPITAL_STARTS_SENTENCE = True
 
-    # The shared MULTI_PERIOD_ABBREVIATION_REGEX only matches ASCII letters, so
     # Greek multi-period abbreviations such as "μ.Χ." (A.D.) and "Ε.Ε." (E.U.)
-    # are never recognised and their internal periods are treated as sentence
-    # boundaries. Allow Greek (and Latin) letters via a Unicode letter class.
-    MULTI_PERIOD_ABBREVIATION_REGEX = re.compile(r"(?<!\w)(?:[^\W\d_]{1,3}\.)+[^\W\d_]\.", re.IGNORECASE | re.UNICODE)
+    # ride the shared base MULTI_PERIOD_ABBREVIATION_REGEX, which is now Unicode
+    # (non-CJK) and sentinel-aware (roadmap S6), so the previous Greek-specific
+    # override is no longer needed. Entries whose final segment is multi-letter
+    # ("κ.λπ.") still fall outside the base's single-final-letter limit and
+    # remain in the S6 data-lint quarantine.
 
     class Abbreviation(Standard.Abbreviation):
         # Greek-specific abbreviations appended to the inherited Standard list

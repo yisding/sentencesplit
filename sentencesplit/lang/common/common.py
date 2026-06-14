@@ -3,6 +3,18 @@ import re
 
 from sentencesplit.utils import Rule
 
+# A "letter" eligible to be a single token in a dotted initialism (``A.I.``,
+# ``d.å.``, ``μ.χ.``) — any Unicode cased/letter codepoint EXCEPT the ideographic
+# / syllabic scripts that ``re``'s ``\w`` also counts as word characters but which
+# never spell a Latin/Cyrillic/Greek abbreviation. Excluding them is load-bearing:
+# a naive Unicode letter class (or the ``(?<!\w)`` lookbehind the bg/el overrides
+# use) treats CJK as ``\w`` and mis-anchors ``项目代号是A.I.-7。`` — greedily eating
+# ``号是`` into the match — so the base MUST anchor on this non-CJK-aware class
+# (see ``test_chinese.py::test_zh_challenging`` and V2 roadmap S6). The excluded
+# ranges are Hiragana/Katakana, CJK Unified + Ext A, CJK Compatibility Ideographs,
+# Hangul syllables, Bopomofo, and Halfwidth/Fullwidth forms.
+_NON_CJK_LETTER = r"[^\W\d_぀-ヿ㐀-䶿一-鿿豈-﫿가-힯㄀-ㄯ＀-￯]"
+
 
 class Common:
     # added special case: r"[。．.！!? ]{2,}" to handle intermittent dots, exclamation, etc.
@@ -54,11 +66,22 @@ class Common:
     # # Rubular: http://rubular.com/r/NEv265G2X2
     KommanditgesellschaftRule = Rule(r"(?<=Co)\.(?=\sKG)", "∯")
 
-    # Match dotted abbreviations without relying on \b, which treats CJK
-    # letters as word characters and misses cases like "中文A.I.-7". Limit the
-    # final segment to a single letter so domains such as "example.co.uk." are
-    # not mistaken for abbreviations.
-    MULTI_PERIOD_ABBREVIATION_REGEX = re.compile(r"(?<![A-Za-z0-9_])(?:[A-Za-z]{1,3}\.)+[A-Za-z]\.", re.IGNORECASE)
+    # Match dotted abbreviations without relying on \b, which treats CJK letters
+    # as word characters and misses cases like "中文A.I.-7". The letter class is
+    # Unicode (minus CJK — see ``_NON_CJK_LETTER``) so non-ASCII multi-period
+    # initialisms — Danish "d.å.", German "o.ä.", Greek "μ.χ." — are recognised
+    # too, not just ASCII ones (roadmap S6). The separators/terminator accept the
+    # protected sentinel "∯" as well as a literal ".", because when the whole
+    # token is a *declared* abbreviation the classifier has already converted its
+    # final period to "∯" before this pass runs ("μ.χ∯"); without the "∯" arm the
+    # regex could not re-find such tokens to protect their *interior* dots, and
+    # the entry would split mid-token. The final segment is limited to a single
+    # letter so domains such as "example.co.uk." are not mistaken for
+    # abbreviations.
+    MULTI_PERIOD_ABBREVIATION_REGEX = re.compile(
+        rf"(?<![A-Za-z0-9_])(?:{_NON_CJK_LETTER}{{1,3}}[.∯])+{_NON_CJK_LETTER}[.∯]",
+        re.IGNORECASE | re.UNICODE,
+    )
 
     class SingleLetterAbbreviationRules:
         """Searches for periods within an abbreviation and
