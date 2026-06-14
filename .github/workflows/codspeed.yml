@@ -58,3 +58,41 @@ jobs:
             benchmarks/test_latency_codspeed.py
             benchmarks/test_competitive_codspeed.py
             --codspeed
+
+  benchmarks-pypy:
+    runs-on: ubuntu-latest
+    # PyPy can't use the deterministic instruction-count (`simulation`) mode —
+    # that instruments the CPython interpreter, which PyPy's JIT precludes — so
+    # PyPy is measured in `walltime` mode instead. The benchmark ids live in a
+    # dedicated file (test_pypy_walltime_codspeed.py) disjoint from the CPython
+    # `simulation` ids above, so the two jobs never report the same id for one
+    # commit. Walltime on shared runners is noisier than simulation (and noisier
+    # still for sub-millisecond cases under a JIT), so read these as PyPy trends
+    # over time, not single-PR instruction-exact deltas.
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+
+      - name: Set up PyPy 3.11
+        run: uv python install pypy3.11
+
+      - name: Build a PyPy benchmark environment
+        # Just the project + pytest + the CodSpeed plugin — not the `bench`
+        # group, which would drag nltk/regex (a C extension) through an sdist
+        # build on PyPy. The PyPy suite has no competitive peers, so it isn't
+        # needed.
+        run: |
+          uv venv --python pypy3.11 .venv-pypy
+          uv pip install --python .venv-pypy . pytest pytest-codspeed
+
+      - name: Run CodSpeed walltime benchmarks (PyPy)
+        uses: CodSpeedHQ/action@v3
+        with:
+          mode: walltime
+          # `python -m pytest` puts the repo root on sys.path so the
+          # `benchmarks._samples` corpus import resolves.
+          run: .venv-pypy/bin/python -m pytest benchmarks/test_pypy_walltime_codspeed.py --codspeed
