@@ -45,6 +45,9 @@ _TRAILING_SENTENCE_CLOSERS = frozenset("\"')]}»”’）】》」』")
 _ZERO_WIDTH_CHARS = frozenset(ZERO_WIDTH_CHARS)
 _ZERO_WIDTH_TRANSLATION = {ord(c): None for c in _ZERO_WIDTH_CHARS}
 _ZERO_WIDTH_CLASS = re.escape("".join(_ZERO_WIDTH_CHARS))
+# Fast presence test so the per-segment closer scan can early-out on the common
+# case of text with no zero-width/format characters at all.
+_ZERO_WIDTH_SEARCH_RE = re.compile(f"[{_ZERO_WIDTH_CLASS}]")
 
 # Above this length, the whole-sentence flexible-regex span fallback (which
 # emits ~8 pattern chars per input char with no cache) is replaced by a linear
@@ -80,6 +83,11 @@ def _strip_zero_width(text: str, punctuations=None) -> str:
 
 
 def _strip_zero_width_before_sentence_closers(text: str, punctuations) -> str:
+    # The only edit this makes is dropping a zero-width run that sits between a
+    # sentence terminator and a closing quote/bracket; with no zero-width char
+    # present it rebuilds the string unchanged, so skip the char-by-char scan.
+    if not _ZERO_WIDTH_SEARCH_RE.search(text):
+        return text
     chars = []
     punctuation_set = frozenset(punctuations)
     index = 0
