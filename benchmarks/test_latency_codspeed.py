@@ -39,12 +39,28 @@ _SAMPLES = {"short": SHORT, "medium": MEDIUM, "large": LARGE}
 # Whitespace-delimited token stream (LLM/ASR-like) for the streaming benchmark.
 _STREAM_TOKENS = [tok + " " for tok in MEDIUM.split(" ")]
 
+# Non-Latin scripts exercise different code paths (CJK has no whitespace word
+# boundaries and uses the CJK resplit pass; Cyrillic exercises the Latin-style
+# abbreviation/resplit rules over a non-ASCII alphabet), so they catch
+# regressions the English samples would miss.
+_MULTILINGUAL = {
+    "zh": "史密斯博士去了华盛顿。他于1月5日下午3点到达。一切都很顺利。再见。",
+    "ru": "Доктор Иванов поехал в Москву. Он прибыл 5 января в 15:00. Всё прошло хорошо. До свидания.",
+}
+
 
 @pytest.fixture(scope="module")
 def en_segmenter() -> Segmenter:
     # Construction (language profile + abbreviation automaton) is amortized
     # across the stream, matching real reuse; benchmark only the per-call work.
     return Segmenter(language="en", clean=False, char_span=False)
+
+
+@pytest.fixture(scope="module")
+def segmenter_cache() -> dict[str, Segmenter]:
+    # Reused across parametrized cases so per-language construction stays out of
+    # the timed callable.
+    return {}
 
 
 @pytest.mark.parametrize("sample", ["short", "medium", "large"])
@@ -57,6 +73,12 @@ def test_segment(benchmark, en_segmenter: Segmenter, sample: str) -> None:
 def test_should_wait_for_more(benchmark, en_segmenter: Segmenter, sample: str) -> None:
     text = _SAMPLES[sample]
     benchmark(en_segmenter.should_wait_for_more, text)
+
+
+@pytest.mark.parametrize("language", ["zh", "ru"])
+def test_segment_multilingual(benchmark, segmenter_cache: dict[str, Segmenter], language: str) -> None:
+    segmenter = segmenter_cache.setdefault(language, Segmenter(language=language, clean=False, char_span=False))
+    benchmark(segmenter.segment, _MULTILINGUAL[language])
 
 
 @pytest.mark.parametrize("mode", ["conservative", "aggressive"])
