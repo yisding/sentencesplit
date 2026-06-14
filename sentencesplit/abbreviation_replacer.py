@@ -17,13 +17,19 @@ from sentencesplit.utils import (
 class AhoCorasickAutomaton:
     """Pure-Python Aho-Corasick automaton for multi-pattern substring search."""
 
-    __slots__ = ("goto", "fail", "output", "_built")
+    __slots__ = ("goto", "fail", "output", "delta", "_built")
 
     def __init__(self):
         # State 0 is the root. Each state maps char -> next_state.
         self.goto: list[dict[str, int]] = [{}]
         self.output: list[list[int]] = [[]]  # pattern IDs at each state
         self.fail: list[int] = [0]
+        # Fail-link-collapsed transition table, built once in build(). Each
+        # delta[state] maps an observed-alphabet char -> next state with the fail
+        # walk already resolved, so search() is one dict.get per char (no inner
+        # loop). Chars outside the alphabet are absent and .get(ch, 0) sends them
+        # to the root, exactly as the fail walk would.
+        self.delta: list[dict[str, int]] = []
         self._built = False
 
     def add_pattern(self, pattern: str, pattern_id: int) -> None:
@@ -58,21 +64,38 @@ class AhoCorasickAutomaton:
                     self.fail[s] = 0
                 if self.output[self.fail[s]]:
                     self.output[s] = self.output[s] + self.output[self.fail[s]]
+
+        # Collapse the fail links into a DFA transition table. For each state and
+        # each observed-alphabet char: take the goto if present, else inherit the
+        # fail state's already-resolved transition. fail[r] is strictly shallower
+        # than r, so a goto-tree BFS visits it first and delta[fail[r]] is ready.
+        alphabet: set[str] = set()
+        for trans in self.goto:
+            alphabet.update(trans)
+        delta: list[dict[str, int]] = [{} for _ in self.goto]
+        root_goto = self.goto[0]
+        delta[0] = {ch: root_goto.get(ch, 0) for ch in alphabet}
+        queue = deque(self.goto[0].values())
+        while queue:
+            r = queue.popleft()
+            gr = self.goto[r]
+            dfail = delta[self.fail[r]]
+            delta[r] = {ch: (gr[ch] if ch in gr else dfail[ch]) for ch in alphabet}
+            queue.extend(gr.values())
+        self.delta = delta
         self._built = True
 
     def search(self, text: str) -> set[int]:
         """Scan text in one pass, return set of matched pattern IDs."""
         state = 0
         found: set[int] = set()
-        goto = self.goto
-        fail = self.fail
+        delta = self.delta
         output = self.output
         for ch in text:
-            while state != 0 and ch not in goto[state]:
-                state = fail[state]
-            state = goto[state].get(ch, 0)
-            if output[state]:
-                found.update(output[state])
+            state = delta[state].get(ch, 0)
+            out = output[state]
+            if out:
+                found.update(out)
         return found
 
 

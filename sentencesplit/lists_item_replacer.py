@@ -268,6 +268,11 @@ class ListItemReplacer:
 
     def iterate_alphabet_array(self, regex, parens=False, roman_numeral=False):
         list_array = re.findall(regex, self.text, re.IGNORECASE)
+        # Common case on list-free text: no markers found. Skip the lowercasing,
+        # the per-call alphabet-index dict build, and the filter — with an empty
+        # list the replacement loop below never runs, so this is byte-identical.
+        if not list_array:
+            return
         list_array = [i.lower() for i in list_array]
         alphabet = self.ROMAN_NUMERALS if roman_numeral else self.LATIN_NUMERALS
         alphabet_index = {value: index for index, value in enumerate(alphabet)}
