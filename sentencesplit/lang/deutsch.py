@@ -72,7 +72,7 @@ class Deutsch(Common, Standard):
 
     class Processor(Processor):
         def replace_numbers(self, text: str) -> str:
-            text = apply_rules(text, *self.lang.Numbers.All)
+            text = apply_rules(text, *self.profile.number_rules)
             return self.replace_period_in_deutsch_dates(text)
 
         def replace_period_in_deutsch_dates(self, text: str) -> str:

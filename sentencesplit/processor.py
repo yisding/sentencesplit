@@ -402,9 +402,9 @@ def _split_on_uppercase_boundary(text: str, whitespace_re: re.Pattern[str]) -> l
     return [part for part in parts if part]
 
 
-def _sub_symbols_fast(text: str, lang) -> str:
+def _sub_symbols_fast(text: str, subs_table) -> str:
     """Replace temporary symbols using str.replace() instead of regex."""
-    for old, new in lang.SubSymbolsRules.SUBS_TABLE:
+    for old, new in subs_table:
         text = text.replace(old, new)
     return text
 
@@ -412,7 +412,6 @@ def _sub_symbols_fast(text: str, lang) -> str:
 class Processor:
     def __init__(self, text: str | None, lang, split_mode: SplitMode = "balanced") -> None:
         self.text = text
-        self.lang = lang
         self.split_mode = split_mode
         self.profile = LanguageProfile.from_language(lang)
 
@@ -477,10 +476,10 @@ class Processor:
     def _protect_special_tokens(self, text: str) -> str:
         return apply_rules(
             text,
-            self.lang.Abbreviation.WithMultiplePeriodsAndEmailRule,
-            self.lang.GeoLocationRule,
-            self.lang.FileFormatRule,
-            self.lang.DotNetRule,
+            self.profile.multi_period_email_rule,
+            self.profile.geo_location_rule,
+            self.profile.file_format_rule,
+            self.profile.dotnet_rule,
         )
 
     def rm_none_flatten(self, sents: list[str | list[str] | None]) -> list[str]:
@@ -508,7 +507,7 @@ class Processor:
         # flatten list of list of sentences
         sents = self.rm_none_flatten(sents)
         postprocessed_sents = self._restore_and_postprocess_segments(sents)
-        postprocessed_sents = [apply_rules(ns, self.lang.SubSingleQuoteRule) for ns in postprocessed_sents]
+        postprocessed_sents = [apply_rules(ns, self.profile.sub_single_quote_rule) for ns in postprocessed_sents]
         postprocessed_sents = self._resplit_segments(postprocessed_sents)
         postprocessed_sents = self._merge_orphan_fragments(postprocessed_sents)
         return self._strip_zero_width_chars(postprocessed_sents)
@@ -526,19 +525,19 @@ class Processor:
         return cleaned
 
     def _apply_single_newline_and_ellipsis_rules(self, text: str) -> str:
-        ellipsis_rules = self.lang.EllipsisRules.All
+        ellipsis_rules = self.profile.ellipsis_rules
         if split_mode_rank(self.split_mode) <= 0:
             # conservative: drop ThreeConsecutiveRule so "..." before a capital
             # ("Wait... She left.") is treated as a trailing-thought ellipsis
             # (joined) rather than a sentence boundary. The remaining rules then
             # protect all three dots via OtherThreePeriodRule.
-            ellipsis_rules = [r for r in ellipsis_rules if r is not self.lang.EllipsisRules.ThreeConsecutiveRule]
-        return apply_rules(text, self.lang.SingleNewLineRule, *ellipsis_rules)
+            ellipsis_rules = [r for r in ellipsis_rules if r is not self.profile.ellipsis_three_consecutive_rule]
+        return apply_rules(text, self.profile.single_newline_rule, *ellipsis_rules)
 
     def _restore_and_postprocess_segments(self, sentences: list[str]) -> list[str]:
         postprocessed_sents = []
         for sent in sentences:
-            restored = _sub_symbols_fast(sent, self.lang)
+            restored = _sub_symbols_fast(sent, self.profile.sub_symbols_table)
             for pps in self.post_process_segments(restored):
                 if pps:
                     postprocessed_sents.append(pps)
@@ -647,7 +646,7 @@ class Processor:
             return [txt]
 
         if _REINSERT_ELLIPSIS_RE.search(txt):
-            txt = apply_rules(txt, *self.lang.ReinsertEllipsisRules.All)
+            txt = apply_rules(txt, *self.profile.reinsert_ellipsis_rules)
         if self.profile.latin_uppercase_resplit:
             quoted_parts = _split_on_uppercase_boundary(txt, self.profile.split_quotation_re)
             if quoted_parts is not None:
@@ -694,7 +693,7 @@ class Processor:
         return self.profile.numbered_ref_re.sub(r"∯\2\r\7", text)
 
     def check_for_punctuation(self, txt: str) -> list[str]:
-        if any(p in txt for p in self.lang.Punctuations):
+        if any(p in txt for p in self.profile.punctuations):
             sents = self.process_text(txt)
             return sents
         else:
@@ -707,7 +706,7 @@ class Processor:
         return self.sentence_boundary_punctuation(txt)
 
     def _ensure_terminal_marker(self, text: str) -> str:
-        if text[-1] not in self.lang.Punctuations:
+        if text[-1] not in self.profile.punctuations:
             return text + "ȸ"
         return text
 
@@ -717,28 +716,30 @@ class Processor:
     def _apply_double_punctuation_rules(self, text: str) -> str:
         # handle text having only doublepunctuations
         if not self.profile.double_punct_re.match(text):
-            return apply_rules(text, *self.lang.DoublePunctuationRules.All)
+            return apply_rules(text, *self.profile.double_punct_rules)
         return text
 
     def _apply_quotation_punctuation_rules(self, text: str) -> str:
-        exclamation_rules = self.lang.ExclamationPointRules.All
+        exclamation_rules = self.profile.exclamation_rules
         if split_mode_rank(self.split_mode) >= 2:
             # aggressive: stop protecting "!" before a lowercase continuation
             # ("Wow! amazing.") so it ends the sentence. InQuotationRule is
             # structural ("!" before a closing quote) and kept in every mode.
-            rules = self.lang.ExclamationPointRules
-            drop = {id(rules.MidSentenceRule), id(rules.BeforeCommaMidSentenceRule)}
+            drop = {
+                id(self.profile.exclamation_mid_sentence_rule),
+                id(self.profile.exclamation_before_comma_rule),
+            }
             exclamation_rules = [r for r in exclamation_rules if id(r) not in drop]
-        return apply_rules(text, self.lang.QuestionMarkInQuotationRule, *exclamation_rules)
+        return apply_rules(text, self.profile.question_mark_in_quotation_rule, *exclamation_rules)
 
     def _replace_list_parens(self, text: str) -> str:
         return self.profile.list_item_replacer_cls(text, self.split_mode).replace_parens()
 
     def replace_numbers(self, text: str) -> str:
-        return apply_rules(text, *self.lang.Numbers.All)
+        return apply_rules(text, *self.profile.number_rules)
 
     def abbreviations_replacer(self, text: str):
-        return self.profile.abbreviation_replacer_cls(text, self.lang, split_mode=self.split_mode)
+        return self.profile.abbreviation_replacer_cls(text, self.profile.language, split_mode=self.split_mode)
 
     def replace_abbreviations(self, text: str) -> str:
         return self.abbreviations_replacer(text).replace()

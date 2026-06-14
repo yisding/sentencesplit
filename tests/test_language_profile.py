@@ -11,6 +11,7 @@ def test_language_profile_resolves_default_and_custom_hooks():
     english = Language.get_language_code("en")
     english_profile = LanguageProfile.from_language(english)
 
+    assert english_profile.language is english
     assert english_profile.abbreviation_replacer_cls is english.AbbreviationReplacer
     assert english_profile.between_punctuation_cls is BetweenPunctuation
     assert english_profile.list_item_replacer_cls is ListItemReplacer
@@ -22,11 +23,53 @@ def test_language_profile_resolves_default_and_custom_hooks():
     hybrid = Language.get_language_code("en_es_zh")
     hybrid_profile = LanguageProfile.from_language(hybrid)
 
+    assert hybrid_profile.language is hybrid
     assert hybrid_profile.abbreviation_replacer_cls is hybrid.AbbreviationReplacer
     assert hybrid_profile.between_punctuation_cls is hybrid.BetweenPunctuation
     assert hybrid_profile.list_item_replacer_cls is ListItemReplacer
     assert hybrid_profile.cjk_abbreviation_rules == tuple(hybrid.CjkAbbreviationRules.All)
     assert hybrid_profile.latin_uppercase_resplit is False
+
+
+def test_language_profile_resolves_static_rule_hooks():
+    """Every per-language rule the Processor consumes is resolved on the profile.
+
+    S2: the Processor reads only ``self.profile.*`` (one config channel), so the
+    profile must carry every static ``self.lang.*`` rule hook the Processor used
+    to read off the language class directly.
+    """
+    english = Language.get_language_code("en")
+    profile = LanguageProfile.from_language(english)
+
+    assert profile.punctuations == tuple(english.Punctuations)
+    assert profile.multi_period_email_rule is english.Abbreviation.WithMultiplePeriodsAndEmailRule
+    assert profile.geo_location_rule is english.GeoLocationRule
+    assert profile.file_format_rule is english.FileFormatRule
+    assert profile.dotnet_rule is english.DotNetRule
+    assert profile.sub_single_quote_rule is english.SubSingleQuoteRule
+    assert profile.single_newline_rule is english.SingleNewLineRule
+    assert profile.question_mark_in_quotation_rule is english.QuestionMarkInQuotationRule
+    assert profile.sub_symbols_table == tuple(english.SubSymbolsRules.SUBS_TABLE)
+    assert profile.number_rules == tuple(english.Numbers.All)
+    assert profile.ellipsis_rules == tuple(english.EllipsisRules.All)
+    assert profile.ellipsis_three_consecutive_rule is english.EllipsisRules.ThreeConsecutiveRule
+    assert profile.reinsert_ellipsis_rules == tuple(english.ReinsertEllipsisRules.All)
+    assert profile.double_punct_rules == tuple(english.DoublePunctuationRules.All)
+    assert profile.exclamation_rules == tuple(english.ExclamationPointRules.All)
+    assert profile.exclamation_mid_sentence_rule is english.ExclamationPointRules.MidSentenceRule
+    assert profile.exclamation_before_comma_rule is english.ExclamationPointRules.BeforeCommaMidSentenceRule
+
+
+def test_language_profile_resolves_per_language_rule_overrides():
+    """Per-language overrides (e.g. Punctuations, Numbers) are reflected on the profile."""
+    arabic = Language.get_language_code("ar")
+    arabic_profile = LanguageProfile.from_language(arabic)
+    assert arabic_profile.punctuations == tuple(arabic.Punctuations)
+    assert arabic_profile.punctuations != LanguageProfile.from_language(Language.get_language_code("en")).punctuations
+
+    deutsch = Language.get_language_code("de")
+    deutsch_profile = LanguageProfile.from_language(deutsch)
+    assert deutsch_profile.number_rules == tuple(deutsch.Numbers.All)
 
 
 def test_language_profile_resolves_custom_list_item_replacer_hook():

@@ -22,6 +22,7 @@ _PROFILE_CACHE_LOCK = RLock()
 class LanguageProfile:
     """Resolved language hooks and compiled regexes used by the processor."""
 
+    language: type
     abbreviation_replacer_cls: type[AbbreviationReplacer]
     between_punctuation_cls: type[BetweenPunctuation]
     list_item_replacer_cls: type[ListItemReplacer]
@@ -37,6 +38,26 @@ class LanguageProfile:
     continuous_punct_re: re.Pattern[str]
     numbered_ref_re: re.Pattern[str]
     double_punct_re: re.Pattern[str]
+    # Static per-language rule hooks the Processor consumes. Languages keep
+    # declaring these as class attributes; they are resolved here once so the
+    # Processor reads only ``self.profile.*`` (one config channel).
+    punctuations: tuple[str, ...]
+    multi_period_email_rule: Rule
+    geo_location_rule: Rule
+    file_format_rule: Rule
+    dotnet_rule: Rule
+    sub_single_quote_rule: Rule
+    single_newline_rule: Rule
+    question_mark_in_quotation_rule: Rule
+    sub_symbols_table: tuple[tuple[str, str], ...]
+    number_rules: tuple[Rule, ...]
+    ellipsis_rules: tuple[Rule, ...]
+    ellipsis_three_consecutive_rule: Rule
+    reinsert_ellipsis_rules: tuple[Rule, ...]
+    double_punct_rules: tuple[Rule, ...]
+    exclamation_rules: tuple[Rule, ...]
+    exclamation_mid_sentence_rule: Rule
+    exclamation_before_comma_rule: Rule
 
     @classmethod
     def from_language(cls, lang) -> LanguageProfile:
@@ -55,7 +76,10 @@ class LanguageProfile:
     def _build(cls, lang) -> LanguageProfile:
         cjk_rules = tuple(getattr(getattr(lang, "CjkAbbreviationRules", None), "All", ()))
         clause_regex = getattr(lang, "CJK_REPORTING_CLAUSE_REGEX", None)
+        ellipsis_rules = lang.EllipsisRules
+        exclamation_rules = lang.ExclamationPointRules
         return cls(
+            language=lang,
             abbreviation_replacer_cls=getattr(lang, "AbbreviationReplacer", AbbreviationReplacer),
             between_punctuation_cls=getattr(lang, "BetweenPunctuation", BetweenPunctuation),
             list_item_replacer_cls=getattr(lang, "ListItemReplacer", ListItemReplacer),
@@ -71,4 +95,21 @@ class LanguageProfile:
             continuous_punct_re=ensure_compiled(lang.CONTINUOUS_PUNCTUATION_REGEX),
             numbered_ref_re=ensure_compiled(lang.NUMBERED_REFERENCE_REGEX),
             double_punct_re=ensure_compiled(lang.DoublePunctuationRules.DoublePunctuation),
+            punctuations=tuple(lang.Punctuations),
+            multi_period_email_rule=lang.Abbreviation.WithMultiplePeriodsAndEmailRule,
+            geo_location_rule=lang.GeoLocationRule,
+            file_format_rule=lang.FileFormatRule,
+            dotnet_rule=lang.DotNetRule,
+            sub_single_quote_rule=lang.SubSingleQuoteRule,
+            single_newline_rule=lang.SingleNewLineRule,
+            question_mark_in_quotation_rule=lang.QuestionMarkInQuotationRule,
+            sub_symbols_table=tuple(lang.SubSymbolsRules.SUBS_TABLE),
+            number_rules=tuple(lang.Numbers.All),
+            ellipsis_rules=tuple(ellipsis_rules.All),
+            ellipsis_three_consecutive_rule=ellipsis_rules.ThreeConsecutiveRule,
+            reinsert_ellipsis_rules=tuple(lang.ReinsertEllipsisRules.All),
+            double_punct_rules=tuple(lang.DoublePunctuationRules.All),
+            exclamation_rules=tuple(exclamation_rules.All),
+            exclamation_mid_sentence_rule=exclamation_rules.MidSentenceRule,
+            exclamation_before_comma_rule=exclamation_rules.BeforeCommaMidSentenceRule,
         )

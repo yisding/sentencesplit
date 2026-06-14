@@ -296,7 +296,7 @@ class Slovak(Common, Standard):
 
     class Processor(Processor):
         def replace_numbers(self, text: str) -> str:
-            text = apply_rules(text, *self.lang.Numbers.All)
+            text = apply_rules(text, *self.profile.number_rules)
             text = self.replace_period_in_slovak_dates(text)
             text = self.replace_period_in_ordinal_numerals(text)
             text = self.replace_period_in_roman_numerals(text)
