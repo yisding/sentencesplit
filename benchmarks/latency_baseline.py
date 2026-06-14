@@ -88,8 +88,7 @@ def bench_streaming(iters: int) -> None:
         n_tokens = len(MEDIUM.split(" "))
         per_doc_ms.sort()
         med = statistics.median(per_doc_ms)
-        print(f"  {mode:13}: whole-doc median={med:.3f}ms over {n_tokens} feeds "
-              f"(~{med / n_tokens:.4f}ms/token)")
+        print(f"  {mode:13}: whole-doc median={med:.3f}ms over {n_tokens} feeds (~{med / n_tokens:.4f}ms/token)")
 
 
 def profile_path(label: str, fn, n: int) -> None:
