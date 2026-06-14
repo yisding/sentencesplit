@@ -206,6 +206,35 @@ ZH_POLICY = AbbrPolicy(
     cjk_follower_regular_only=True,
 )
 
+# Japanese (Phase 5): the legacy ``Japanese.AbbreviationReplacer`` overrode ONLY
+# the regular branch (``replace_period_of_abbr``), keeping the base regular suffix
+# and appending a kana+CJK-ideograph follower alternative
+# ``[぀-ヿ一-鿿]`` (Hiragana U+3040..U+309F + Katakana
+# U+30A0..U+30FF + CJK Unified Ideographs U+4E00..U+9FFF) with NO leading ``\s`` —
+# so "U.S.標準" / "etc.標準" / "ver.あいうえお" protect even without an
+# intervening space (japanese.py:50-61). It did NOT override
+# ``scan_for_replacements``, so the PREPOSITIVE and NUMBER branches inherit the
+# base (no-CJK) suffixes, and it did NOT set
+# ``CAPITALIZED_FOLLOWER_IS_BOUNDARY_CUE``, so the capital-follower-is-boundary
+# heuristic never fires (a Latin capital follower flows through the normal
+# split-mode dial in later passes). The base ``[a-z]`` follower class is kept
+# verbatim.
+#
+# This is structurally IDENTICAL to standalone Chinese (``ZH_POLICY``): regular
+# branch only, CJK follower woven there alone (``cjk_follower_regular_only``),
+# base prepositive/number inherited, capital cue off. The ONLY difference is the
+# follower range: Japanese widens the CJK-ideograph block ``[一-鿿]`` to also
+# include the kana blocks (``぀``..``ヿ``), because Japanese prose
+# continues a sentence in hiragana/katakana directly after an abbreviation period
+# ("ver.あいうえお") where Chinese would not. Verified order-independent +
+# byte-identical to the legacy ja protection step over every ja Golden/clean case
+# and an adversarial regular(CJK/kana)/prepositive/number-follower corpus.
+JA_POLICY = AbbrPolicy(
+    follower_class="[a-z]",
+    cjk_follower_class="[぀-ヿ一-鿿]",  # kana (U+3040..U+30FF) + CJK ideographs (U+4E00..U+9FFF)
+    cjk_follower_regular_only=True,
+)
+
 # German (Phase 5): the legacy ``Deutsch.AbbreviationReplacer`` overrode
 # ``scan_for_replacements`` to a SINGLE rule, ``re.sub(r"(?<={am})\.(?=\s)", "∯")``,
 # bypassing the base prepositive / number / regular trichotomy entirely. The

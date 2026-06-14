@@ -11,6 +11,7 @@ from sentencesplit.lang.common.cjk import (
     CJKProcessor,
     make_cjk_abbreviation_rules,
 )
+from sentencesplit.period_classifier import JA_POLICY
 from sentencesplit.utils import Rule, apply_rules
 
 
@@ -47,18 +48,18 @@ class Japanese(CJKBoundaryProfile, Common, Standard):
             self.text = apply_rules(self.text, NewLineInMiddleOfWordRule)
 
     class AbbreviationReplacer(AbbreviationReplacer):
-        def replace_period_of_abbr(self, txt: str, abbr: str, escaped: str | None = None) -> str:
-            txt = " " + txt
-            if escaped is None:
-                escaped = re.escape(abbr.strip())
-            txt = re.sub(
-                r"(?<=\s{abbr})\.(?=((\.|\:|-|\?|,)|(\s([a-z]|I\s|I'm|I'll|\d|\())|[\u3040-\u30ff\u4e00-\u9fff]))".format(
-                    abbr=escaped
-                ),
-                "∯",
-                txt,
-            )
-            return txt[1:]
+        # V2: route the per-line abbreviation-protection step through the
+        # PeriodClassifier. JA_POLICY re-encodes the formerly-overridden
+        # ``replace_period_of_abbr`` (the regular branch) as data — the base
+        # ``[a-z]`` follower class plus a kana+CJK-ideograph follower
+        # ``[\u3040-\u30ff\u4e00-\u9fff]`` (kana + CJK Unified Ideographs) that
+        # protects "U.S.標準" / "ver.あいうえお" without an intervening space —
+        # woven into the REGULAR branch only (``cjk_follower_regular_only``),
+        # exactly where the legacy override placed it. The PREPOSITIVE / NUMBER
+        # branches inherit the base (no-CJK) suffixes, and
+        # ``CAPITALIZED_FOLLOWER_IS_BOUNDARY_CUE`` stays False, matching legacy.
+        USE_PERIOD_CLASSIFIER = True
+        ABBR_POLICY = JA_POLICY
 
     class CjkAbbreviationRules:
         All = make_cjk_abbreviation_rules(r"\u3040-\u30ff\u4e00-\u9fff")
