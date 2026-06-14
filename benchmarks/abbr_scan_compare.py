@@ -46,15 +46,17 @@ def _bench(fn, text: str) -> float:
 def main() -> None:
     data = _AbbreviationData(LANGUAGE_CODES["en"].Abbreviation)
     automaton = data.automaton
-    abbr_lowers = [a[1] for a in data.abbreviations]  # stripped, lowercased
+    # The automaton is keyed on "<abbr>." (the trailing period pre-filter), so the
+    # equivalent naive loop tests for "<abbr>." too.
+    abbr_keys = [a[1] + "." for a in data.abbreviations]  # stripped, lowercased, + '.'
 
     def ac_scan(text: str) -> set[int]:
         return automaton.search(text)
 
     def in_loop(text: str) -> set[int]:
-        return {i for i, a in enumerate(abbr_lowers) if a in text}
+        return {i for i, a in enumerate(abbr_keys) if a in text}
 
-    print(f"abbreviation discovery: Aho-Corasick vs `in` loop  ({len(abbr_lowers)} patterns)")
+    print(f"abbreviation discovery: Aho-Corasick vs `in` loop  ({len(abbr_keys)} patterns)")
     print("=" * 60)
     print(f"{'input':<16}{'AC us':>10}{'in us':>10}{'winner':>10}{'ratio':>8}")
     print("-" * 60)

@@ -164,7 +164,15 @@ class _AbbreviationData:
                     next_word_re,
                 )
             )
-            self.automaton.add_pattern(stripped_lower, idx)
+            # Add the trailing period to the automaton key. search_for_abbreviations
+            # only ever acts on an abbreviation when it occurs at a word boundary
+            # *followed by a period*; any such occurrence contains the substring
+            # "<abbr>.", so keying on "<abbr>." is a byte-identical pre-filter that
+            # skips the per-abbreviation full-text finditer for abbreviations whose
+            # bare form merely appears inside other words (e.g. "al" in "called",
+            # "no" in "no one") with no following period — the dominant cost on
+            # real prose, where common short abbreviations match everywhere.
+            self.automaton.add_pattern(stripped_lower + ".", idx)
         self.automaton.build()
         self.abbr_set = frozenset(a.strip().lower() for a in raw)
         self.prepositive_set = frozenset(a.lower() for a in lang_abbreviation_class.PREPOSITIVE_ABBREVIATIONS)
