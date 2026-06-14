@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from sentencesplit.lang.common import Common, Standard
+from sentencesplit.lang.common import Common, Standard, canonical_abbreviations
 
 
 class Tagalog(Common, Standard):
@@ -14,35 +14,40 @@ class Tagalog(Common, Standard):
     # dial.
 
     class Abbreviation(Standard.Abbreviation):
-        ABBREVIATIONS = [
-            "bb",  # Binibini
-            "bbg",  # Binibining
-            "blg",  # Bilang
-            "bp",  # Batas Pambansa
-            "dis",  # Disyembre
-            "dr",
-            "engr",
-            "g",  # Ginoo (single-letter; kept prepositive since it's always a title)
-            "gat",
-            "gng",  # Ginang
-            "hal",  # Halimbawa
-            "hul",  # Hulyo
-            "hun",  # Hunyo
-            "jr",
-            "kgg",  # Kagalang-galang
-            "kon",  # Konde/Konsehal (context-dependent)
-            "ma",  # Maria (name abbreviation)
-            "no",  # Numero
-            "nob",  # Nobyembre
-            "okt",  # Oktubre
-            "pang",
-            "pn",  # Panginoon
-            "prop",
-            "set",  # Setyembre
-            "sr",
-            "st",
-            "sta",
-        ]
+        # Stored in canonical form (lowercased, de-duplicated, sorted); see
+        # ``canonical_abbreviations`` and the
+        # ``test_abbreviations_are_canonical_form`` lint.
+        ABBREVIATIONS = canonical_abbreviations(
+            [
+                "bb",  # Binibini
+                "bbg",  # Binibining
+                "blg",  # Bilang
+                "bp",  # Batas Pambansa
+                "dis",  # Disyembre
+                "dr",
+                "engr",
+                "g",  # Ginoo (single-letter; kept prepositive since it's always a title)
+                "gat",
+                "gng",  # Ginang
+                "hal",  # Halimbawa
+                "hul",  # Hulyo
+                "hun",  # Hunyo
+                "jr",
+                "kgg",  # Kagalang-galang
+                "kon",  # Konde/Konsehal (context-dependent)
+                "ma",  # Maria (name abbreviation)
+                "no",  # Numero
+                "nob",  # Nobyembre
+                "okt",  # Oktubre
+                "pang",
+                "pn",  # Panginoon
+                "prop",
+                "set",  # Setyembre
+                "sr",
+                "st",
+                "sta",
+            ]
+        )
         PREPOSITIVE_ABBREVIATIONS = [
             "bb",
             "dr",

@@ -5,7 +5,7 @@ import re
 
 from sentencesplit.abbreviation_replacer import AbbreviationReplacer
 from sentencesplit.between_punctuation import BetweenPunctuation
-from sentencesplit.lang.common import Common, Standard
+from sentencesplit.lang.common import Common, Standard, canonical_abbreviations
 from sentencesplit.lang.common.cjk import (
     _QUOTE_CLOSER_RE,
     CJK_REPORTING_CLAUSE_RE,
@@ -76,7 +76,7 @@ class EnglishSpanishChinese(CJKBoundaryProfile, Common, Standard):
     iso_code = "en_es_zh"
 
     class Abbreviation(Standard.Abbreviation):
-        ABBREVIATIONS = sorted(set(Standard.Abbreviation.ABBREVIATIONS + Spanish.Abbreviation.ABBREVIATIONS))
+        ABBREVIATIONS = canonical_abbreviations(Standard.Abbreviation.ABBREVIATIONS, Spanish.Abbreviation.ABBREVIATIONS)
         PREPOSITIVE_ABBREVIATIONS = sorted(
             set(Standard.Abbreviation.PREPOSITIVE_ABBREVIATIONS + Spanish.Abbreviation.PREPOSITIVE_ABBREVIATIONS)
         )

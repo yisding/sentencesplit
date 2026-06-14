@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 import re
 
-from sentencesplit.lang.common import Common, Standard
+from sentencesplit.lang.common import Common, Standard, canonical_abbreviations
 
 
 class Greek(Common, Standard):
@@ -39,14 +39,20 @@ class Greek(Common, Standard):
         # Multi-period abbreviations are stored as the lowercased form minus the
         # trailing period (e.g. "μ.χ" for "μ.Χ."); replace_multi_period_abbreviations
         # protects the internal dots. Matching is re.IGNORECASE.
-        ABBREVIATIONS = Standard.Abbreviation.ABBREVIATIONS + [
-            "μ.χ",  # μ.Χ. (A.D.)
-            "π.χ",  # π.Χ. (B.C.) / π.χ. (e.g.)
-            "ε.ε",  # Ε.Ε. (E.U.)
-            "κ.λπ",  # κ.λπ. (etc.)
-            "κ.ά",  # κ.ά. (et al.)
-            "κ.τ.λ",  # κ.τ.λ. (etc.)
-            "αρ",  # αρ. (no.)
-            "σελ",  # σελ. (p.)
-            "βλ",  # βλ. (see)
-        ]
+        # Stored in canonical form (lowercased, de-duplicated, sorted); see
+        # ``canonical_abbreviations`` and the
+        # ``test_abbreviations_are_canonical_form`` lint.
+        ABBREVIATIONS = canonical_abbreviations(
+            Standard.Abbreviation.ABBREVIATIONS,
+            [
+                "μ.χ",  # μ.Χ. (A.D.)
+                "π.χ",  # π.Χ. (B.C.) / π.χ. (e.g.)
+                "ε.ε",  # Ε.Ε. (E.U.)
+                "κ.λπ",  # κ.λπ. (etc.)
+                "κ.ά",  # κ.ά. (et al.)
+                "κ.τ.λ",  # κ.τ.λ. (etc.)
+                "αρ",  # αρ. (no.)
+                "σελ",  # σελ. (p.)
+                "βλ",  # βλ. (see)
+            ],
+        )

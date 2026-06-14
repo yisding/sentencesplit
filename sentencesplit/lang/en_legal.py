@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 from sentencesplit.abbreviation_replacer import AbbreviationReplacer
-from sentencesplit.lang.common import Common, Standard
+from sentencesplit.lang.common import Common, Standard, canonical_abbreviations
 
 
 class EnglishLegal(Common, Standard):
@@ -116,7 +116,7 @@ class EnglishLegal(Common, Standard):
             "twp",  # Township
         ]
 
-        ABBREVIATIONS = sorted(set(Standard.Abbreviation.ABBREVIATIONS + LEGAL_ABBREVIATIONS))
+        ABBREVIATIONS = canonical_abbreviations(Standard.Abbreviation.ABBREVIATIONS, LEGAL_ABBREVIATIONS)
 
         LEGAL_PREPOSITIVE_ABBREVIATIONS = [
             "atty",  # Attorney [name]

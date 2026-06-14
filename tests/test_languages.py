@@ -3,7 +3,7 @@ from collections import Counter
 import pytest
 
 import sentencesplit
-from sentencesplit.lang.common import Common, Standard
+from sentencesplit.lang.common import Common, Standard, canonical_abbreviations
 from sentencesplit.language_profile import LanguageProfile
 from sentencesplit.languages import LANGUAGE_CODES, Language, list_languages, register_language, unregister_language
 
@@ -117,6 +117,23 @@ def test_single_token_abbreviations_have_no_trailing_dot(code):
         a for a in abbreviations if (s := a.strip()).endswith(".") and s.count(".") == 1 and not any(c.isspace() for c in s)
     ]
     assert offenders == []
+
+
+@pytest.mark.parametrize("code", tuple(sorted(LANGUAGE_CODES)))
+def test_abbreviations_are_canonical_form(code):
+    """Every ABBREVIATIONS list must be stored in its canonical form.
+
+    The canonical form is ``sorted(set(...))`` over the lowercased entries (see
+    ``sentencesplit.lang.common.canonical_abbreviations``): lowercased,
+    de-duplicated, and sorted. Languages build their list THROUGH that helper, so
+    this lint is the guard that a future hand-edited addition (a stray uppercase
+    entry, an out-of-order or duplicate literal) is caught instead of silently
+    rotting. Lowercasing is behavior-neutral for the V2 engine: the automaton keys
+    on ``stripped.lower()``, ``match_re`` is ``re.IGNORECASE``, and the
+    abbr/prepositive/number sets are all lowercased.
+    """
+    abbreviations = list(LANGUAGE_CODES[code].Abbreviation.ABBREVIATIONS)
+    assert abbreviations == canonical_abbreviations(abbreviations)
 
 
 def test_specialized_abbreviations_are_registered_abbreviations():
