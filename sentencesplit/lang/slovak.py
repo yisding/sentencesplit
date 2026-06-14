@@ -9,6 +9,11 @@ from sentencesplit.processor import Processor
 from sentencesplit.punctuation_replacer import replace_punctuation
 from sentencesplit.utils import apply_rules
 
+# Constant patterns compiled once at import instead of recompiled per call.
+_SLOVAK_DOUBLE_QUOTES_RE = re.compile(r"\„(?=(?P<tmp>[^“\\]+|\\{2}|\\.)*)(?P=tmp)\“")
+_SLOVAK_ORDINAL_PERIOD_RE = re.compile(r"(?<=\d)\.(?=\s*[a-z]+)")
+_SLOVAK_ROMAN_PERIOD_RE = re.compile(r"((\s+[VXI]+)|(^[VXI]+))(\.)(?=\s+)", re.IGNORECASE)
+
 
 class Slovak(Common, Standard):
     iso_code = "sk"
@@ -248,7 +253,7 @@ class Slovak(Common, Standard):
         BETWEEN_SLOVAK_DOUBLE_QUOTES_REGEX_2 = r"\„(?=(?P<tmp>[^“\\]+|\\{2}|\\.)*)(?P=tmp)\“"
 
         def sub_punctuation_between_slovak_double_quotes(self, txt):
-            return re.sub(self.BETWEEN_SLOVAK_DOUBLE_QUOTES_REGEX_2, replace_punctuation, txt)
+            return _SLOVAK_DOUBLE_QUOTES_RE.sub(replace_punctuation, txt)
 
         def sub_punctuation_between_quotes_and_parens(self, txt):
             txt = self.sub_punctuation_between_single_quotes(txt)
@@ -272,11 +277,11 @@ class Slovak(Common, Standard):
 
         def replace_period_in_ordinal_numerals(self, text: str) -> str:
             # Rubular: https://rubular.com/r/0HkmvzMGTqgWs6
-            return re.sub(r"(?<=\d)\.(?=\s*[a-z]+)", "∯", text)
+            return _SLOVAK_ORDINAL_PERIOD_RE.sub("∯", text)
 
         def replace_period_in_roman_numerals(self, text: str) -> str:
             # Rubular: https://rubular.com/r/XlzTIi7aBRThSl
-            return re.sub(r"((\s+[VXI]+)|(^[VXI]+))(\.)(?=\s+)", r"\1∯", text, flags=re.IGNORECASE)
+            return _SLOVAK_ROMAN_PERIOD_RE.sub(r"\1∯", text)
 
         def replace_period_in_slovak_dates(self, text: str) -> str:
             MONTHS = [

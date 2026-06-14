@@ -18,7 +18,9 @@ class ExclamationWords:
     # Longest first so a longer entry (e.g. "!Kung-Ekoka") is matched before a
     # shorter prefix ("!Kung") that would otherwise leave a dangling suffix.
     EXCLAMATION_REGEX = r"|".join(re.escape(w) for w in sorted(EXCLAMATION_WORDS, key=len, reverse=True))
+    # Compiled once: apply_rules runs in boundary processing for every segment.
+    _EXCLAMATION_RE = re.compile(EXCLAMATION_REGEX)
 
     @classmethod
     def apply_rules(cls, text: str) -> str:
-        return re.sub(ExclamationWords.EXCLAMATION_REGEX, replace_punctuation, text)
+        return cls._EXCLAMATION_RE.sub(replace_punctuation, text)

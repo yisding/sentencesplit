@@ -83,6 +83,20 @@ def _replace_with_escape(txt: str, escaped: str, suffix_pattern: str, replacemen
     return txt[1:]
 
 
+# Constant patterns run on every ``replace()`` call. Compiling them once at import
+# (rather than via a raw ``re.sub`` literal each call) skips the per-call pattern
+# cache lookup in the abbreviation hot path.
+# Compact time token with no leading space (e.g. "3P.M.").
+_COMPACT_AMPM_RE = re.compile(r"(?<=\d)([AaPp])\.([Mm])\.")
+# Sentence-boundary period after an all-uppercase 3+ part initialism ("S∯A∯T∯ ").
+_UPPERCASE_INITIALISM_BOUNDARY_RE = re.compile(r"(?<=[A-Z]∯[A-Z]∯[A-Z])∯(?=\s)")
+# Standalone pronoun "I" abbreviation sentinel before whitespace.
+_STANDALONE_I_BOUNDARY_RE = re.compile(r"(?<![A-Za-z0-9_∯])I∯(?=\s)")
+# Non-ASCII a.m./p.m. boundary restores (with and without an inner space).
+_NON_ASCII_AMPM_RE = re.compile(r"(\d\s*[AaPp]∯[Mm])∯(?=\s)")
+_NON_ASCII_AMPM_SPACED_RE = re.compile(r"(\d\s*[AaPp]∯\s+[Mm])∯(?=\s)")
+
+
 class _AbbreviationData:
     """Pre-computed abbreviation data for a language, cached per Abbreviation class."""
 
@@ -308,7 +322,7 @@ class AbbreviationReplacer:
         self.replace_multi_period_abbreviations()
         # Protect compact time tokens with no space before them (e.g. "3P.M.")
         # so a.m./p.m. rules can decide boundary vs non-boundary using context.
-        self.text = re.sub(r"(?<=\d)([AaPp])\.([Mm])\.", r"\1∯\2∯", self.text)
+        self.text = _COMPACT_AMPM_RE.sub(r"\1∯\2∯", self.text)
         # Restore a sentence-boundary period when an all-uppercase multi-period
         # abbreviation with 3+ parts (e.g. "S∯A∯T∯", "E∯S∯T∯") is followed
         # by a space and uppercase letter.
@@ -331,7 +345,7 @@ class AbbreviationReplacer:
                 return match.group()
             return "."
 
-        self.text = re.sub(r"(?<=[A-Z]∯[A-Z]∯[A-Z])∯(?=\s)", restore_uppercase_initialism_boundary, self.text)
+        self.text = _UPPERCASE_INITIALISM_BOUNDARY_RE.sub(restore_uppercase_initialism_boundary, self.text)
         self.text = self.protect_allcaps_imprint_abbreviations()
         self.apply_ampm_boundary_rules()
         if self.RESTORE_STANDALONE_I_BOUNDARIES:
@@ -392,7 +406,7 @@ class AbbreviationReplacer:
                 return "I." if self._leans_split else match.group()
             return "I."
 
-        return re.sub(r"(?<![A-Za-z0-9_∯])I∯(?=\s)", _restore, self.text)
+        return _STANDALONE_I_BOUNDARY_RE.sub(_restore, self.text)
 
     @staticmethod
     def _two_letter_initialism_key(parts: list[str]) -> str:
@@ -500,8 +514,8 @@ class AbbreviationReplacer:
                 return f"{match.group(1)}."
             return match.group()
 
-        self.text = re.sub(r"(\d\s*[AaPp]∯[Mm])∯(?=\s)", _restore, self.text)
-        self.text = re.sub(r"(\d\s*[AaPp]∯\s+[Mm])∯(?=\s)", _restore, self.text)
+        self.text = _NON_ASCII_AMPM_RE.sub(_restore, self.text)
+        self.text = _NON_ASCII_AMPM_SPACED_RE.sub(_restore, self.text)
         return self.text
 
     def replace_period_of_abbr(self, txt: str, abbr: str, escaped: str | None = None) -> str:

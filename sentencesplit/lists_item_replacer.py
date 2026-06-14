@@ -7,6 +7,11 @@ from functools import partial
 
 from sentencesplit.utils import Rule, apply_rules, split_mode_rank
 
+# Constant patterns compiled once at import instead of recompiled per call.
+# Newline-separated list-marker guards: a list spanning lines is not collapsed.
+_MULTILINE_BULLET_GUARD_RE = re.compile(r"♨.+(\n|\r).+♨")
+_MULTILINE_PAREN_MARKER_GUARD_RE = re.compile(r"☝.+\n.+☝|☝.+\r.+☝")
+
 
 class ListItemReplacer:
     ROMAN_NUMERALS = "i ii iii iv v vi vii viii ix x xi xii xiii xiv xv xvi xvii xviii xix xx".split(" ")
@@ -50,6 +55,7 @@ class ListItemReplacer:
 
     # Rubular: http://rubular.com/r/GcnmQt4a3I
     ROMAN_NUMERALS_IN_PARENTHESES = r"\(((?=[mdclxvi])m*(c[md]|d?c*)(x[cl]|l?x*)(i[xv]|v?i*))\)(?=\s[A-Z])"
+    _ROMAN_NUMERALS_IN_PARENTHESES_RE = re.compile(ROMAN_NUMERALS_IN_PARENTHESES)
 
     # A false-positive guard for numbered lists. Some adjacent ordinals are
     # prose, not list items (e.g. English "for 1. above ... 2. above" or German
@@ -70,7 +76,7 @@ class ListItemReplacer:
         return self.text
 
     def replace_parens(self):
-        self.text = re.sub(self.ROMAN_NUMERALS_IN_PARENTHESES, r"&✂&\1&⌬&", self.text)
+        self.text = self._ROMAN_NUMERALS_IN_PARENTHESES_RE.sub(r"&✂&\1&⌬&", self.text)
         return self.text
 
     def format_numbered_list_with_parens(self):
@@ -160,7 +166,7 @@ class ListItemReplacer:
                 text_for_breaks,
             )
 
-        if (text_for_breaks.count("♨") >= 2) and (not re.search("♨.+(\n|\r).+♨", text_for_breaks)):
+        if (text_for_breaks.count("♨") >= 2) and (not _MULTILINE_BULLET_GUARD_RE.search(text_for_breaks)):
             self.text = apply_rules(
                 text_for_breaks,
                 self.SpaceBetweenListItemsFirstRule,
@@ -173,7 +179,7 @@ class ListItemReplacer:
         self.scan_lists(self.NUMBERED_LIST_PARENS_REGEX, self.NUMBERED_LIST_PARENS_REGEX, "☝")
 
     def add_line_breaks_for_numbered_list_with_parens(self):
-        if "☝" in self.text and not re.search("☝.+\n.+☝|☝.+\r.+☝", self.text):
+        if "☝" in self.text and not _MULTILINE_PAREN_MARKER_GUARD_RE.search(self.text):
             self.text = apply_rules(
                 self.text,
                 self.SpaceBetweenListItemsThirdRule,
