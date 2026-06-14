@@ -88,3 +88,47 @@ def test_clean_true_multi_char_sentinel_caveat_is_documented():
     doc = Segmenter.__init__.__doc__ or ""
     assert "sentinel" in doc.lower(), "Segmenter docstring must document the clean=True sentinel caveat"
     assert "clean" in doc.lower()
+
+
+# A multi-sentence document with abbreviations but NO leading-quote segment. The
+# quote-resplit branch can never fire here, so it must not run the (expensive)
+# abbreviation-protected scan once per sentence.
+_NO_QUOTE_MULTI_SENTENCE = (
+    "Dr. Smith went to Washington. He arrived on Jan. 5th at 3 p.m. "
+    "The model is GPT 3.1 and it is fast. That is all for now. Goodbye. "
+    "She paid $4.50 for the U.S. edition (vol. 2, p. 17). Mr. Lee agreed."
+)
+
+
+def test_quote_resplit_skips_abbreviation_scan_for_quote_free_segments():
+    """The quote-resplit branch must not re-run abbreviation replacement per
+    sentence when no segment begins with a quote.
+
+    ``_resplit_multi_sentence_quote`` returns ``None`` immediately unless the
+    segment starts with a leading quote, so the abbreviation-protected scan it
+    consumes is wasted work for quote-free segments. ``replace_abbreviations``
+    legitimately runs once for the whole text in the main pipeline; the resplit
+    pass must add zero further calls when there is no quoted segment.
+    """
+    from sentencesplit.processor import Processor
+
+    seg = Segmenter(language="en")
+
+    original = Processor.replace_abbreviations
+    calls = {"n": 0}
+
+    def counting(self, text=None):
+        calls["n"] += 1
+        return original(self, text)
+
+    Processor.replace_abbreviations = counting
+    try:
+        sentences = seg.segment(_NO_QUOTE_MULTI_SENTENCE)
+    finally:
+        Processor.replace_abbreviations = original
+
+    # Exactly one whole-text abbreviation pass: the main text-processing phase.
+    # The per-sentence quote-resplit branch contributes none.
+    assert calls["n"] == 1, calls["n"]
+    # Behavior is unchanged: the text still round-trips with no loss.
+    assert "".join(sentences) == _NO_QUOTE_MULTI_SENTENCE
