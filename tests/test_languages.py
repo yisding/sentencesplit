@@ -94,6 +94,31 @@ def test_language_abbreviations_are_whitespace_trimmed(code):
     assert untrimmed == []
 
 
+@pytest.mark.parametrize("code", tuple(sorted(LANGUAGE_CODES)))
+def test_single_token_abbreviations_have_no_trailing_dot(code):
+    """Single-token abbreviations must NOT be stored with a trailing dot.
+
+    The Aho-Corasick automaton keys each abbreviation as ``<abbr>.`` (it appends a
+    period; see ``abbreviation_replacer._AbbreviationData.__init__``). A single-token
+    abbreviation stored WITH a trailing dot is therefore keyed ``<abbr>..`` and is
+    never enumerated as a candidate by the period classifier — so its period is
+    never protected via the main path. This is the exact rot mode the V2 cleanup
+    closed; it must stay closed for every registered language (including future
+    additions).
+
+    Only single-token entries are checked: an entry with an INTERNAL dot
+    (initialisms like ``s.r.o``, ``p.m.``) or any whitespace (multi-token entries
+    like ``et al``, ``sp. z o.o``) is structural — handled by
+    ``MULTI_PERIOD_ABBREVIATION_REGEX`` / ``classify_special``, not the automaton —
+    and is intentionally left dotted/spaced.
+    """
+    abbreviations = LANGUAGE_CODES[code].Abbreviation.ABBREVIATIONS
+    offenders = [
+        a for a in abbreviations if (s := a.strip()).endswith(".") and s.count(".") == 1 and not any(c.isspace() for c in s)
+    ]
+    assert offenders == []
+
+
 def test_specialized_abbreviations_are_registered_abbreviations():
     for code, language_module in LANGUAGE_CODES.items():
         abbreviation = language_module.Abbreviation
