@@ -4,8 +4,8 @@ import re
 from sentencesplit.abbreviation_replacer import AbbreviationReplacer
 from sentencesplit.between_punctuation import BetweenPunctuation
 from sentencesplit.lang.common import Common, Standard
+from sentencesplit.lang.common.whole_span_abbr import whole_span_policy
 from sentencesplit.lists_item_replacer import ListItemReplacer
-from sentencesplit.period_classifier import NOT_HANDLED, AbbrPolicy, Candidate, Decision, Edit, PeriodClassifier
 from sentencesplit.processor import Processor
 from sentencesplit.punctuation_replacer import replace_punctuation
 from sentencesplit.utils import apply_rules
@@ -35,54 +35,11 @@ _SLOVAK_ROMAN_PERIOD_RE = re.compile(r"((\s+[VXI]+)|(^[VXI]+))(\.)(?=\s+)", re.I
 #      protects the trailing period (relying on the later
 #      ``replace_multi_period_abbreviations`` pass for interiors), which is wrong
 #      for Slovak's spaced forms.
-# ``classify_special`` handles ONLY the regular branch (returns PROTECT
-# unconditionally for a non-prepositive, non-number abbreviation; ``NOT_HANDLED``
-# otherwise so the base prepositive/number trichotomy runs). ``protect_edit``
-# realizes the whole-span splice; ``realize_per_occurrence`` anchors each
-# word-boundary occurrence to its own span.
-#
-# Quirk FIXED (BC not required, plan §3, reviewed Golden-Rule-anchored): the
-# legacy ``str.replace`` is GLOBAL and LITERAL, so a word-boundary occurrence that
-# triggers the scan ALSO mutated an unrelated EMBEDDED occurrence on the same line
-# ("good s.r.o. then Xs.r.o." -> the trailing "Xs.r.o." periods were protected too,
-# even though "Xs.r.o" is not a word-boundary abbreviation). The V2 per-occurrence
-# path classifies + splices only the candidates the reachability gate (word-boundary
-# ``match_re``) actually enumerates, so the spurious embedded protection is dropped.
-# Embedded occurrences were never protected when they appeared ALONE (the gate
-# already excluded them); this only removes the cross-contamination from a sibling
-# boundary occurrence. No Golden Rule exercises that case.
-def _sk_classify_special(pc: "PeriodClassifier", line: str, c: Candidate) -> object:
-    """Slovak regular-branch override (slovak.py:34-42), per occurrence.
-
-    REGULAR abbreviations PROTECT unconditionally; PREPOSITIVE/NUMBER fall through
-    (``NOT_HANDLED``) to the base trichotomy, which Slovak does not override.
-    """
-    am_lower = pc._elision_strip(c.am_stripped).lower()
-    if am_lower in pc.data.prepositive_set or am_lower in pc.data.number_abbr_set:
-        return NOT_HANDLED
-    return Decision.PROTECT
-
-
-def _sk_protect_edit(pc: "PeriodClassifier", c: Candidate, line: str) -> "Edit":
-    """Whole-span protect: ``<abbr>.`` -> ``<abbr with every '.' -> ∯>∯``.
-
-    The abbreviation text occupies ``line[period_idx - len(am) : period_idx]`` (the
-    stored ``am_stripped`` in the occurrence's ORIGINAL case); the trailing period
-    is at ``period_idx``. Reproduces ``abbr.replace(".", "∯") + "∯"`` over the full
-    span ``[am_start, period_idx + 1)``.
-    """
-    am = pc._elision_strip(c.am_stripped)
-    am_start = c.period_idx - len(am)
-    span_text = line[am_start : c.period_idx]  # original-case abbreviation, no trailing '.'
-    replacement = span_text.replace(".", "∯") + "∯"
-    return Edit(am_start, c.period_idx + 1, replacement, c.period_idx)
-
-
-SK_POLICY = AbbrPolicy(
-    classify_special=_sk_classify_special,
-    protect_edit=_sk_protect_edit,
-    realize_per_occurrence=True,
-)
+# This is structurally identical to Bulgarian's regular-branch override, so both
+# ride the shared ``whole_span_policy()`` factory in
+# ``lang/common/whole_span_abbr.py`` (see that module for the full behavior +
+# quirk-fix notes).
+SK_POLICY = whole_span_policy()
 
 
 class Slovak(Common, Standard):
@@ -107,9 +64,9 @@ class Slovak(Common, Standard):
         # abbreviation ("Company name s. r. o." stays one token) UNCONDITIONALLY
         # (no follower-class lookahead, because Slovak abbreviations routinely
         # precede a capitalized company/proper name) — is reimplemented as
-        # ``SK_POLICY`` (``period_classifier._sk_classify_special`` +
-        # ``_sk_protect_edit``). It overrides ONLY the regular branch; the
-        # PREPOSITIVE / NUMBER branches inherit the base classifier unchanged.
+        # ``SK_POLICY`` (the shared ``whole_span_policy()`` factory in
+        # ``lang/common/whole_span_abbr.py``). It overrides ONLY the regular branch;
+        # the PREPOSITIVE / NUMBER branches inherit the base classifier unchanged.
         ABBR_POLICY = SK_POLICY
 
     class Abbreviation(Standard.Abbreviation):

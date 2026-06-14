@@ -3,8 +3,7 @@ import re
 
 from sentencesplit.abbreviation_replacer import AbbreviationReplacer
 from sentencesplit.lang.common import Common, Standard
-from sentencesplit.lang.slovak import _sk_classify_special, _sk_protect_edit
-from sentencesplit.period_classifier import AbbrPolicy
+from sentencesplit.lang.common.whole_span_abbr import whole_span_policy
 
 # Bulgarian (Phase 5): the legacy ``Bulgarian.AbbreviationReplacer`` overrode ONLY
 # the regular branch (``replace_period_of_abbr``); both ``PREPOSITIVE_ABBREVIATIONS``
@@ -22,11 +21,12 @@ from sentencesplit.period_classifier import AbbrPolicy
 #      otherwise shatter the token ("б.р." -> "б." + "р.").
 # This is structurally IDENTICAL to Slovak's regular-branch override (unconditional
 # whole-span PROTECT, regular branch only, empty-or-inert prepositive/number), so
-# Bulgarian rides the SAME ``_sk_classify_special`` (which returns ``NOT_HANDLED``
-# for prepositive/number — never reached here since both sets are empty — and
-# PROTECT otherwise) and ``_sk_protect_edit`` (the whole-span splice). ``classify_special``
-# overrides ONLY the regular branch; the (unused) PREPOSITIVE/NUMBER branches inherit
-# the base classifier.
+# Bulgarian rides the SAME shared ``whole_span_policy()`` factory
+# (``lang/common/whole_span_abbr.py``): its ``classify_special`` returns
+# ``NOT_HANDLED`` for prepositive/number — never reached here since both sets are
+# empty — and PROTECT otherwise, and its ``protect_edit`` does the whole-span
+# splice. ``classify_special`` overrides ONLY the regular branch; the (unused)
+# PREPOSITIVE/NUMBER branches inherit the base classifier.
 #
 # Quirk FIXED (BC not required, plan §3, reviewed Golden-Rule-anchored): the legacy
 # trailing-period regex interpolated the abbreviation UNescaped into a lookbehind
@@ -39,11 +39,7 @@ from sentencesplit.period_classifier import AbbrPolicy
 # protected and the decoy keeps its boundary period — linguistically correct, and
 # exercised by no Golden Rule (every Bulgarian Golden Rule + Cyrillic regression case
 # is byte-identical between the two paths).
-BG_POLICY = AbbrPolicy(
-    classify_special=_sk_classify_special,
-    protect_edit=_sk_protect_edit,
-    realize_per_occurrence=True,
-)
+BG_POLICY = whole_span_policy()
 
 
 class Bulgarian(Common, Standard):
@@ -141,8 +137,8 @@ class Bulgarian(Common, Standard):
         # override — an UNCONDITIONAL trailing-period protect plus a WHOLE-SPAN
         # interior-period protect for Cyrillic multi-period abbreviations ("б.р",
         # "бел.пр", "к.с") so the boundary regex does not shatter the token
-        # ("б.р." -> "б." + "р.") — is reimplemented as ``BG_POLICY``
-        # (``period_classifier._sk_classify_special`` + ``_sk_protect_edit``,
+        # ("б.р." -> "б." + "р.") — is reimplemented as ``BG_POLICY`` (the shared
+        # ``whole_span_policy()`` factory in ``lang/common/whole_span_abbr.py``,
         # shared with Slovak's structurally-identical regular-branch override).
         # It overrides ONLY the regular branch; Bulgarian's PREPOSITIVE and NUMBER
         # abbreviation lists are empty, so every abbreviation is regular. The
