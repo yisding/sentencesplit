@@ -34,6 +34,31 @@ pip install sentencesplit
 
 Python 3.11+. No dependencies to install.
 
+### Runtimes
+
+Because sentencesplit is pure Python with zero runtime dependencies, it runs
+unmodified on every mainstream Python runtime. All four are exercised in CI:
+
+| Runtime | Status | Notes |
+| --- | --- | --- |
+| CPython 3.11 – 3.14 | ✅ | Primary target. |
+| CPython 3.14 free-threaded (`3.14t`) | ✅ | No GIL; caches are lock-guarded. |
+| PyPy 3.11 | ✅ | Pure-Python, JIT-friendly workload. |
+| Pyodide (CPython on WebAssembly) | ✅ | Runs in the browser / Node via WASM. |
+
+**Browser / Pyodide.** The published wheel is a universal `py3-none-any` wheel,
+so [`micropip`](https://pyodide.org/en/stable/usage/loading-packages.html) can
+install it directly in the browser:
+
+```python
+import micropip
+await micropip.install("sentencesplit")
+
+import sentencesplit
+sentencesplit.Segmenter(language="en").segment("Hello world. This is a test.")
+# ['Hello world. ', 'This is a test.']
+```
+
 ## Quick start
 
 ### Basic segmentation

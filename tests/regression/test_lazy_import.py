@@ -7,10 +7,13 @@ fresh subprocess so the assertions see a clean interpreter rather than whatever
 the pytest process already imported.
 """
 
+import platform
 import subprocess
 import sys
 import textwrap
 from pathlib import Path
+
+import pytest
 
 
 def _run(snippet: str) -> str:
@@ -49,6 +52,10 @@ def test_version_is_a_nonempty_string_when_read():
     assert out
 
 
+@pytest.mark.skipif(
+    platform.python_implementation() == "PyPy",
+    reason="mypy refuses to run under PyPy ('Running mypy on PyPy is not supported yet')",
+)
 def test_lazy_metadata_preserves_typed_public_surface(tmp_path: Path):
     config = tmp_path / "mypy.ini"
     config.write_text("[mypy]\npython_version = 3.11\n", encoding="utf-8")
