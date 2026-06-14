@@ -6,9 +6,17 @@ class Dutch(Common, Standard):
     iso_code = "nl"
 
     class AbbreviationReplacer(Standard.AbbreviationReplacer):
+        # Dutch overrides zero scan methods and uses no elision, so it rides the
+        # base PeriodClassifier (BASE_POLICY) directly. It is NOT one of the
+        # CAPITALIZED_FOLLOWER_IS_BOUNDARY_CUE languages, so that flag stays off
+        # (capital followers flow through the split-mode ambiguity dial), matching
+        # the legacy per-line protection on Dutch text.
+        USE_PERIOD_CLASSIFIER = True
         # Dutch gold contains personal-name initials such as "F.J.G. Buschman";
         # keep balanced mode on the joined side for that 3+ initials ambiguity.
         # This is a language-specific exception: aggressive still splits.
+        # UPPERCASE_INITIALISM_SPLIT_MIN_RANK drives the later uppercase-initialism
+        # pass that V2 leaves untouched, so it is unaffected by the classifier.
         UPPERCASE_INITIALISM_SPLIT_MIN_RANK = 2
 
     class Abbreviation(Standard.Abbreviation):
