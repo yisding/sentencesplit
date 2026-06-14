@@ -78,8 +78,21 @@ class Common:
         # NOT be treated as sentence starters.
         # Supports both plain (EST) and dotted/protected forms (E.S.T. / E∯S∯T∯)
         # that exist after multi-period abbreviation replacement.
+        # Spelled-out timezone names that follow a.m./p.m. as a multi-word unit
+        # ("9 a.m. Eastern Standard Time"). These read as a Title-Case sentence
+        # start to the generic capital-follower gate, so they are listed here to
+        # keep the time+zone unit together. Anchored on the trailing "Time"
+        # keyword (or "Universal/Mean Time") so an ordinary capitalized sentence
+        # start ("9 a.m. The meeting started.") is never absorbed.
+        _TZ_NAME = (
+            r"(?:Eastern|Central|Mountain|Pacific|Atlantic|Alaska|Hawaii(?:-Aleutian)?|Newfoundland)"
+            r"\s+(?:Standard\s+|Daylight\s+|Summer\s+)?Time"
+            r"|Coordinated\s+Universal\s+Time"
+            r"|Greenwich\s+Mean\s+Time"
+        )
         _TZ = (
-            r"(?:[ECMP][SD]T"  # US: EST, EDT, CST, CDT, MST, MDT, PST, PDT
+            r"(?:" + _TZ_NAME + r"|"
+            r"[ECMP][SD]T"  # US: EST, EDT, CST, CDT, MST, MDT, PST, PDT
             r"|GMT|UTC"  # Universal
             r"|CET|CEST|WET|WEST|EET|EEST"  # Europe
             r"|BST|MSK|IST"  # UK, Moscow, India/Ireland/Israel

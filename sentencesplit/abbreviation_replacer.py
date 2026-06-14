@@ -547,6 +547,42 @@ class AbbreviationReplacer:
                 return True
         return False
 
+    @staticmethod
+    def _preceding_token_is_title_prefix(text: str, start: int) -> bool:
+        """Whether the multi-period abbr ending its name-title prefix at *start*.
+
+        A multi-period title/degree abbreviation acts as a *prefix* of a personal
+        name ("Ph.D. Smith", "Dr. Ph.D. Smith") when it opens the sentence/line or
+        is itself preceded only by another protected (title) abbreviation. Walk
+        left over whitespace: a string/line start (or only whitespace back to a
+        newline) qualifies, as does landing on a protected abbreviation separator
+        ('∯', e.g. "Dr∯ "). Landing on an ordinary word ("earned a Ph.D.", "his
+        Ph.D.") does not — there the abbreviation is a trailing degree and the next
+        capitalized token begins a new sentence.
+        """
+        i = start
+        while i > 0 and text[i - 1].isspace():
+            if text[i - 1] in "\r\n":
+                return True
+            i -= 1
+        if i == 0:
+            return True
+        return text[i - 1] == "∯"
+
+    def _is_titled_name_prefix(self, parts: list[str], start: int) -> bool:
+        """True if a degree/title abbr precedes a surname ("Ph.D. Smith").
+
+        Restricted to *mixed* abbreviations carrying a multi-letter part with a
+        lowercase letter (the "Ph" in "Ph.D."): pure all-caps initialisms
+        ("A.S.E. Ackermann", "M.B.A.") deliberately follow the uppercase-initialism
+        split dial instead. The caller has already confirmed a capitalized
+        follower; this adds the structural left-context check so only a
+        name-title prefix keeps its final period non-terminal.
+        """
+        if not any(len(part) > 1 and not part.isupper() for part in parts):
+            return False
+        return self._preceding_token_is_title_prefix(self.text, start)
+
     def replace_multi_period_abbreviations(self) -> None:
         def mpa_replace(match):
             matched = match.group()
@@ -593,9 +629,17 @@ class AbbreviationReplacer:
                 two_letter_uppercase_initialism
                 and self._two_letter_initialism_has_always_joined_follower(parts, content_offset)
             )
+            # A degree/title abbreviation that opens the name ("Ph.D. Smith",
+            # "Dr. Ph.D. Smith") prefixes a surname, so its final period is a
+            # name-internal separator, not a boundary — even before a capital.
+            # Restricted to the title-prefix position so a trailing degree
+            # ("She earned a Ph.D. Smith advised her.") still splits.
+            titled_name_prefix = not self._leans_split and likely_start and self._is_titled_name_prefix(parts, match.start())
             if self._leans_join:
                 protect_final_period = True
             elif has_always_joined_follower:
+                protect_final_period = True
+            elif titled_name_prefix:
                 protect_final_period = True
             elif not is_ampm and ((split_candidate and likely_start) or capital_boundary):
                 protect_final_period = False

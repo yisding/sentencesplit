@@ -238,41 +238,41 @@ _GREEN: list[CorpusCase] = [
         ["We met at 10 a.m. ", "Monday morning."],
         "ampm-capital-follower",
     ),
-]
-
-
-# --- Cases the LEGACY engine currently gets WRONG (Phase-2 correctness targets) -
-# `expected` is the linguistically-correct target; xfail=True marks the divergence.
-_XFAIL: list[CorpusCase] = [
+    # ---- titled-name prefix / timezone unit (Phase-3 fixes, promoted from xfail) -
     CorpusCase(
         "Ph.D. Smith arrived. He lectured.",
         ["Ph.D. Smith arrived. ", "He lectured."],
         "initialism-before-name",
-        xfail=True,
         note=(
-            "Legacy splits 'Ph.D.' off from the surname 'Smith' "
-            "(['Ph.D. ', 'Smith arrived. ', ...]); 'Ph.D. Smith' is a titled "
-            "name and should stay joined."
+            "'Ph.D. Smith' is a titled name and stays joined: a degree/title "
+            "abbreviation in name-prefix position keeps its final period "
+            "non-terminal before a capitalized surname."
         ),
     ),
     CorpusCase(
         "Dr. Ph.D. Smith spoke at noon.",
         ["Dr. Ph.D. Smith spoke at noon."],
         "initialism-before-name",
-        xfail=True,
-        note="Legacy splits after 'Ph.D.' before the capitalized surname 'Smith'.",
+        note="Title chain 'Dr. Ph.D.' prefixes the surname 'Smith'; one sentence.",
     ),
     CorpusCase(
         "It is 9 a.m. Eastern Standard Time now.",
         ["It is 9 a.m. Eastern Standard Time now."],
         "ampm-timezone",
-        xfail=True,
         note=(
-            "Legacy splits '9 a.m.' from 'Eastern …' (timezone word read as a "
-            "sentence start); '9 a.m. Eastern Standard Time' is one time unit."
+            "'9 a.m. Eastern Standard Time' is one time unit: a spelled-out "
+            "timezone name after a.m./p.m. is recognized by the ampm zone guard."
         ),
     ),
 ]
+
+
+# --- Cases the LEGACY engine currently gets WRONG (Phase-2 correctness targets) -
+# `expected` is the linguistically-correct target; xfail=True marks the divergence.
+# The three original Phase-2 targets (Ph.D.-surname titled name, the Dr.+Ph.D.
+# title chain, and the "9 a.m. Eastern Standard Time" timezone unit) were fixed in
+# Phase 3 (downstream multi-period / a.m.-p.m. passes) and promoted to _GREEN.
+_XFAIL: list[CorpusCase] = []
 
 
 CORPUS: list[CorpusCase] = _GREEN + _XFAIL
