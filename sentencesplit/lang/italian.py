@@ -5,6 +5,19 @@ from sentencesplit.lang.common import Common, Standard
 class Italian(Common, Standard):
     iso_code = "it"
 
+    class AbbreviationReplacer(Standard.AbbreviationReplacer):
+        # Italian overrides zero scan methods. Its only language-specific hook is
+        # elision ("l'Ing.", "l'Avv."), and that flows automatically: the
+        # Abbreviation class sets ELISION_CHARACTERS, so _AbbreviationData folds
+        # the apostrophes into ``boundary_class`` and exposes ``elision_chars``,
+        # which the PeriodClassifier reads off the SAME data (boundary lookbehind +
+        # _elision_strip). So Italian rides the base PeriodClassifier (BASE_POLICY)
+        # directly with the flag flipped on. It is NOT one of the
+        # CAPITALIZED_FOLLOWER_IS_BOUNDARY_CUE languages (Italian capitalizes
+        # proper nouns mid-sentence), so that flag stays off and capital followers
+        # flow through the split-mode ambiguity dial, matching the legacy path.
+        USE_PERIOD_CLASSIFIER = True
+
     class Abbreviation(Standard.Abbreviation):
         ELISION_CHARACTERS = "'\u2019"
         ABBREVIATIONS = [
