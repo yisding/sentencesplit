@@ -156,7 +156,17 @@ class AbbrPolicy:
     # base None == the lone-trailing-period Edit(p, p+1, "∯", p).
     protect_edit: Callable[["PeriodClassifier", Candidate, str], "Edit"] | None = None
     pre_stages: tuple = field(default_factory=tuple)  # tuple[Callable[[str, replacer], str]]; base empty
-    post_stages: tuple = field(default_factory=tuple)  # base empty
+    # Ordered downstream per-period post-classifier stages, each a
+    # ``(replacer) -> None`` primitive that mutates ``replacer.text`` (defined in
+    # ``abbreviation_replacer.py``: multi-period / compact-ampm / uppercase-initialism
+    # / allcaps-imprint / ampm / standalone-I, plus language extras). These used to
+    # be a fixed sequence hard-coded in ``AbbreviationReplacer.replace()``; owning
+    # them here completes the single-pass model (S1) — a language reorders / drops /
+    # augments the pipeline as data (German's reduced set, Kazakh's extra paren
+    # pass). An EMPTY tuple means "inherit ``DEFAULT_POST_STAGES``" (the historical
+    # full sequence), so the base languages are unchanged. Stages still consume the
+    # ``∯`` IR; S4 moves them out-of-band and deletes the sentinel only afterward.
+    post_stages: tuple = field(default_factory=tuple)  # base empty == DEFAULT_POST_STAGES
 
 
 BASE_POLICY = AbbrPolicy()  # module-level frozen constant; shared, read-only (free-threaded-safe)

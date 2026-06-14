@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 import re
 
-from sentencesplit.abbreviation_replacer import AbbreviationReplacer
+from sentencesplit.abbreviation_replacer import GERMAN_POST_STAGES, AbbreviationReplacer
 from sentencesplit.between_punctuation import BetweenPunctuation
 from sentencesplit.lang.common import Common, Standard, canonical_abbreviations
 from sentencesplit.period_classifier import AbbrPolicy, Candidate, Decision, PeriodClassifier
@@ -55,6 +55,12 @@ def _de_realize_suffix(pc: "PeriodClassifier", c: Candidate, line: str, d: "Deci
 DE_POLICY = AbbrPolicy(
     classify_special=_de_classify_special,
     realize_suffix=_de_realize_suffix,
+    # German's reduced downstream pipeline (no Kommanditgesellschaft / compact-ampm
+    # / uppercase-initialism / allcaps-imprint / standalone-I passes; a.m./p.m.
+    # without the non-ASCII boundary restore). Owned by the policy now (S1), so
+    # ``replace()`` only customizes the German upstream rules and then runs the
+    # shared post-stage driver.
+    post_stages=GERMAN_POST_STAGES,
 )
 
 
@@ -286,13 +292,10 @@ class Deutsch(Common, Standard):
             # through the V2 classifier's single-pass rewrite (same DE_POLICY
             # decision on every candidate).
             self.text = self.search_for_abbreviations_in_string(self.text)
-            self.replace_multi_period_abbreviations()
-            # German never restored non-ASCII a.m./p.m. boundaries; keep that
-            # while honoring the conservative split-bias dial.
-            self.apply_ampm_boundary_rules(restore_non_ascii=False)
-            # No standalone-"I" boundary restoration: "I" is not a German
-            # pronoun, so RESTORE_STANDALONE_I_BOUNDARIES stays False for German
-            # (only english / en_legal / en_es_zh enable it).
+            # DE_POLICY.post_stages is the German reduced pipeline
+            # (multi-period + a.m./p.m. without the non-ASCII restore); no
+            # standalone-"I" pass ("I" is not a German pronoun).
+            self._run_post_stages()
             return self.text
 
     class BetweenPunctuation(BetweenPunctuation):

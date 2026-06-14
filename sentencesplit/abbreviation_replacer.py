@@ -198,6 +198,70 @@ class _AbbreviationData:
         self._classifier_cache: dict[tuple[int, str], object] = {}
 
 
+# --------------------------------------------------------------------------- #
+# Downstream per-period post-stages (S1 — completing the single-pass model).
+#
+# These were a fixed sequence hard-coded in ``AbbreviationReplacer.replace()``;
+# they are now ``(replacer) -> None`` primitives that an ``AbbrPolicy`` lists in
+# ``post_stages``, so a language declares its post-classifier pipeline as data.
+# Each mutates ``replacer.text`` and self-gates on the same class flags as before,
+# so the assembled tuples reproduce the historical behavior byte-for-byte. They
+# still run AFTER the per-line classifier and continue to read the ``∯`` IR the
+# classifier (and earlier stages) produce — i.e. they are *owned by the policy*
+# now, but not yet out-of-band (S4 deletes the sentinel only once they are).
+# --------------------------------------------------------------------------- #
+def _stage_multi_period(r: "AbbreviationReplacer") -> None:
+    r.replace_multi_period_abbreviations()
+
+
+def _stage_compact_ampm(r: "AbbreviationReplacer") -> None:
+    # Protect compact time tokens with no space before them (e.g. "3P.M.") so the
+    # a.m./p.m. rules can decide boundary vs non-boundary using context.
+    r.text = _COMPACT_AMPM_RE.sub(r"\1∯\2∯", r.text)
+
+
+def _stage_uppercase_initialism(r: "AbbreviationReplacer") -> None:
+    r.text = r._restore_uppercase_initialism_boundaries()
+
+
+def _stage_allcaps_imprint(r: "AbbreviationReplacer") -> None:
+    r.text = r.protect_allcaps_imprint_abbreviations()
+
+
+def _stage_ampm_rules(r: "AbbreviationReplacer") -> None:
+    r.apply_ampm_boundary_rules()
+
+
+def _stage_ampm_rules_ascii_only(r: "AbbreviationReplacer") -> None:
+    # German never restored non-ASCII a.m./p.m. boundaries.
+    r.apply_ampm_boundary_rules(restore_non_ascii=False)
+
+
+def _stage_standalone_i(r: "AbbreviationReplacer") -> None:
+    if r.RESTORE_STANDALONE_I_BOUNDARIES:
+        r.text = r.restore_standalone_i_boundaries()
+
+
+# The historical full post-classifier sequence (english/en_legal/greek/zh/ja/...
+# all inherit this when their policy leaves ``post_stages`` empty).
+DEFAULT_POST_STAGES = (
+    _stage_multi_period,
+    _stage_compact_ampm,
+    _stage_uppercase_initialism,
+    _stage_allcaps_imprint,
+    _stage_ampm_rules,
+    _stage_standalone_i,
+)
+
+# German's reduced pipeline (no Kommanditgesellschaft / compact-ampm /
+# uppercase-initialism / allcaps-imprint / standalone-I passes; a.m./p.m. without
+# the non-ASCII boundary restore). Previously the body of ``Deutsch...replace()``.
+GERMAN_POST_STAGES = (
+    _stage_multi_period,
+    _stage_ampm_rules_ascii_only,
+)
+
+
 class AbbreviationReplacer:
     _data_cache: dict[type, _AbbreviationData] = {}
     _cache_lock = RLock()
@@ -419,15 +483,44 @@ class AbbreviationReplacer:
         for line in self.text.splitlines(True):
             lines.append(self.search_for_abbreviations_in_string(line))
         self.text = "".join(lines)
-        self.replace_multi_period_abbreviations()
-        # Protect compact time tokens with no space before them (e.g. "3P.M.")
-        # so a.m./p.m. rules can decide boundary vs non-boundary using context.
-        self.text = _COMPACT_AMPM_RE.sub(r"\1∯\2∯", self.text)
-        # Restore a sentence-boundary period when an all-uppercase multi-period
-        # abbreviation with 3+ parts (e.g. "S∯A∯T∯", "E∯S∯T∯") is followed
-        # by a space and uppercase letter.
-        # Only uppercase lookbehind so lowercase abbreviations like "a.k.a."
-        # keep their non-boundary separator.
+        self._run_post_stages()
+        return self.text
+
+    def _run_post_stages(self) -> None:
+        """Run the policy's ordered downstream per-period post-stages over ``self.text``.
+
+        Each stage is a ``(replacer) -> None`` callable that mutates ``self.text``;
+        the ordered tuple is OWNED by the active ``AbbrPolicy`` (S1 — completing the
+        single-pass model: the downstream period decisions that used to be a fixed
+        sequence hard-coded in ``replace()`` now flow through the policy, so a
+        language reorders/drops/augments them as data, e.g. German's reduced
+        pipeline or Kazakh's extra paren pass). A policy that leaves ``post_stages``
+        empty inherits ``DEFAULT_POST_STAGES`` (the historical full sequence), so the
+        base languages are unchanged. Stages self-gate on the same class flags as
+        before (``PROTECT_ALLCAPS_IMPRINT_SUFFIXES``, ``RESTORE_STANDALONE_I_BOUNDARIES``,
+        the ``split_mode`` dial), so this is behavior-preserving.
+        """
+        for stage in self._post_stages():
+            stage(self)
+
+    def _post_stages(self) -> tuple:
+        """Resolve the active policy's ``post_stages`` (or the default full sequence)."""
+        from sentencesplit.period_classifier import BASE_POLICY
+
+        policy = self.ABBR_POLICY if self.ABBR_POLICY is not None else BASE_POLICY
+        return policy.post_stages or DEFAULT_POST_STAGES
+
+    def _restore_uppercase_initialism_boundaries(self) -> str:
+        """Restore a sentence-boundary period after an all-uppercase 3+ part initialism.
+
+        An all-uppercase multi-period abbreviation ("S∯A∯T∯", "E∯S∯T∯") followed by a
+        space and an uppercase letter is ambiguous between a surname/initialism
+        reading and a real boundary; split-mode resolves it. Only an uppercase
+        lookbehind is matched so lowercase abbreviations like "a.k.a." keep their
+        non-boundary separator. Reads the pre-substitution text (``restore_source``)
+        for the follower/left-context checks so the decision is not perturbed by its
+        own rewrites.
+        """
         restore_source = self.text
 
         def restore_uppercase_initialism_boundary(match):
@@ -445,12 +538,7 @@ class AbbreviationReplacer:
                 return match.group()
             return "."
 
-        self.text = _UPPERCASE_INITIALISM_BOUNDARY_RE.sub(restore_uppercase_initialism_boundary, self.text)
-        self.text = self.protect_allcaps_imprint_abbreviations()
-        self.apply_ampm_boundary_rules()
-        if self.RESTORE_STANDALONE_I_BOUNDARIES:
-            self.text = self.restore_standalone_i_boundaries()
-        return self.text
+        return _UPPERCASE_INITIALISM_BOUNDARY_RE.sub(restore_uppercase_initialism_boundary, self.text)
 
     def apply_ampm_boundary_rules(self, restore_non_ascii: bool = True) -> None:
         """Apply a.m./p.m. handling to ``self.text``, honoring the split-bias.

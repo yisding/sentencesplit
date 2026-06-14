@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 import re
 
-from sentencesplit.abbreviation_replacer import AbbreviationReplacer
+from sentencesplit.abbreviation_replacer import DEFAULT_POST_STAGES, AbbreviationReplacer
 from sentencesplit.lang.common import Common, Standard, canonical_abbreviations
 from sentencesplit.period_classifier import NOT_HANDLED, AbbrPolicy, Decision
 from sentencesplit.processor import Processor
@@ -94,7 +94,23 @@ def _kk_realize_suffix(pc, c, line, d):
     return _KK_WIDE_REGULAR_SUFFIX
 
 
-KK_POLICY = AbbrPolicy(classify_special=_kk_classify_special, realize_suffix=_kk_realize_suffix)
+def _kk_protect_before_parenthesis(r) -> None:
+    """Kazakh post-stage: protect a multi-period abbreviation's final period when it
+    immediately precedes an opening parenthesis. Runs AFTER the default pipeline
+    (notably ``replace_multi_period_abbreviations``), matching the interior ``∯`` that
+    pass produced via ``[.∯]`` — so it stays a whole-text post-pass, appended to the
+    default post-stages rather than a per-line classifier stage (see S10)."""
+    r.protect_multi_period_abbreviations_before_parenthesis()
+
+
+# Kazakh rides the default downstream pipeline and appends one extra post-pass
+# (the paren protection above), owned by the policy now (S1) so ``replace()`` only
+# customizes the Kazakh upstream Cyrillic-initial rules and runs the driver.
+KK_POLICY = AbbrPolicy(
+    classify_special=_kk_classify_special,
+    realize_suffix=_kk_realize_suffix,
+    post_stages=DEFAULT_POST_STAGES + (_kk_protect_before_parenthesis,),
+)
 
 
 class Kazakh(Common, Standard):
@@ -435,14 +451,17 @@ class Kazakh(Common, Standard):
         # the retired pass protected — so that whole-text pass (and its
         # ``_LOWERCASE_CONTINUATION_CHARS`` helper) is gone.
         #
-        # Two Kazakh-specific whole-text passes remain in ``replace()`` because they
-        # cannot collapse into the per-line classifier:
+        # Two Kazakh-specific whole-text passes remain because they cannot collapse
+        # into the per-line classifier:
         #   1. (pre) Cyrillic single-uppercase-letter initials -> ``∯`` (run on the
-        #      whole text before line-splitting; ``^`` anchors the document start);
+        #      whole text before line-splitting in ``replace()``; ``^`` anchors the
+        #      document start);
         #   2. (post) ``protect_multi_period_abbreviations_before_parenthesis`` —
         #      runs AFTER ``replace_multi_period_abbreviations`` (it matches interior
-        #      ``∯`` that pass produced via ``[.∯]``), so it must stay a whole-text
-        #      post-pass, not a per-line classifier stage.
+        #      ``∯`` that pass produced via ``[.∯]``), so it stays a whole-text
+        #      post-pass — now expressed (S1) as the final entry of
+        #      ``KK_POLICY.post_stages`` (``DEFAULT_POST_STAGES`` + this pass) rather
+        #      than a hand-call after ``super().replace()``.
         ABBR_POLICY = KK_POLICY
 
         def replace(self) -> str:
@@ -453,9 +472,9 @@ class Kazakh(Common, Standard):
                 SingleUpperCaseCyrillicLetterAtStartOfLineRule,
                 SingleUpperCaseCyrillicLetterRule,
             )
-            self.text = super().replace()
-            self.protect_multi_period_abbreviations_before_parenthesis()
-            return self.text
+            # KK_POLICY.post_stages == DEFAULT_POST_STAGES + the paren protection,
+            # so ``super().replace()`` runs the extra Kazakh post-pass at the end.
+            return super().replace()
 
         def protect_multi_period_abbreviations_before_parenthesis(self) -> None:
             for abbreviation in self.lang.Abbreviation.ABBREVIATIONS:
