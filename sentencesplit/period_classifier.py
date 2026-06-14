@@ -704,10 +704,6 @@ class PeriodClassifier:
             return Decision.BOUNDARY if self.r._follower_is_likely_sentence_start(line, i + 1) else Decision.PROTECT
         return Decision.PROTECT if self.RE_PREPOSITIVE.match(line, c.period_idx) else Decision.BOUNDARY  # @669
 
-    def _classify_number(self, c: Candidate, line: str, upper: bool) -> Decision:
-        """NUMBER branch (_replace_number_abbr @613-624, dispatch @670-677)."""
-        return self._classify_number_with_suffix(c, line, upper)[0]
-
     def _classify_number_with_suffix(self, c: Candidate, line: str, upper: bool) -> tuple[Decision, str | None]:
         """NUMBER branch returning ``(decision, realization-suffix)`` in one pass.
 
