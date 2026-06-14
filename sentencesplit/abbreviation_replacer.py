@@ -15,7 +15,15 @@ from sentencesplit.utils import (
 
 
 class AhoCorasickAutomaton:
-    """Pure-Python Aho-Corasick automaton for multi-pattern substring search."""
+    """Pure-Python Aho-Corasick automaton for multi-pattern substring search.
+
+    Thread-safety: an instance is mutated only by ``add_pattern``/``build`` and is
+    read-only thereafter. It carries no lock of its own — safe concurrent use
+    relies on the owner publishing it only after ``build()`` completes. In this
+    package the only instances live inside ``_AbbreviationData``, which is built
+    and then stored into ``AbbreviationReplacer._data_cache`` under
+    ``_cache_lock``, so every reader's ``search()`` happens-after ``build()``.
+    """
 
     __slots__ = ("goto", "fail", "output", "delta", "_built")
 

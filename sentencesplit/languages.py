@@ -213,6 +213,11 @@ def _evict_profile(code: str) -> None:
     class) and the per-``Abbreviation``-class Aho-Corasick data (keyed on
     ``language_cls.Abbreviation``); otherwise a re-registered class whose
     abbreviation list changed would keep a stale automaton.
+
+    Lock ordering (load-bearing): the two cache locks are acquired *sequentially*
+    (never co-held) while the caller holds ``_LANGUAGE_LOCK``. No reader path ever
+    acquires ``_LANGUAGE_LOCK`` while holding ``_PROFILE_CACHE_LOCK`` or
+    ``_cache_lock``, so there is no lock-ordering cycle. Preserve that invariant.
     """
     from sentencesplit.abbreviation_replacer import AbbreviationReplacer
     from sentencesplit.language_profile import _PROFILE_CACHE, _PROFILE_CACHE_LOCK

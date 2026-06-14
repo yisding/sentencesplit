@@ -59,20 +59,23 @@ def _profile(fn, text: str, iters: int) -> pstats.Stats:
 
 
 def _regex_op_summary(stats: pstats.Stats, iters: int) -> tuple[Counter, float]:
-    """Per-call regex op counts and total time spent in the re module."""
+    """Per-call regex op counts and time spent in the regex engine.
+
+    Counts ONLY the compiled-Pattern method calls (e.g. ``<method 'sub' of
+    're.Pattern' objects>``), not the module-level ``re.sub``/``re.findall``
+    wrapper frames that delegate to them. Counting both double-counts an
+    uncompiled ``re.sub(str, ...)`` — which would bias a library that does not
+    pre-compile (it routes through the wrapper) against one that does.
+    """
     counts: Counter = Counter()
     re_time = 0.0
-    for (filename, _lineno, funcname), (_cc, nc, tt, _ct, _cb) in stats.stats.items():
-        if funcname in _REGEX_OPS and "re" in filename.lower().replace("\\", "/").split("/"):
-            counts[funcname] += nc
-        if filename.endswith("re/__init__.py") or filename.endswith("re.py") or "/re/" in filename.replace("\\", "/"):
-            re_time += tt
-        # method 'sub' of 're.Pattern' objects shows up as a builtin
-        if funcname.startswith("<method '") and any(op in funcname for op in _REGEX_OPS):
+    for (_filename, _lineno, funcname), (_cc, nc, tt, _ct, _cb) in stats.stats.items():
+        if funcname.startswith("<method '") and "re.Pattern" in funcname:
             for op in _REGEX_OPS:
-                if f"'{op}'" in funcname and "re.Pattern" in funcname:
+                if f"'{op}'" in funcname:
                     counts[op] += nc
                     re_time += tt
+                    break
     per_call = Counter({k: v / iters for k, v in counts.items()})
     return per_call, re_time / iters * 1e6
 
