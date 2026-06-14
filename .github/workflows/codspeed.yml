@@ -1,0 +1,46 @@
+name: CodSpeed
+
+# Deterministic (instruction-count) latency benchmarks. CodSpeed measures CPU
+# instructions under instrumentation, so per-PR deltas are stable on noisy
+# shared runners — unlike raw wall-clock timing. Results are uploaded to the
+# CodSpeed dashboard and posted as a PR comment showing the regression/speedup.
+#
+# Setup required once by a maintainer (the run still executes without it, but
+# the upload is skipped):
+#   1. Install the CodSpeed GitHub App on the repo (https://codspeed.io).
+#   2. Add the repository secret CODSPEED_TOKEN from the CodSpeed project page.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  benchmarks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+
+      - name: Set up Python 3.13
+        run: uv python install 3.13
+
+      - name: Install benchmark dependencies
+        # Only the project + the isolated `bench` group (pytest + pytest-codspeed),
+        # not the full dev matrix.
+        run: uv sync --python 3.13 --no-default-groups --group bench
+
+      - name: Run CodSpeed benchmarks
+        uses: CodSpeedHQ/action@v3
+        with:
+          token: ${{ secrets.CODSPEED_TOKEN }}
+          run: uv run --python 3.13 pytest benchmarks/test_latency_codspeed.py --codspeed
