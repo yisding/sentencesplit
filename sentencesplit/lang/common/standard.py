@@ -4,11 +4,21 @@ import re
 from sentencesplit.abbreviation_replacer import AbbreviationReplacer
 from sentencesplit.utils import Rule
 
+# A modification requires a run of 4+ dots immediately followed by an ASCII
+# lowercase letter, which always contains the substring "4 dots then lowercase".
+# So this is a necessary condition; when it fails the per-char loop below makes
+# no change and is skipped. Uses a FIXED ``{4}`` count (not ``{4,}``) so the C
+# search stays linear on adversarial long period runs — ``{4,}`` would backtrack
+# O(n^2) (see test_glued_ellipsis_..._handles_long_period_runs_linearly).
+_GLUED_RUNON_GUARD_RE = re.compile(r"\.{4}[a-z]")
+
 
 class _GluedLowercaseRunOnRegex:
     """Linear-time replacer for glued 4+ dot lowercase run-ons."""
 
     def sub(self, replacement: str, text: str) -> str:
+        if not _GLUED_RUNON_GUARD_RE.search(text):
+            return text
         chars: list[str] | None = None
         index = 0
         length = len(text)

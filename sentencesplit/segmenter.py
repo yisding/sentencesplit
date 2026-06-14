@@ -399,17 +399,20 @@ class Segmenter:
             return self._find_sentence_start_tolerant(sent, original_text, prior_end)
 
         # Some post-processing rules may normalize spaces around punctuation,
-        # so allow flexible whitespace when mapping back to original text.
-        whitespace_flexible = re.escape(sent).replace(r"\ ", r"\s*")
-        match = re.search(whitespace_flexible, original_text[prior_end:])
+        # so allow flexible whitespace when mapping back to original text. Search
+        # from ``prior_end`` via the pattern's ``pos`` arg rather than slicing
+        # ``original_text[prior_end:]`` (which copies the whole remaining text on
+        # every sentence — O(n^2) over a document). The flexible patterns are
+        # anchor-free (escaped literal + ``\s*``/zero-width joiners), so matching
+        # at ``pos`` is identical to matching the slice.
+        whitespace_flexible = re.compile(re.escape(sent).replace(r"\ ", r"\s*"))
+        match = whitespace_flexible.search(original_text, prior_end)
         if match is None:
-            match = re.search(self._zero_width_flexible_pattern(sent), original_text[prior_end:])
+            match = re.compile(self._zero_width_flexible_pattern(sent)).search(original_text, prior_end)
         if match is None:
             return None
 
-        start_idx = prior_end + match.start()
-        end_idx = prior_end + match.end()
-        return start_idx, end_idx
+        return match.start(), match.end()
 
     @staticmethod
     def _match_tolerant_at(sent: str, original_text: str, start: int):

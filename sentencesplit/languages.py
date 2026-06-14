@@ -206,8 +206,20 @@ LANGUAGE_CODES = _LazyLanguageCodes()
 
 
 def _evict_profile(code: str) -> None:
-    """Drop any cached LanguageProfile for the class currently bound to ``code``
-    so a re-registration (or override) is rebuilt fresh."""
+    """Drop the cached state for the class currently bound to ``code`` so a
+    re-registration (or override) is rebuilt fresh.
+
+    This drops both the cached :class:`LanguageProfile` (keyed on the language
+    class) and the per-``Abbreviation``-class Aho-Corasick data (keyed on
+    ``language_cls.Abbreviation``); otherwise a re-registered class whose
+    abbreviation list changed would keep a stale automaton.
+
+    Lock ordering (load-bearing): the two cache locks are acquired *sequentially*
+    (never co-held) while the caller holds ``_LANGUAGE_LOCK``. No reader path ever
+    acquires ``_LANGUAGE_LOCK`` while holding ``_PROFILE_CACHE_LOCK`` or
+    ``_cache_lock``, so there is no lock-ordering cycle. Preserve that invariant.
+    """
+    from sentencesplit.abbreviation_replacer import AbbreviationReplacer
     from sentencesplit.language_profile import _PROFILE_CACHE, _PROFILE_CACHE_LOCK
 
     with _LANGUAGE_LOCK:
@@ -215,6 +227,10 @@ def _evict_profile(code: str) -> None:
     if existing is not None:
         with _PROFILE_CACHE_LOCK:
             _PROFILE_CACHE.pop(existing, None)
+        abbr_class = getattr(existing, "Abbreviation", None)
+        if abbr_class is not None:
+            with AbbreviationReplacer._cache_lock:
+                AbbreviationReplacer._data_cache.pop(abbr_class, None)
 
 
 def register_language(code: str, language_cls: type) -> None:

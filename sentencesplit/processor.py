@@ -52,6 +52,10 @@ _MULTI_TERMINATOR_RESPLIT_RE = re.compile(r"(?<=[!?]{2})\s+")
 # lookahead excludes a doubled comma (",,"), which in Dutch typography is an
 # *opening* quotation mark beginning a new sentence (e.g. "...einde. ,,Nieuwe...").
 _PERIOD_BEFORE_COMMA_RE = re.compile(r"\.(?=\s*,(?!,))")
+# The five ReinsertEllipsisRules each require one of these placeholder sentinels;
+# a segment with none of them passes through them unchanged, so the per-segment
+# pass can be skipped on the common case (one C scan vs five no-op subs).
+_REINSERT_ELLIPSIS_RE = re.compile(r"[ƪ♟♝☏∮]")
 
 # The between-punctuation pass protects everything from an opening quote to its
 # closing quote as one unsplittable region, so a quotation that wraps several
@@ -642,7 +646,8 @@ class Processor:
         if len(txt) > 2 and _ALPHA_ONLY_RE.search(txt):
             return [txt]
 
-        txt = apply_rules(txt, *self.lang.ReinsertEllipsisRules.All)
+        if _REINSERT_ELLIPSIS_RE.search(txt):
+            txt = apply_rules(txt, *self.lang.ReinsertEllipsisRules.All)
         if self.profile.latin_uppercase_resplit:
             quoted_parts = _split_on_uppercase_boundary(txt, self.profile.split_quotation_re)
             if quoted_parts is not None:
