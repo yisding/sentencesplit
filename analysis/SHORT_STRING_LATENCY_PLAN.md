@@ -1,207 +1,185 @@
-# Short/Medium `segment()` Latency — Investigation & Action Plan
+# Short/Medium `segment()` Latency — Deep Investigation & Action Plan
 
-**Goal:** close the ~22% per-call latency gap vs pySBD on short/medium English
-text (surfaced by the competitive CodSpeed benchmarks in #71), **without**
-changing segmentation output (byte-identical) or losing the Aho-Corasick
-automaton's advantage on very large abbreviation lists.
+**Original goal:** close the ~22–28% per-call gap vs pySBD on short/medium
+English text reported by the competitive CodSpeed benchmark (#71).
 
-This is a living plan. It pairs with the reusable exploration harness
-`benchmarks/phase_profile.py` (the "workflow"): run it to re-attribute per-call
-cost to pipeline phases after each change.
+**Headline finding (measured): the regression is already gone as of #72.** In
+real wall-clock we are at parity-to-ahead of pySBD on short and medium, and on a
+cachegrind-style instruction-count proxy we are now *ahead*. The original
+CodSpeed gap was (a) an instruction-count artifact of pure-Python per-character
+loops, whose single biggest contributor — the zero-width scanner — was removed by
+#72, and (b) measured before #72 landed. What remains below is a menu to *extend*
+the lead, not to catch up.
+
+This document is backed by three reusable harnesses (the "workflow"):
+`benchmarks/phase_profile.py`, `benchmarks/differential_profile.py`,
+`benchmarks/abbr_scan_compare.py`.
 
 ---
 
-## 1. How to reproduce the measurements (the workflow)
+## 1. The workflow (how every number here is reproduced)
 
 ```bash
-# Per-phase wall-time attribution for one input size:
+# Per-phase wall-time attribution of our own call:
 uv run python benchmarks/phase_profile.py --size short  --iters 20000
-uv run python benchmarks/phase_profile.py --size medium --iters 12000
 
-# End-to-end latency (and cProfile hot functions):
-uv run python benchmarks/latency_baseline.py --iters 4000 [--profile]
+# Head-to-head vs pySBD: wall time, regex-op counts, time-in-re, top funcs:
+uv run python benchmarks/differential_profile.py --size short
+uv run python benchmarks/differential_profile.py --size medium
 
-# Deterministic CI verdict (instruction count) vs pySBD/punkt:
-#   the competitive benchmarks run on every PR via .github/workflows/codspeed.yml
-#   (benchmarks/test_competitive_codspeed.py): watch test_segment[short-ours] etc.
+# Aho-Corasick scan vs naive `in`-loop crossover:
+uv run python benchmarks/abbr_scan_compare.py
+
+# Instruction-count proxy (Python line-events ≈ what CodSpeed counts):
+#   sys.settrace line-event count of ours vs pysbd (see §3).
 ```
 
-`phase_profile.py` wraps each Processor / AbbreviationReplacer / Segmenter stage
-with a timer. The `*wrapper` rows (e.g. `abbr: replace (whole)`,
-`split_into_segments`) **contain** the rows below them — do not sum across them.
+CodSpeed's CI mode counts **CPU instructions** (cachegrind), not wall time. The
+two diverge sharply here, so we measure both: wall-clock for real latency, and a
+`sys.settrace` line-event count as a faithful, local instruction-count proxy.
 
 ---
 
-## 2. Where the time goes (measured, Python 3.13, warm)
+## 2. Measured state, post-#72
 
-`segment("Dr. Smith went to Washington. … Sen. Jones.")` — **short, 87 chars,
-~0.40 ms/call:**
+`segment()` on the short (87c) and medium (198c) samples, Python 3.13, warm,
+8000 iters (wall-clock reproduced across runs; line-events are deterministic):
 
-| phase | ms/call | % of call |
-|-------|--------:|----------:|
-| `replace_abbreviations` (text phase) | 0.156 | **39%** |
-|   ↳ `search_for_abbreviations_in_string` (automaton scan + per-abbr sub) | 0.091 | 23% |
-|   ↳ `apply_ampm_boundary_rules` | 0.026 | 7% |
-| `_mark_list_item_boundaries` (ListItemReplacer.add_line_break) | 0.078 | **20%** |
-| `split_into_segments` (wrapper: boundary phases + postprocess) | 0.090 | 22% |
-|   ↳ `between_punctuation` | 0.013 | 3% |
-| `replace_numbers` / `_protect_special_tokens` | ~0.010 ea | 2.5% ea |
+| metric | input | ours | pySBD | ratio |
+|--------|-------|-----:|------:|------:|
+| wall-clock µs/call | short | ~312 | ~316 | **0.99×** |
+| wall-clock µs/call | medium | ~689 | ~743 | **0.93×** |
+| regex ops/call | short | 118 | 266 | **we run fewer** |
+| line-events/call (instr. proxy) | short | 2059 | 2203 | **0.93×** |
 
-**Medium (198 chars, ~0.88 ms/call)** is the same shape: `replace_abbreviations`
-**43%** (of which `search_for_abbreviations_in_string` **31%**),
-`_mark_list_item_boundaries` **18%**.
+We are at parity or ahead on every axis. Note we run **fewer** regex ops than
+pySBD (118 vs 266) — the "we do more passes" theory is false; pySBD does ~2× the
+regex ops but they are tiny literal-replacement subs.
 
-**Conclusion:** two fixed-cost phases dominate and run on *every* call regardless
-of whether the input needs them:
-1. **Abbreviation replacement (~40%)** — but NOT the scan (see §2a); it is the
-   ~25 `re.sub` per call: per-occurrence replacements + always-on rule passes.
-2. **List-item detection (~18%)** — runs 4 sub-formatters even on non-list text.
+### 2a. Abbreviation *discovery* is not the bottleneck (and AC is fine)
 
-These ~58% are the structural gap. The `between_punctuation` / zero-width work
-already addressed in #72 was <4% on short input (it helped large text instead).
-
-### 2a. The Aho-Corasick scan is NOT the bottleneck (measured)
-
-An earlier draft of this plan assumed the abbreviation *scan* (Aho-Corasick) was
-the cost and proposed replacing it with pySBD's `in`-loop. **Direct measurement
-disproves that.** Our pure-Python automaton `search()` vs a pySBD-style
-`in`-filter loop over the same 199 abbreviations (identical match sets):
+`benchmarks/abbr_scan_compare.py` (199 patterns, identical match sets):
 
 | input | AC | `in`-loop | winner |
 |-------|---:|----------:|--------|
-| tiny (15c)   | 2.4 µs | 7.2 µs | **AC 3.0×** |
-| short (87c)  | 11.3 µs | 12.0 µs | **AC ~tied** |
-| medium (198c)| 25.3 µs | 18.0 µs | `in` 1.4× |
-| large (4k)   | 497 µs | 229 µs | `in` 2.2× |
+| tiny (15c)   | 2.4 µs | 8.2 µs | **AC 3.4×** |
+| short (87c)  | 11.3 µs | 13.5 µs | **AC** |
+| medium (198c)| 30.5 µs | 21.0 µs | `in` 1.4× |
+| large (4k)   | 619 µs | 286 µs | `in` 2.2× |
 
-Our AC is faster on short input; `in` only overtakes around ~100–150 chars.
-(The crossover is inverted from textbook AC-wins-on-long because the automaton is
-**pure Python**: its per-char loop has a large constant, so on long text 199
-C-level `in` scans beat thousands of Python iterations.)
-
-Crucially, the AC scan is only **~11 µs ≈ 3% of the 400 µs short call**. Swapping
-it for `in` would *slow short down* and save nothing meaningful. The 39%
-abbreviation cost is the **~25 `re.sub`/call** that follow discovery:
-`scan_for_replacements` (a global `re.sub` per matched abbreviation),
-`replace_multi_period_abbreviations`, and the always-on rule passes
-(`PossessiveAbbreviationRule`, `SingleLetterAbbreviationRules`, `_COMPACT_AMPM_RE`,
-`_UPPERCASE_INITIALISM_BOUNDARY_RE`, allcaps-imprint, the a.m./p.m. rules).
-pySBD runs the per-occurrence regex too — so the gap is our **extra always-on
-passes**, not the discovery mechanism.
+Our pure-Python Aho-Corasick is *faster* than a pySBD-style `in`-loop on short
+input; `in` only overtakes around ~150 chars. The scan is ~3% of the call. **Do
+not replace it.** (It can, however, be made ~2× faster outright — see §4, P-AC.)
 
 ---
 
-## 3. Why pySBD is cheaper per call (structural delta)
+## 3. What the original gap actually was (root cause)
 
-pySBD does **not** have fewer phases (~20 full-text passes, similar to ours).
-The difference is per-pass constant cost and cheap short-circuits:
+A `sys.settrace` line-event count (≈ instructions executed) on the **pre-#72**
+code: ours **2787** vs pySBD **2243** = **1.24×** — almost exactly the ~28%
+CodSpeed gap, and far above the ~1.06× wall-clock ratio. The gap was concentrated
+in pure-Python per-character loops that cost almost nothing in wall-clock but
+execute hundreds of *counted* interpreted operations:
 
-1. **Abbreviation discovery is a wash on short text.** pySBD short-circuits with
-   C-level `in` (`pysbd/abbreviation_replacer.py:82`); ours uses a pure-Python
-   Aho-Corasick automaton (`sentencesplit/abbreviation_replacer.py:535-564`). Per
-   §2a these cost ~the same on short input (AC is actually slightly faster), so
-   this is **not** where the gap is — both then run the same per-occurrence regex
-   work. Discovery is ~3% of the call either way.
-2. **Always-on extra passes ours added** in `replace()` that pySBD lacks (this,
-   not the scan, is the abbreviation-phase cost):
-   `_COMPACT_AMPM_RE`, `_UPPERCASE_INITIALISM_BOUNDARY_RE`, allcaps-imprint
-   protection, non-ASCII a.m./p.m. restores (`:311-357`). Each is an
-   unconditional full-text regex pass.
-3. **Per-call `RLock` acquisition.** Every `AbbreviationReplacer.__init__`
-   (`:55-58`) takes `_cache_lock` to fetch the cached `_data`, on every call.
-   pySBD has no such lock.
+| our function | line-events/call | wall-clock cost | pySBD equivalent |
+|--------------|-----------------:|-----------------|------------------|
+| `_strip_zero_width_before_sentence_closers` | **876** | **~0 µs** | none (pySBD has no zero-width handling) |
+| `AhoCorasickAutomaton.search` | 394 | *faster* than pySBD's scan | C-level `abbr in lowered` |
+| `_GluedLowercaseRunOnRegex.sub` (`lang/common/standard.py:11`) | 309 | small | one C `re.sub` |
+| `apply_rules` / `_sub_symbols_fast` | 156 / 132 | small | C `re.sub` |
 
-What we already match: a no-punctuation boundary guard
-(`processor.py:691` `check_for_punctuation`) skips the boundary pipeline for
-segments lacking sentence-ending punctuation — same idea as pySBD.
+**Two distinct causes, two distinct truths:**
+1. **CodSpeed instruction-count gap (~28%)** — largely an *artifact*: CPython
+   pushes pySBD's work into the C `re` engine (≈1 counted op per `re.sub`), while
+   our pure-Python loops are fully counted. The zero-width scanner alone was 876
+   of our 2787 events. **#72 gated it** (`segmenter.py:89`, return early when no
+   zero-width char), cutting ~730 events → post-#72 proxy is **2059 vs 2203 =
+   0.93×, we are ahead.**
+2. **Wall-clock gap (~6–9%, pre-#72)** — real, and came from our heavier
+   *non-destructive* pipeline (span mapping `_match_spans`/`_find_sentence_start`,
+   the resplit passes, the sentinel-escape disjointness check, and callback-driven
+   subs), not regex efficiency. #72's zero-width guard plus normal variance brings
+   short to parity; medium we already win.
 
----
-
-## 4. Action plan (prioritized by leverage × safety)
-
-Every item is **behavior-preserving**: the validation bar is byte-identical
-`segment()`/`segment_spans()` output (full suite incl. Golden Rules stays green,
-and a cross-corpus equivalence check). Implement **test-first**, on its own
-branch, auto-revert if Golden Rules or the suite regress (mirror the
-`improve-sentencesplit` discipline). Measure each with `phase_profile.py` and the
-competitive CodSpeed benchmark.
-
-### ~~P1 — Abbreviation scan fast-path~~ — DROPPED (premise disproved, see §2a)
-
-The original P1 (replace the Aho-Corasick scan with pySBD's `in`-loop or a
-compiled alternation) is **invalid**: measurement shows the AC scan is ~3% of the
-call and is already faster than `in` on short input. Switching would slow short
-text down. Do not pursue. The abbreviation-phase cost lives in the always-on
-passes (now P1, below), not discovery.
-
-*Optional, low priority:* a length-gated `in` fallback would help medium/large
-discovery (~7 µs on medium, ~270 µs on 4k) but hurts short, so only worth it as a
-threshold switch if medium/large latency becomes a target — not for this goal.
-
-### P1 — Gate the always-on abbreviation `replace()` passes (was P2; now top)
-
-`AbbreviationReplacer.replace()` runs ~25 `re.sub`/call on short text, several of
-them unconditional rule passes that almost never match. Guard each behind a cheap
-`in`/structural check so it only runs when it can fire:
-- `_COMPACT_AMPM_RE` — only if a digit is adjacent to `a/p`+`.`+`m`.
-- `_UPPERCASE_INITIALISM_BOUNDARY_RE`, non-ASCII a.m./p.m. restores — only if the
-  `∯` sentinel is present (it only exists after an abbreviation matched).
-- allcaps-imprint — only if the text has a 2+ all-caps run.
-- the a.m./p.m. rule set (`apply_ampm_boundary_rules`, ~5–7%) — gate on an
-  `[ap]·m` pattern being present.
-This is the largest *safe* slice of the abbreviation phase. *Risk:* low (each
-regex already requires the guarded condition). *DoD:* suite green + byte-identical
-corpus output.
-
-### P2 — List-item detection guards (target: the ~18% list phase)
-
-`_mark_list_item_boundaries` constructs a fresh `ListItemReplacer` and runs 4
-sub-formatters every call. Safe reductions:
-- **P2a — Trigger-char guards per sub-formatter.** Skip the numbered-list passes
-  when the text has no digit; skip the parens passes when there is no `(`/`)`;
-  skip alphabetical/roman passes when no single letter precedes `.`/`)`. Each
-  formatter's regex already requires those chars, so skipping is a no-op.
-- **P2b — Early-out in `iterate_alphabet_array`** when `re.findall` returns empty
-  (avoid building the 26-entry `alphabet_index` dict and the lower/filter work).
-*Risk:* low-medium (list logic is subtle; guards must be on chars the regexes
-require). *DoD:* suite green; the list-heavy Golden Rules unchanged.
-
-### P3 — Remove the per-call lock on the abbreviation-data read (low risk, small gain)
-
-`AbbreviationReplacer.__init__` takes an `RLock` every call just to read the
-per-class `_data`. Use a lock-free fast read (double-checked: read the dict
-first, only lock to build on miss) or resolve `_data` once and stash it on the
-Abbreviation class / LanguageProfile. *Risk:* low; preserve thread-safety of the
-first build. *DoD:* suite green + a concurrency smoke test.
+**So #72 — framed at the time as "helps large text" — actually closed the
+short/medium gap, because the zero-width scanner ran per output segment and
+dominated the instruction count on short input. Its wall-clock effect on short
+was within noise; its instruction-count effect was the whole ballgame.** The
+competitive CodSpeed benchmark on `main` (post-#72) should now show short/medium
+at parity-or-ahead; the next competitive run will confirm.
 
 ---
 
-## 5. Sequencing, guardrails, and non-goals
+## 4. Menu to *extend* the lead (all behavior-preserving / byte-identical)
 
-**Sequence:** P3 first (mechanical, lowest risk, de-risks the harness loop), then
-P1 (gate the always-on abbreviation passes — the biggest *safe* slice of the 40%
-abbreviation phase), then P2 (the ~18% list phase). Re-run `phase_profile.py` +
-competitive CodSpeed after each. Note the discovery scan is deliberately left
-alone (see §2a).
+We are no longer catching up, so these are prioritized by **(improves both
+metrics) > (improves one)** × leverage × safety. Implement test-first on isolated
+branches with a byte-identical gate (full suite + Golden Rules + a corpus diff;
+auto-revert on regression). Re-measure each with `phase_profile.py`,
+`differential_profile.py`, and the competitive CodSpeed run.
 
-**Guardrails (non-negotiable):**
-- Byte-identical `segment()`/`segment_spans()` output. Full suite + Golden Rules
-  green is the gate; add a corpus-wide equivalence diff (old vs new) per change.
-- Each change is reverted automatically if the suite or Golden Rules regress.
-- Keep changes isolated per branch/PR so CodSpeed attributes each delta.
+### Tier 1 — improves BOTH wall-clock and instruction-count
 
-**Non-goals / risks to avoid:**
-- Do **not** touch the abbreviation *discovery* scan — it is faster than `in` on
-  short input and only ~3% of the call (§2a). The Aho-Corasick automaton stays.
-- Do not change boundary semantics to chase speed. This is a pure
-  constant-factor effort; if a change can't be made byte-identical, it is out of
-  scope for this plan.
+- **P-LIST — List-item early-out + guards (~18% phase).** In
+  `lists_item_replacer.py`: (a) early-`return` in `iterate_alphabet_array` when
+  `re.findall` is empty (kills the 4×/call 26-entry `alphabet_index` dict builds);
+  (b) skip the numbered formatters when the text has no digit, the parens
+  formatters when no `)`; (c) reuse the identical alphabetical `findall` across
+  the roman/non-roman passes (4 scans → 2). Each guard char is required by every
+  alternative of its regex, so skipping is byte-identical. **Guard inside the
+  formatter methods** so Slovak's `add_line_break` override inherits them.
+  Validate with a differential oracle (old vs new `add_line_break` char-for-char).
+  *Risk:* low (items a/b), moderate (item c — confirm shared pattern+flags).
+- **P-RESPLIT/CALLBACK — Gate the non-destructive passes + de-callback subs.** Per
+  Agent C, the real wall-clock cost is span mapping + resplit + callback subs.
+  Extend the eager-gate discipline already in `_maybe_resplit_multi_sentence_quote`
+  to the other resplit/postprocess passes (skip `_split_on_uppercase_boundary`
+  scans for segments with no `.)`/multi-terminator), and replace constant-result
+  callback subs with literal-string subs / `str.replace` (the
+  punctuation/continuous/double-punct callbacks). *Risk:* medium — touches
+  boundary-adjacent code; needs the full byte-identical gate.
+- **P-ABBR — Gate the always-on abbreviation `replace()` passes.**
+  `AbbreviationReplacer.replace()` runs ~25 `re.sub`/call; gate the rarely-firing
+  ones (`_COMPACT_AMPM_RE`, `_UPPERCASE_INITIALISM_BOUNDARY_RE`, non-ASCII a.m./p.m.
+  restores, allcaps-imprint, the a.m./p.m. set) on a cheap presence check (digit
+  adjacency, `∯`-sentinel presence, all-caps run). *Risk:* low.
 
-**Expected envelope:** all three items (P1 gate always-on passes, P2 list guards,
-P3 lock) are low-risk and target the always-on `re.sub` count + the list phase.
-Together they address roughly the abbreviation always-on slice (a chunk of the
-40%) plus the ~18% list phase. Treat individual gains as unproven until measured
-per-change with `phase_profile.py` and the competitive CodSpeed run; the honest
-expectation is incremental (single-digit to low-double-digit %), not a dramatic
-close, because much of the abbreviation phase is genuine per-occurrence regex
-work that pySBD also pays.
+### Tier 2 — Aho-Corasick ~2× (helps both; bigger on medium/large)
+
+- **P-AC — DFA δ-table precompute + length-gated hybrid.** Empirically (Agent A):
+  precomputing fail-links into a flat DFA table (removing the inner `while`
+  fail-link loop in `AhoCorasickAutomaton.search`) gives **short 9.8→4.9 µs (~2×),
+  long 270→~160 µs (~1.7×)**, drop-in, cached, ~2 ms one-time build. Add a
+  length-gated hybrid (DFA under ~200 chars, naive C `in`-loop above) to beat both
+  the automaton and pySBD's `in`-loop across all sizes. *Risk:* low–moderate (two
+  code paths; ship a `dfa == naive == current` fuzz/property test). Rejected by
+  measurement and not to be tried: `re`-alternation (3–5× slower), byte/array/tuple
+  transition tables (all slower than `dict.get`), first-char prefilter (English's
+  24 first-chars defeat it).
+
+### Tier 3 — instruction-count only (low wall-clock value)
+
+- **P-GLUED — rewrite the `_GluedLowercaseRunOnRegex` Python char scanner
+  (`lang/common/standard.py:11`) into a single C-engine `re` call.** ~309
+  line-events, near-zero wall-clock. Only worth it if the CodSpeed number is a
+  release gate; it barely moves real latency.
+
+---
+
+## 5. Guardrails & non-goals
+
+- **Byte-identical** `segment()`/`segment_spans()` output is the bar. Full suite +
+  Golden Rules green + a corpus-wide old-vs-new diff per change; auto-revert on
+  any regression; one change per branch/PR so CodSpeed attributes each delta.
+- **Do not touch the abbreviation discovery semantics** — AC is fine and faster
+  than `in` on short (§2a). P-AC keeps the automaton, only speeds its inner loop.
+- **No boundary-semantics changes** to chase speed; if a change can't be made
+  byte-identical it is out of scope.
+- **Pick the metric deliberately.** If the goal is *real latency*, prioritize
+  Tier 1 (and skip Tier 3). If the goal is the *CodSpeed gate number*, Tier 2/3
+  (the pure-Python loops) move it most. They overlap in Tier 1, which is why Tier
+  1 leads.
+
+**Honest expectation:** we are already at parity/ahead, so these are
+incremental "pull further ahead" wins, not a turnaround. Tier 1 + P-AC together
+are the worthwhile set; treat each gain as unproven until measured per-change.
