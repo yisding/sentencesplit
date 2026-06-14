@@ -5,6 +5,15 @@ from sentencesplit.lang.common import Common, Standard
 class Polish(Common, Standard):
     iso_code = "pl"
 
+    class AbbreviationReplacer(Standard.AbbreviationReplacer):
+        # Polish overrides zero scan methods and uses no elision, so it rides the
+        # base PeriodClassifier (BASE_POLICY) directly — identical shape to Dutch.
+        # It is NOT one of the CAPITALIZED_FOLLOWER_IS_BOUNDARY_CUE languages
+        # (Polish capitalizes proper nouns mid-sentence), so that flag stays off
+        # and capital followers flow through the split-mode ambiguity dial,
+        # matching the legacy per-line protection on Polish text.
+        USE_PERIOD_CLASSIFIER = True
+
     class Abbreviation(Standard.Abbreviation):
         ABBREVIATIONS = [
             "ags",
