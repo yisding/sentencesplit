@@ -11,6 +11,9 @@ from sentencesplit.utils import Rule, apply_rules, split_mode_rank
 # Newline-separated list-marker guards: a list spanning lines is not collapsed.
 _MULTILINE_BULLET_GUARD_RE = re.compile(r"♨.+(\n|\r).+♨")
 _MULTILINE_PAREN_MARKER_GUARD_RE = re.compile(r"☝.+\n.+☝|☝.+\r.+☝")
+# Every numbered-list pattern requires a digit; used to skip the scan on
+# digit-free text (matches re's \d Unicode-digit semantics exactly).
+_DIGIT_RE = re.compile(r"\d")
 
 
 class ListItemReplacer:
@@ -107,6 +110,11 @@ class ListItemReplacer:
         self.iterate_alphabet_array(self.ALPHABETICAL_LIST_WITH_PARENS, parens=True, roman_numeral=roman_numeral)
 
     def scan_lists(self, regex1, regex2, replacement, strip=False):
+        # All numbered-list patterns require a digit (and the body does int()),
+        # so digit-free text can't match — skip the two finditer scans. The loop
+        # below never runs on empty matches, so this is byte-identical.
+        if not _DIGIT_RE.search(self.text):
+            return
         matches = list(re.finditer(regex1, self.text))
         list_array = [(int(m.group().strip()), m.start()) for m in matches]
         for ind, (item, pos) in enumerate(list_array):
