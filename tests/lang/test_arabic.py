@@ -18,7 +18,11 @@ GOLDEN_AR_RULES_TEST_CASES = [
             "وقال د‪.‬ ديفيد ريدي و الأطباء الذين كانوا يعالجونها في مستشفى برمنجهام إنها كانت تعاني من أمراض أخرى.",
             "وليس معروفا ما اذا كانت قد توفيت بسبب اصابتها بأنفلونزا الخنازير.",
         ],
-        marks=pytest.mark.xfail,
+        marks=pytest.mark.xfail(
+            reason="BACKLOG[xfail-index]: arabic-bidi-mark-abbr — abbreviation 'د.' wrapped in bidi"
+            " control marks (U+202A/U+202C) is not recognized, so the period after it is treated as a"
+            " boundary. Needs Arabic-aware abbreviation handling that strips bidi marks."
+        ),
     ),
     (
         "ومن المنتظر أن يكتمل مشروع خط أنابيب نابوكو البالغ طوله 3300 كليومترا في 12‪/‬08‪/‬2014 بتكلفة تُقدر بـ 7.9 مليارات يورو أي نحو 10.9 مليارات دولار. ومن المقرر أن تصل طاقة ضخ الغاز في المشروع 31 مليار متر مكعب انطلاقا من بحر قزوين مرورا بالنمسا وتركيا ودول البلقان دون المرور على الأراضي الروسية.",

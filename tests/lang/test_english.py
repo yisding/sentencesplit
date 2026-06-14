@@ -35,7 +35,11 @@ GOLDEN_EN_RULES_TEST_CASES = [
     pytest.param(
         "At 5 a.m. Mr. Smith went to the bank. He left the bank at 6 P.M. Mr. Smith then went to the store.",
         ["At 5 a.m. Mr. Smith went to the bank.", "He left the bank at 6 P.M.", "Mr. Smith then went to the store."],
-        marks=pytest.mark.xfail,
+        marks=pytest.mark.xfail(
+            reason="BACKLOG[xfail-index]: ampm-vs-title-boundary — 'a.m.'/'P.M.' immediately followed by a"
+            " title-cased name ('a.m. Mr.', 'P.M. Mr.') is ambiguous: the same token both ends a sentence and"
+            " precedes an abbreviation, which the current single-pass classifier cannot disambiguate."
+        ),
     ),
     ("She has $100.00 in her bag.", ["She has $100.00 in her bag."]),
     ("She has $100.00. It is in her bag.", ["She has $100.00.", "It is in her bag."]),

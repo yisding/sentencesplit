@@ -335,18 +335,24 @@ CHALLENGING_EN_TEST_CASES = [
     ),
     # ===== No space after period (OCR / PDF artifacts) =====
     # 97) Missing space after period
-    # xfail: no space between sentences (common OCR artifact)
     pytest.param(
         "The first experiment failed.The second one succeeded.",
         ["The first experiment failed.", "The second one succeeded."],
-        marks=pytest.mark.xfail,
+        marks=pytest.mark.xfail(
+            reason="BACKLOG[xfail-index]: no-space-after-period-ocr — period directly glued to the next"
+            " sentence's first letter ('failed.The') is a common OCR/PDF artifact; the boundary detector"
+            " requires whitespace after the terminator and so keeps the run as one sentence."
+        ),
     ),
     # 98) Missing space after abbreviation + new sentence
-    # xfail: no space between abbreviation and next sentence
     pytest.param(
         "He works at Acme Corp.She works at Globex Inc.",
         ["He works at Acme Corp.", "She works at Globex Inc."],
-        marks=pytest.mark.xfail,
+        marks=pytest.mark.xfail(
+            reason="BACKLOG[xfail-index]: no-space-after-period-ocr — abbreviation period glued to the next"
+            " sentence ('Corp.She') is an OCR/PDF artifact; same missing-whitespace gap as #97, compounded by"
+            " 'Corp.' being a known abbreviation."
+        ),
     ),
     # ===== Edge cases with "no.", "fig.", "eq." =====
     # 99) "No." as abbreviation for number
@@ -386,7 +392,6 @@ CHALLENGING_EN_TEST_CASES = [
         ],
     ),
     # 104) Medical / clinical note
-    # xfail: Pt. not in abbreviation list, falsely splits after it
     pytest.param(
         "Pt. presented with a temp. of 102.4°F and B.P. of 140/90. Dr. Lee ordered labs stat. Results pending.",
         [
@@ -394,7 +399,11 @@ CHALLENGING_EN_TEST_CASES = [
             "Dr. Lee ordered labs stat.",
             "Results pending.",
         ],
-        marks=pytest.mark.xfail,
+        marks=pytest.mark.xfail(
+            reason="BACKLOG[xfail-index]: medical-abbr-not-listed — clinical abbreviation 'Pt.' (patient) is"
+            " not in the English abbreviation list, so the period after it is treated as a boundary. Needs a"
+            " medical/clinical abbreviation set (cf. en_legal specialization)."
+        ),
     ),
     # ===== Additional edge cases inspired by failure analysis =====
     # 105) Unknown abbreviation "approx." mid-sentence
