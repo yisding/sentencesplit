@@ -81,6 +81,12 @@ dev = [
   "hypothesis>=6.0",
   "mypy>=1.11",
 ]
+# Isolated from `dev` so the main test/lint matrix never pulls the benchmark
+# tooling. Used only by the CodSpeed workflow (.github/workflows/codspeed.yml).
+bench = [
+  "pytest>=8.0",
+  "pytest-codspeed>=2.2",
+]
 
 [tool.uv.build-backend]
 module-root = ""

@@ -1,0 +1,51 @@
+name: CodSpeed
+
+# Deterministic (instruction-count) latency benchmarks. CodSpeed measures CPU
+# instructions under instrumentation, so per-PR deltas are stable on noisy
+# shared runners — unlike raw wall-clock timing. Results are uploaded to the
+# CodSpeed dashboard and posted as a PR comment showing the regression/speedup.
+#
+# Auth uses OIDC: the CodSpeed action exchanges GitHub's short-lived id-token
+# for upload credentials, so no CODSPEED_TOKEN secret is needed. The only
+# one-time setup is installing the CodSpeed GitHub App on the repo
+# (https://codspeed.io). See https://codspeed.io/changelog/2025-11-19-simpler-authentication-with-oidc
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  # Required for CodSpeed OIDC authentication (replaces the CODSPEED_TOKEN secret).
+  id-token: write
+
+jobs:
+  benchmarks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+
+      - name: Set up Python 3.13
+        run: uv python install 3.13
+
+      - name: Install benchmark dependencies
+        # Only the project + the isolated `bench` group (pytest + pytest-codspeed),
+        # not the full dev matrix.
+        run: uv sync --python 3.13 --no-default-groups --group bench
+
+      - name: Run CodSpeed benchmarks
+        uses: CodSpeedHQ/action@v3
+        with:
+          # --no-sync: run in the bench-only environment from the previous step
+          # without an implicit re-sync, which would otherwise pull the default
+          # `dev` group back in (defeating isolation) and run install work under
+          # CodSpeed instrumentation.
+          run: uv run --no-sync --python 3.13 pytest benchmarks/test_latency_codspeed.py --codspeed
