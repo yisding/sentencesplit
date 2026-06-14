@@ -77,11 +77,12 @@ def test_classifier_unavailable_for_non_opted_languages() -> None:
     # Languages that have NOT opted into the V2 classifier
     # (``USE_PERIOD_CLASSIFIER`` is False/unset) still raise loudly, so the
     # debugging-aid oracle never silently no-ops for a non-migrated language.
-    # ``sk`` (Slovak) remains on the legacy path; ``de``/``ru`` opted in at Phase 5.
+    # ``bg`` (Bulgarian) remains on the legacy path; ``de``/``ru``/``sk`` opted in
+    # at Phase 5.
     with pytest.raises(ClassifierUnavailable):
-        classifier_protect_positions("To je napr. dôležité. Pán Dr. Novák prišiel.", "sk")
+        classifier_protect_positions("Това е напр. важно. Г-н Иванов дойде.", "bg")
     with pytest.raises(ClassifierUnavailable):
-        diff_positions("To je napr. dôležité. Pán Dr. Novák prišiel.", "sk")
+        diff_positions("Това е напр. важно. Г-н Иванов дойде.", "bg")
 
 
 @pytest.mark.parametrize("code", ["en", "en_legal"])

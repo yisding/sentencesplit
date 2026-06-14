@@ -43,6 +43,21 @@ class Decision(enum.Enum):
 NOT_HANDLED = object()
 
 
+def _spans_intersect(sorted_edits: list["Edit"]) -> bool:
+    """True if any two of *sorted_edits* (sorted by start) overlap.
+
+    The common paths emit only lone single-period edits whose ``[start, end)``
+    intervals never intersect; this fast check lets ``_dedup_sorted`` skip the
+    longest-first overlap resolution entirely for them.
+    """
+    prev_end = -1
+    for e in sorted_edits:
+        if e.start < prev_end:
+            return True
+        prev_end = max(prev_end, e.end)
+    return False
+
+
 @dataclass(frozen=True, slots=True)
 class Edit:
     """A position-anchored splice over the original line.
@@ -117,6 +132,18 @@ class AbbrPolicy:
     # the legacy per-match ``re.sub`` callback semantics exactly (russian.py:159).
     # base False == the global per-unit realization above.
     realize_per_occurrence: bool = False
+    # When set (with ``realize_per_occurrence``), names the Edit a PROTECT decision
+    # produces for a single occurrence — letting a policy splice MORE than the lone
+    # trailing period. Slovak's legacy ``replace_period_of_abbr`` override does a
+    # literal whole-span ``txt.replace(abbr + ".", abbr.replace(".", "∯") + "∯")``,
+    # turning EVERY interior period of a spaced/compact abbreviation
+    # ("s. r. o." -> "s∯ r∯ o∯", "a.s." -> "a∯s∯") into a sentinel, not just the
+    # final one. ``protect_edit`` returns that whole-span Edit; overlapping
+    # whole-span edits (e.g. "a.s.a.p." enumerating both ``a.s.a.p`` and ``a.s``)
+    # are resolved longest-first, mirroring the legacy length-descending mutating
+    # ``str.replace`` (shorter embedded spans become no-ops post-mutation).
+    # base None == the lone-trailing-period Edit(p, p+1, "∯", p).
+    protect_edit: Callable[["PeriodClassifier", Candidate, str], "Edit"] | None = None
     pre_stages: tuple = field(default_factory=tuple)  # tuple[Callable[[str, replacer], str]]; base empty
     post_stages: tuple = field(default_factory=tuple)  # base empty
 
@@ -262,6 +289,75 @@ def _ru_classify_special(pc: "PeriodClassifier", line: str, c: Candidate) -> obj
 
 RU_POLICY = AbbrPolicy(
     classify_special=_ru_classify_special,
+    realize_per_occurrence=True,
+)
+
+
+# Slovak (Phase 5): the legacy ``Slovak.AbbreviationReplacer`` overrode ONLY the
+# regular branch (``replace_period_of_abbr``); the PREPOSITIVE
+# (``st``/``dr``/``ing``/``mgr``/``prof`` …) and NUMBER (``č``/``no``/``nr``)
+# branches inherit the base ``_replace_with_escape`` / ``_replace_number_abbr``
+# unchanged. The override replaced the base regular suffix
+# ``\.(?=((\.|:|-|?|,)|(\s([a-z]|I…|\d|\())))`` with a literal whole-span
+# ``txt.replace(abbr + ".", abbr.replace(".", "∯") + "∯")``. Two effects differ
+# from the base regular branch:
+#   1) UNCONDITIONAL — no follower-class lookahead. A known abbreviation's period
+#      protects regardless of what follows ("napr. XYZCorp" -> "napr∯ XYZCorp",
+#      "apod. Niečo" -> "apod∯ Niečo"). Slovak abbreviations frequently precede a
+#      capitalized company/proper name, so a capital follower is NOT a boundary cue.
+#   2) WHOLE-SPAN — every interior period of a spaced/compact abbreviation becomes
+#      a sentinel too ("s. r. o." -> "s∯ r∯ o∯", "ph.d." -> "ph∯d∯",
+#      "a.s.a.p." -> "a∯s∯a∯p∯"), keeping multi-word company forms like
+#      "Company name s. r. o." as one token. The base regular branch only ever
+#      protects the trailing period (relying on the later
+#      ``replace_multi_period_abbreviations`` pass for interiors), which is wrong
+#      for Slovak's spaced forms.
+# ``classify_special`` handles ONLY the regular branch (returns PROTECT
+# unconditionally for a non-prepositive, non-number abbreviation; ``NOT_HANDLED``
+# otherwise so the base prepositive/number trichotomy runs). ``protect_edit``
+# realizes the whole-span splice; ``realize_per_occurrence`` anchors each
+# word-boundary occurrence to its own span.
+#
+# Quirk FIXED (BC not required, plan §3, reviewed Golden-Rule-anchored): the
+# legacy ``str.replace`` is GLOBAL and LITERAL, so a word-boundary occurrence that
+# triggers the scan ALSO mutated an unrelated EMBEDDED occurrence on the same line
+# ("good s.r.o. then Xs.r.o." -> the trailing "Xs.r.o." periods were protected too,
+# even though "Xs.r.o" is not a word-boundary abbreviation). The V2 per-occurrence
+# path classifies + splices only the candidates the reachability gate (word-boundary
+# ``match_re``) actually enumerates, so the spurious embedded protection is dropped.
+# Embedded occurrences were never protected when they appeared ALONE (the gate
+# already excluded them); this only removes the cross-contamination from a sibling
+# boundary occurrence. No Golden Rule exercises that case.
+def _sk_classify_special(pc: "PeriodClassifier", line: str, c: Candidate) -> object:
+    """Slovak regular-branch override (slovak.py:34-42), per occurrence.
+
+    REGULAR abbreviations PROTECT unconditionally; PREPOSITIVE/NUMBER fall through
+    (``NOT_HANDLED``) to the base trichotomy, which Slovak does not override.
+    """
+    am_lower = pc._elision_strip(c.am_stripped).lower()
+    if am_lower in pc.data.prepositive_set or am_lower in pc.data.number_abbr_set:
+        return NOT_HANDLED
+    return Decision.PROTECT
+
+
+def _sk_protect_edit(pc: "PeriodClassifier", c: Candidate, line: str) -> "Edit":
+    """Whole-span protect: ``<abbr>.`` -> ``<abbr with every '.' -> ∯>∯``.
+
+    The abbreviation text occupies ``line[period_idx - len(am) : period_idx]`` (the
+    stored ``am_stripped`` in the occurrence's ORIGINAL case); the trailing period
+    is at ``period_idx``. Reproduces ``abbr.replace(".", "∯") + "∯"`` over the full
+    span ``[am_start, period_idx + 1)``.
+    """
+    am = pc._elision_strip(c.am_stripped)
+    am_start = c.period_idx - len(am)
+    span_text = line[am_start : c.period_idx]  # original-case abbreviation, no trailing '.'
+    replacement = span_text.replace(".", "∯") + "∯"
+    return Edit(am_start, c.period_idx + 1, replacement, c.period_idx)
+
+
+SK_POLICY = AbbrPolicy(
+    classify_special=_sk_classify_special,
+    protect_edit=_sk_protect_edit,
     realize_per_occurrence=True,
 )
 
@@ -527,7 +623,12 @@ class PeriodClassifier:
                 # per-match ``re.sub`` callback returning ``group()[:-1] + "∯"``.
                 p = c.period_idx
                 if d is Decision.PROTECT:
-                    edits.append(Edit(p, p + 1, "∯", p))
+                    # ``protect_edit`` (slovak) may splice a whole multi-period span;
+                    # default is the lone trailing period.
+                    if self.policy.protect_edit is not None:
+                        edits.append(self.policy.protect_edit(self, c, line))
+                    else:
+                        edits.append(Edit(p, p + 1, "∯", p))
                 else:  # PLACEHOLDER (unused by current per-occurrence policies)
                     qq_end = (p + 1) + len(self._qq_span(line, p))
                     edits.append(Edit(p, qq_end, "∯ " + self.r._UNKNOWN_PLACEHOLDER, p))
@@ -558,7 +659,21 @@ class PeriodClassifier:
             k = (e.start, e.end, e.replacement)
             if k not in seen:
                 seen[k] = e
-        return sorted(seen.values(), key=lambda e: (e.start, e.end))
+        ordered = sorted(seen.values(), key=lambda e: (e.start, e.end))
+        # Resolve overlapping spans longest-first, mirroring the legacy
+        # length-descending mutating ``str.replace`` where a shorter span embedded
+        # in an already-rewritten longer span becomes a no-op (slovak whole-span:
+        # "a.s.a.p." enumerates both ``a.s.a.p`` [0:8] and ``a.s`` [0:4]). For the
+        # non-whole-span paths every edit is a single trailing period and these
+        # spans never intersect, so this pass is an identity there.
+        if not _spans_intersect(ordered):
+            return ordered
+        kept: list[Edit] = []
+        for e in sorted(ordered, key=lambda x: (x.start - x.end, x.start)):  # widest first
+            if any(e.start < k.end and k.start < e.end for k in kept):
+                continue  # embedded in / overlapping an already-kept wider edit
+            kept.append(e)
+        return sorted(kept, key=lambda e: (e.start, e.end))
 
     @staticmethod
     def _rebuild(line: str, edits: list[Edit]) -> str:
@@ -582,6 +697,33 @@ class PeriodClassifier:
     def protect_positions(self, line: str) -> list[int]:
         """Oracle adapter: period indices protected on *line* (matches oracle.py:184).
 
-        PLACEHOLDER contributes ONLY its period_idx (oracle.py:105-109).
+        Reported by walking the original line against the rebuilt line in lockstep
+        (identical semantics to ``oracle._diff_line_positions``): every ``.`` -> ``∯``
+        offset is recorded, the ``??`` -> placeholder expansion is resynced. A
+        single-period PROTECT therefore reports its ``period_idx``; a whole-span
+        PROTECT (slovak) reports EVERY interior+trailing period it sentinelizes; a
+        PLACEHOLDER contributes ONLY the period before it (oracle.py:105-109).
         """
-        return sorted({e.period_idx for e in self._dedup_sorted(self._collect_edits(line))})
+        edits = self._dedup_sorted(self._collect_edits(line))
+        if not edits:
+            return []
+        rebuilt = self._rebuild(line, edits)
+        positions: list[int] = []
+        i = j = 0
+        n, m = len(line), len(rebuilt)
+        placeholder = self.r._UNKNOWN_PLACEHOLDER
+        while i < n and j < m:
+            oc, pc = line[i], rebuilt[j]
+            if oc == pc:
+                i += 1
+                j += 1
+            elif oc == "." and pc == "∯":
+                positions.append(i)
+                i += 1
+                j += 1
+            elif line.startswith("??", i) and rebuilt.startswith(placeholder, j):
+                i += 2
+                j += len(placeholder)
+            else:  # pragma: no cover - alignment invariant; loud if ever violated
+                raise AssertionError(f"unexpected rebuild divergence at orig[{i}]={oc!r} / rebuilt[{j}]={pc!r}")
+        return sorted(set(positions))

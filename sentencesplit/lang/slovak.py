@@ -5,6 +5,7 @@ from sentencesplit.abbreviation_replacer import AbbreviationReplacer
 from sentencesplit.between_punctuation import BetweenPunctuation
 from sentencesplit.lang.common import Common, Standard
 from sentencesplit.lists_item_replacer import ListItemReplacer
+from sentencesplit.period_classifier import SK_POLICY
 from sentencesplit.processor import Processor
 from sentencesplit.punctuation_replacer import replace_punctuation
 from sentencesplit.utils import apply_rules
@@ -31,15 +32,17 @@ class Slovak(Common, Standard):
             return self.text
 
     class AbbreviationReplacer(AbbreviationReplacer):
-        def replace_period_of_abbr(self, txt, abbr, escaped=None):
-            # This is a very simple version of the original function, which makes sure
-            # all of the periods in the abbreviation get replaced, not only the last one.
-            # In Slovak language we use a lot of abbreviations like 'Company Name s. r. o.', so it
-            # is important to handle this properly.
-
-            abbr_new = abbr.replace(".", "∯") + "∯"
-            txt = txt.replace(abbr + ".", abbr_new)
-            return txt
+        # V2 PeriodClassifier (Phase 5). The legacy ``replace_period_of_abbr``
+        # override — a literal whole-span ``txt.replace(abbr + ".", abbr.replace(".",
+        # "∯") + "∯")`` that protected EVERY interior period of a spaced/compact
+        # abbreviation ("Company name s. r. o." stays one token) UNCONDITIONALLY
+        # (no follower-class lookahead, because Slovak abbreviations routinely
+        # precede a capitalized company/proper name) — is reimplemented as
+        # ``SK_POLICY`` (``period_classifier._sk_classify_special`` +
+        # ``_sk_protect_edit``). It overrides ONLY the regular branch; the
+        # PREPOSITIVE / NUMBER branches inherit the base classifier unchanged.
+        USE_PERIOD_CLASSIFIER = True
+        ABBR_POLICY = SK_POLICY
 
     class Abbreviation(Standard.Abbreviation):
         ABBREVIATIONS = [
