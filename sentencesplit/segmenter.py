@@ -585,6 +585,30 @@ class Segmenter:
         processed_sents = self.processor(self._processor_text(text)).process()
         return [TextSpan(s, start, end) for s, start, end in self._match_spans(processed_sents, text)]
 
+    def segment_spans_with_lookahead(self, text: str | None) -> tuple[list[TextSpan], bool]:
+        """Return sentence spans **and** the trailing-boundary lookahead verdict.
+
+        Equivalent to calling :meth:`segment_spans` and
+        :meth:`should_wait_for_more` separately, but segments ``text`` once
+        instead of twice: both the spans and the ``should_wait_for_more`` verdict
+        are derived from a single ``process()`` + span-mapping pass. This is the
+        redundancy that otherwise dominates per-delta cost in
+        :class:`~sentencesplit.stream_segmenter.StreamSegmenter`, where every
+        ``feed`` needs both. Requires ``clean=False`` (same as
+        :meth:`segment_spans`); the boundary and lookahead logic is byte-for-byte
+        identical to the two separate calls.
+        """
+        if self.clean:
+            raise InvalidConfigurationError("segment_spans_with_lookahead() requires clean=False.")
+        if not text:
+            return [], False
+        processed_sents = self.processor(self._processor_text(text)).process()
+        matched_spans = list(self._match_spans(processed_sents, text))
+        spans = [TextSpan(s, start, end) for s, start, end in matched_spans]
+        comparison_segments = [s for s, _, _ in matched_spans]
+        should_wait = self._wait_for_last_segment(text, comparison_segments)
+        return spans, should_wait
+
     def segment_clean(self, text: str | None) -> list[str]:
         """Return cleaned sentences regardless of the instance's clean flag."""
         if not text:
