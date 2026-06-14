@@ -86,6 +86,10 @@ dev = [
 bench = [
   "pytest>=8.0",
   "pytest-codspeed>=2.2",
+  # Competitive comparison peers (both pure Python, so instruction-count
+  # comparisons against them are fair). See benchmarks/test_competitive_codspeed.py.
+  "pysbd>=0.3.4",
+  "nltk>=3.9.2",
 ]
 
 [tool.uv.build-backend]
