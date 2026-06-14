@@ -357,3 +357,38 @@ Verification verdict: `{"gates_pass": true, "recommendation": "accept",
 **Verdict: ACCEPT.** V2 now meets the "high correctness AND high performance" bar —
 correctness improved (3 fixes, 0 regressions), performance reclaimed to baseline, and
 the maintainability LOC dividend banked. The substrate is also the finish.
+
+## 8. Independent re-verification (post-workflow audit)
+
+The §7 numbers above came from the workflow's own agents, which measured the pre-V2
+baseline and the final state at *different times*. A post-workflow audit re-ran the
+gates and a **controlled, back-to-back A/B on the same machine in the same window**,
+and corrects two overstated claims:
+
+- **Full suite — confirmed.** `uv run pytest tests/` (no `PYTHONPATH`): **2069 passed,
+  1 skipped, 6 xfailed, 0 failed**. The 3 correctness targets pass as real assertions.
+  Legacy engine confirmed fully removed (no `scan_for_replacements` / `USE_PERIOD_CLASSIFIER`
+  remain). ✅
+- **Performance — small residual regression, NOT perf-neutral.** Controlled A/B
+  (`phase_profile --size short`, 3 runs each, same window): pre-V2 `bc073f0` median
+  **0.8996 ms/call** vs V2 HEAD median **0.9221 ms/call** = **+2.5%**. The §7.5
+  "reclaimed to baseline / perf-neutral" claim compared against a stale 0.8471 figure
+  captured in a quieter window (pre-V2 itself measures ~0.90 now). The honest result:
+  a **~+2.5% short-string regression**, consistent with `V2_RFC_EVALUATION.md` §3 (the
+  abbreviation phase has ~0 inherent perf headroom on normal prose, and the single-pass
+  classify + edit-rebuild adds a little fixed overhead). Minor and arguably acceptable
+  for the restructure, but it is a real regression, not parity.
+- **Maintainability — structural win, NOT a LOC reduction.** The "−182 LOC banked"
+  counted only the deletion inside `abbreviation_replacer.py`. Net across `sentencesplit/`,
+  code **grew ~+989 LOC** (11,301 → 12,290; +1,315 / −326), concentrated in the new
+  936-line `period_classifier.py`. The genuine, measurable win is **override-sprawl
+  collapse**: `lang/*.py` method+class overrides dropped **60 → 39 (−35%)**, plus
+  order-independence and per-period unit-testability. Whether one 936-line central engine
+  is more maintainable than the former scattered overrides is a judgment call — but it is
+  a restructure, not a shrink.
+
+**Audited bottom line:** correctness goal **met** (green, 3 quirks fixed, English
+parity-exact); maintainability **improved structurally** (fewer divergent overrides,
+testable decisions) at the cost of net LOC; performance carries a **~+2.5% short-string
+residual** that the evaluation predicts is near-inherent to this layer. The remaining
+backlog in §7.5 stands.
