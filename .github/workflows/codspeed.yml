@@ -5,10 +5,10 @@ name: CodSpeed
 # shared runners — unlike raw wall-clock timing. Results are uploaded to the
 # CodSpeed dashboard and posted as a PR comment showing the regression/speedup.
 #
-# Setup required once by a maintainer (the run still executes without it, but
-# the upload is skipped):
-#   1. Install the CodSpeed GitHub App on the repo (https://codspeed.io).
-#   2. Add the repository secret CODSPEED_TOKEN from the CodSpeed project page.
+# Auth uses OIDC: the CodSpeed action exchanges GitHub's short-lived id-token
+# for upload credentials, so no CODSPEED_TOKEN secret is needed. The only
+# one-time setup is installing the CodSpeed GitHub App on the repo
+# (https://codspeed.io). See https://codspeed.io/changelog/2025-11-19-simpler-authentication-with-oidc
 
 on:
   push:
@@ -19,6 +19,8 @@ on:
 
 permissions:
   contents: read
+  # Required for CodSpeed OIDC authentication (replaces the CODSPEED_TOKEN secret).
+  id-token: write
 
 jobs:
   benchmarks:
@@ -42,5 +44,4 @@ jobs:
       - name: Run CodSpeed benchmarks
         uses: CodSpeedHQ/action@v3
         with:
-          token: ${{ secrets.CODSPEED_TOKEN }}
           run: uv run --python 3.13 pytest benchmarks/test_latency_codspeed.py --codspeed
