@@ -39,7 +39,20 @@ class CleanRules:
     # Anchor the page number to end-of-line (newlines are already "\r" at this
     # stage) so a dot-leader TOC entry ("About Me....5") is split but ordinary
     # prose with an ellipsis followed by a number ("wait.... 42 things") is not.
-    TableOfContentsRule = Rule(r"(?<!\.)\.{4,}+[^\S\r\n]*+\d++-*+\d*+(?=[^\S\r\n]*(?:\r|\n|$))", "\r")
+    #
+    # The leading dot run is an atomic group `(?>\.{4,})` rather than a counted
+    # possessive `\.{4,}+`. PyPy 3.11 (7.3.x) mis-handles possessive quantifiers
+    # whose minimum is >= 1 (`++`, `{n}+`, `{n,m}+`, `{n,}+`): instead of failing
+    # when fewer than the minimum repetitions are present, the possessive matches
+    # *zero* repetitions (a spurious zero-width match). So `\.{4,}+` matched zero
+    # dots and this rule deleted ordinary trailing numbers ("box 6554" -> "box").
+    # `(?>\.{4,})` wraps a plain (non-possessive) counted repeat that PyPy counts
+    # correctly in an atomic group, so it still requires four dots and still never
+    # backtracks (ReDoS-safe), and is exactly equivalent on CPython. The trailing
+    # `*+`/`++` possessives below only ever run *after* a real four-dot leader has
+    # matched, so the PyPy bug can't fire there. Minimal repro of the engine bug:
+    #   re.search(r'a++', 'b')  -> CPython None, PyPy <empty match>.
+    TableOfContentsRule = Rule(r"(?<!\.)(?>\.{4,})[^\S\r\n]*+(?>\d+)-*+\d*+(?=[^\S\r\n]*(?:\r|\n|$))", "\r")
 
     # Rubular: http://rubular.com/r/DwNSuZrNtk
     ConsecutivePeriodsRule = Rule(r"\.{5,}", " ")
@@ -79,11 +92,16 @@ class HTML:
     # and cannot cross another tag, so both "<" and ">" are allowed inside quoted
     # runs. Only the *unquoted* run is bounded at a raw "<" so inputs with many
     # unclosed tag starts don't force the regex engine to rescan the remaining
-    # suffix at each opener. Possessive quantifiers (\w++ / *+ — Python 3.11+)
-    # forbid the backtracking that made earlier patterns ReDoS-vulnerable on
-    # untrusted clean=True input. Still strips <em>, <p class="x">, <img src="y">,
-    # self-closing <br/>, <a title="a>b">, and <span data-x="1 < 2">.
-    HTMLTagRule = Rule(r"""<\/?\w++(?:"[^"]*"|'[^']*'|[^<>"'])*+>""", "")
+    # suffix at each opener. The tag name is an atomic group `(?>\w+)` and the
+    # attribute run a possessive `*+` (both Python 3.11+) so backtracking that
+    # made earlier patterns ReDoS-vulnerable on untrusted clean=True input is
+    # forbidden. NB the tag name uses `(?>\w+)` rather than the possessive `\w++`:
+    # PyPy 3.11 (7.3.x) does not enforce the minimum of a possessive `++`/`{n,}+`
+    # and lets it match zero chars (see TableOfContentsRule), which would let this
+    # rule fire on a bare "<>"; the atomic group is equivalent and PyPy-correct.
+    # Still strips <em>, <p class="x">, <img src="y">, self-closing <br/>,
+    # <a title="a>b">, and <span data-x="1 < 2">.
+    HTMLTagRule = Rule(r"""<\/?(?>\w+)(?:"[^"]*"|'[^']*'|[^<>"'])*+>""", "")
 
     # Rubular: http://rubular.com/r/XZVqMPJhea
     # Match an escaped tag &lt;tag ...&gt; — the inner content must start with a
@@ -91,10 +109,15 @@ class HTML:
     # are left intact instead of being deleted between &lt; and a bare "gt;".
     # The content alternation lets attribute values carry ordinary HTML entities
     # (&amp;, &quot;, &#39;, …) without the run stopping at their leading "&",
-    # while &(?!lt;|gt;) bounds each run at the next tag delimiter. Combined with
-    # possessive quantifiers that keeps it linear (no ReDoS): an unclosed
-    # "&lt;..." — even one packed with entities — fails without backtracking.
-    EscapedHTMLTagRule = Rule(r"&lt;\/?\w++(?:[^&]++|&(?!lt;|gt;))*+&gt;", "")
+    # while &(?!lt;|gt;) bounds each run at the next tag delimiter. The atomic
+    # groups `(?>\w+)` / `(?>[^&]+)` plus the possessive `*+` keep it linear (no
+    # ReDoS): an unclosed "&lt;..." — even one packed with entities — fails
+    # without backtracking. Atomic groups are used in place of the possessive
+    # `\w++` / `[^&]++`: PyPy 3.11 (7.3.x) ignores the minimum of a possessive
+    # `++` and matches zero chars there (see TableOfContentsRule), which corrupted
+    # escaped comparisons in prose ("x &lt; 5 and y &gt; 3"). `(?>X+)` is the
+    # exact equivalent of `X++` and behaves correctly on both CPython and PyPy.
+    EscapedHTMLTagRule = Rule(r"&lt;\/?(?>\w+)(?:(?>[^&]+)|&(?!lt;|gt;))*+&gt;", "")
 
     All = [HTMLTagRule, EscapedHTMLTagRule]
 

@@ -118,6 +118,17 @@ class _LazyLanguageCodes(dict):
             if key in _LANGUAGE_MODULES:
                 self._removed.add(key)
 
+    def _backing_keys(self) -> list:
+        # Snapshot the real backing storage without tripping any of this class's
+        # overridden ``__len__`` / ``__iter__`` / ``keys`` methods, which would
+        # recurse. The bound ``dict.keys(self)`` view re-dispatches ``__len__``
+        # on PyPy, and ``dict.copy(self)`` routes through the overridden
+        # ``keys()`` on CPython; both eventually call back here. Equally,
+        # ``set(...)`` / ``list(...)`` length-hint their argument and so re-enter
+        # ``__len__``. A plain comprehension over the *unbound* dict iterator
+        # length-hints nothing and reads the raw C-level keys on both runtimes.
+        return [code for code in dict.__iter__(self)]
+
     def __iter__(self):
         with _LANGUAGE_LOCK:
             seen = set()
@@ -126,7 +137,7 @@ class _LazyLanguageCodes(dict):
                 if code not in self._removed:
                     seen.add(code)
                     codes.append(code)
-            for code in dict.keys(self):
+            for code in self._backing_keys():
                 if code not in seen:
                     codes.append(code)
         yield from codes
@@ -134,7 +145,7 @@ class _LazyLanguageCodes(dict):
     def __len__(self) -> int:
         with _LANGUAGE_LOCK:
             builtin_active = set(_LANGUAGE_MODULES) - self._removed
-            return len(builtin_active | set(dict.keys(self)))
+            return len(builtin_active | set(self._backing_keys()))
 
     def keys(self):
         with _LANGUAGE_LOCK:

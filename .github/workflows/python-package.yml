@@ -72,9 +72,69 @@ jobs:
       - name: Test with pytest
         run: uv run --python 3.14t pytest --cov=sentencesplit tests/ --color yes
 
+  pypy-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+
+      - name: Set up PyPy 3.11
+        run: uv python install pypy3.11
+
+      - name: Verify PyPy runtime
+        run: |
+          uv run --python pypy3.11 --group dev python - <<'PY'
+          import platform
+          import sys
+
+          assert platform.python_implementation() == "PyPy", platform.python_implementation()
+          print(sys.version)
+          PY
+
+      # PyPy is pure-Python all the way down for this library (no C extensions),
+      # so the full suite runs. mypy refuses to execute under PyPy, so the single
+      # mypy-subprocess test self-skips; ruff/mypy lint stay on the CPython jobs.
+      - name: Test with pytest on PyPy
+        run: uv run --python pypy3.11 --group dev pytest tests/ --color yes
+
+  pyodide-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+
+      - name: Set up Python 3.13
+        run: uv python install 3.13
+
+      - name: Build wheel
+        run: uv build --wheel
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      # Pyodide is CPython compiled to WebAssembly. Installing the pure-Python
+      # wheel via micropip and exercising the public API proves the package works
+      # unmodified in the browser/WASM runtime.
+      - name: Install Pyodide
+        run: npm install pyodide@latest --no-audit --no-fund
+
+      - name: Pyodide smoke test
+        run: node tests/pyodide/smoke_test.mjs "$(ls dist/*.whl)"
+
   build:
     runs-on: ubuntu-latest
-    needs: [test, free-threaded-test]
+    needs: [test, free-threaded-test, pypy-test, pyodide-test]
 
     steps:
       - uses: actions/checkout@v6
