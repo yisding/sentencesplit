@@ -4,7 +4,7 @@ import sentencesplit
 from sentencesplit.languages import LANGUAGE_CODES
 from sentencesplit.segmenter import _DIGIT_LOOKAHEAD_STEM, _LANGUAGE_LOOKAHEAD_STEMS, _strip_zero_width_before_sentence_closers
 from sentencesplit.utils import ZERO_WIDTH_CHARS, SegmentLookahead
-from tests.helpers import assert_span_contract, lookahead_sample_for_language
+from tests.helpers import assert_span_contract, lookahead_sample_for_language, three_sentence_stream_sample
 
 
 @pytest.mark.parametrize(
@@ -100,6 +100,41 @@ def test_segment_with_lookahead_handles_empty_and_none_inputs():
 
     assert seg.segment_with_lookahead("") == SegmentLookahead([], should_wait_for_more=False)
     assert seg.segment_with_lookahead(None) == SegmentLookahead([], should_wait_for_more=False)
+
+
+@pytest.mark.parametrize("language_code", sorted(LANGUAGE_CODES))
+def test_segment_spans_with_lookahead_matches_separate_calls(language_code):
+    """The single-pass combined API must equal calling the two APIs separately.
+
+    ``segment_spans_with_lookahead`` derives both the spans and the
+    ``should_wait_for_more`` verdict from one segmentation pass; it must be
+    byte-for-byte identical to ``segment_spans`` + ``should_wait_for_more`` for
+    every supported language (Latin, CJK, Cyrillic, Arabic, Indic, …).
+    """
+    seg = sentencesplit.Segmenter(language=language_code, clean=False, char_span=False)
+    text = three_sentence_stream_sample(language_code)
+
+    spans, should_wait = seg.segment_spans_with_lookahead(text)
+
+    assert spans == seg.segment_spans(text)
+    assert should_wait is seg.should_wait_for_more(text)
+    # The spans must still tile the source exactly (non-destructive).
+    assert_span_contract(text, spans)
+
+
+def test_segment_spans_with_lookahead_empty_and_clean_guard():
+    seg = sentencesplit.Segmenter(language="en", clean=False, char_span=False)
+    assert seg.segment_spans_with_lookahead("") == ([], False)
+    assert seg.segment_spans_with_lookahead(None) == ([], False)
+
+    # char_span only governs other APIs' output shape; this one always returns spans.
+    seg_span = sentencesplit.Segmenter(language="en", clean=False, char_span=True)
+    spans, _ = seg_span.segment_spans_with_lookahead("Hello. The model is GPT 3.")
+    assert [s.sent for s in spans] == ["Hello. ", "The model is GPT 3."]
+
+    seg_clean = sentencesplit.Segmenter(language="en", clean=True)
+    with pytest.raises(sentencesplit.exceptions.InvalidConfigurationError):
+        seg_clean.segment_spans_with_lookahead("Hello world.")
 
 
 def test_segment_with_lookahead_ignores_zero_width_only_input():

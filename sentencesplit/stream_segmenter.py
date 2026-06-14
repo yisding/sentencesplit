@@ -273,8 +273,13 @@ class StreamSegmenter:
         stream base offset. Emitted text is never revisited, so nothing it emits
         can later grow or be re-sliced.
         """
-        spans = self._tail_spans()
-        self._last_should_wait = self._segmenter.should_wait_for_more(self._buffer) if self._buffer else False
+        # One segmentation pass yields both the tail spans and the trailing-
+        # boundary lookahead verdict; computing them separately would segment the
+        # buffer twice on every delta.
+        if self._buffer:
+            spans, self._last_should_wait = self._segmenter.segment_spans_with_lookahead(self._buffer)
+        else:
+            spans, self._last_should_wait = [], False
         if not spans:
             return
         last_index = len(spans) - 1

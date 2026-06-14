@@ -5,6 +5,10 @@ import unicodedata
 from sentencesplit.abbreviation_replacer import AbbreviationReplacer
 from sentencesplit.lang.common import Common, Standard
 
+# Constant pattern compiled once: " и " followed by a Cyrillic capital, used to
+# detect a conjunction continuation when deciding an abbreviation boundary.
+_RUSSIAN_CONJUNCTION_CONTINUATION_RE = re.compile(r"\sи\s+[А-ЯЁ]")
+
 
 class Russian(Common, Standard):
     iso_code = "ru"
@@ -145,7 +149,7 @@ class Russian(Common, Standard):
                 found = text.find(boundary, index)
                 if found != -1:
                     sentence_end = min(sentence_end, found)
-            return re.search(r"\sи\s+[А-ЯЁ]", text[index:sentence_end]) is not None
+            return _RUSSIAN_CONJUNCTION_CONTINUATION_RE.search(text[index:sentence_end]) is not None
 
         def replace_period_of_abbr(self, txt, abbr, escaped=None):
             abbr = abbr.strip()

@@ -554,6 +554,17 @@ class Processor:
             return (2, 3)
         return (_QUOTE_MIN_INTERIOR_SENTENCES, _QUOTE_MIN_WORDS)
 
+    def _maybe_resplit_multi_sentence_quote(self, pps: str, quote_thresholds: tuple[int, int] | None) -> list[str] | None:
+        # ``_resplit_multi_sentence_quote`` returns ``None`` unless the segment
+        # begins with a leading quote (its first gate). Computing the
+        # abbreviation-protected scan is the expensive part of this branch, so
+        # skip it entirely for the common quote-free segment instead of building
+        # it eagerly for every sentence only to have the resplit reject it.
+        if quote_thresholds is None or _LEADING_QUOTE_RE.match(pps) is None:
+            return None
+        protected_text = self.replace_abbreviations(_quote_abbreviation_scan_text(pps))
+        return _resplit_multi_sentence_quote(pps, *quote_thresholds, protected_text=protected_text)
+
     def _resplit_segments(self, postprocessed_sents: list[str]) -> list[str]:
         if self.profile.latin_uppercase_resplit:
             # Re-split at ".) Capital" boundaries (period inside closing paren before new sentence)
@@ -565,14 +576,7 @@ class Processor:
                 parts = (
                     _split_on_uppercase_boundary(pps, _LATIN_RESPLIT_RE)
                     or _split_on_uppercase_boundary(pps, _MULTI_TERMINATOR_RESPLIT_RE)
-                    or (
-                        quote_thresholds is not None
-                        and _resplit_multi_sentence_quote(
-                            pps,
-                            *quote_thresholds,
-                            protected_text=self.replace_abbreviations(_quote_abbreviation_scan_text(pps)),
-                        )
-                    )
+                    or self._maybe_resplit_multi_sentence_quote(pps, quote_thresholds)
                     or None
                 )
                 if parts is None:

@@ -549,6 +549,35 @@ def test_split_mode_changes_streamed_output():
     assert aggressive_out == sentencesplit.Segmenter(language="en", split_mode="aggressive").segment(text)
 
 
+def test_detect_segments_buffer_once_per_delta(monkeypatch):
+    """Each feed() must segment the buffer once, not twice.
+
+    ``_detect`` needs both the tail spans and the trailing-boundary lookahead
+    verdict. It computes them in a single ``segment_spans_with_lookahead`` pass;
+    regressing to separate ``segment_spans`` + ``should_wait_for_more`` calls
+    would re-run the whole-buffer ``_match_spans`` mapping twice per delta. Guard
+    that by counting ``_match_spans`` invocations: a delta whose tail ends in a
+    non-period terminator does no tail probing, so exactly one mapping runs.
+    """
+    from sentencesplit.segmenter import Segmenter
+
+    calls = {"n": 0}
+    original = Segmenter._match_spans
+
+    def counting(self, processed_sents, original_text):
+        calls["n"] += 1
+        return original(self, processed_sents, original_text)
+
+    monkeypatch.setattr(Segmenter, "_match_spans", counting)
+
+    stream = StreamSegmenter(language="en")
+    # Ends in '?', a structurally-unambiguous terminator: no lookahead probing,
+    # so the only whole-buffer span mapping is the single combined pass.
+    calls["n"] = 0
+    stream.feed("Are you sure?")
+    assert calls["n"] == 1, calls["n"]
+
+
 def test_exported_from_package():
     assert sentencesplit.StreamSegmenter is StreamSegmenter
     # N1's list_languages must remain exported alongside the new symbol.
