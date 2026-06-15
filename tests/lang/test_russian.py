@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 import pytest
 
+from tests.helpers import assert_segments
+
 GOLDEN_RU_RULES_TEST_CASES = [
     ("Объем составляет 5 куб.м.", ["Объем составляет 5 куб.м."]),
     ("Маленькая девочка бежала и кричала: «Не видали маму?».", ["Маленькая девочка бежала и кричала: «Не видали маму?»."]),
@@ -104,17 +106,13 @@ RU_MORE_TEST_CASES = [
 @pytest.mark.parametrize("text,expected_sents", GOLDEN_RU_RULES_TEST_CASES)
 def test_ru_sbd(ru_default_fixture, text, expected_sents):
     """Russian language SBD tests"""
-    segments = ru_default_fixture.segment(text)
-    segments = [s.strip() for s in segments]
-    assert segments == expected_sents
+    assert_segments(ru_default_fixture, text, expected_sents)
 
 
 @pytest.mark.parametrize("text,expected_sents", RU_MORE_TEST_CASES)
 def test_ru_sbd_more_examples(ru_default_fixture, text, expected_sents):
     """Russian language SBD tests"""
-    segments = ru_default_fixture.segment(text)
-    segments = [s.strip() for s in segments]
-    assert segments == expected_sents
+    assert_segments(ru_default_fixture, text, expected_sents)
 
 
 @pytest.mark.parametrize(
@@ -134,6 +132,4 @@ def test_ru_sbd_more_examples(ru_default_fixture, text, expected_sents):
     ],
 )
 def test_ru_abbreviations_split_before_cyrillic_sentence_start(ru_default_fixture, text, expected_sents):
-    segments = ru_default_fixture.segment(text)
-    segments = [s.strip() for s in segments]
-    assert segments == expected_sents
+    assert_segments(ru_default_fixture, text, expected_sents)

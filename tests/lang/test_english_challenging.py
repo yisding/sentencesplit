@@ -17,6 +17,8 @@ These extend the golden rules with harder edge cases covering:
 
 import pytest
 
+from tests.helpers import assert_segments
+
 CHALLENGING_EN_TEST_CASES = [
     # ===== Academic degrees & professional titles =====
     # 49) Ph.D. as non-boundary (mid-sentence)
@@ -592,6 +594,4 @@ CHALLENGING_EN_TEST_CASES = [
 @pytest.mark.parametrize("text,expected_sents", CHALLENGING_EN_TEST_CASES)
 def test_en_challenging(default_en_no_clean_no_span_fixture, text, expected_sents):
     """Challenging SBD tests extending the golden rules."""
-    segments = default_en_no_clean_no_span_fixture.segment(text)
-    segments = [s.strip() for s in segments]
-    assert segments == expected_sents
+    assert_segments(default_en_no_clean_no_span_fixture, text, expected_sents)

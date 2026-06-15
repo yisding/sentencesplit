@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 import pytest
 
+from tests.helpers import assert_segments
+
 GOLDEN_ZH_RULES_TEST_CASES = [
     (
         "安永已聯繫周怡安親屬，協助辦理簽證相關事宜，周怡安家屬1月1日晚間搭乘東方航空班機抵達上海，他們步入入境大廳時神情落寞、不發一語。周怡安來自台中，去年剛從元智大學畢業，同年9月加入安永。",
@@ -123,32 +125,25 @@ ZH_CHALLENGING_TEST_CASES = [
 @pytest.mark.parametrize("text,expected_sents", GOLDEN_ZH_RULES_TEST_CASES)
 def test_zh_sbd(zh_default_fixture, text, expected_sents):
     """Chinese language SBD tests from Pragmatic Segmenter"""
-    segments = zh_default_fixture.segment(text)
-    segments = [s.strip() for s in segments]
-    assert segments == expected_sents
+    assert_segments(zh_default_fixture, text, expected_sents)
 
 
 @pytest.mark.parametrize("text,expected_sents", ZH_CHALLENGING_TEST_CASES)
 def test_zh_challenging(zh_default_fixture, text, expected_sents):
     """Chinese challenging SBD tests for standalone-language coverage."""
-    segments = zh_default_fixture.segment(text)
-    segments = [s.strip() for s in segments]
-    assert segments == expected_sents
+    assert_segments(zh_default_fixture, text, expected_sents)
 
 
 @pytest.mark.parametrize("text,expected_sents", ZH_CHALLENGING_TEST_CASES)
 def test_zh_challenging_shared_splitter(en_es_zh_default_fixture, text, expected_sents):
     """Shared en/es/zh splitter should preserve Chinese challenging-case parity."""
-    segments = en_es_zh_default_fixture.segment(text)
-    segments = [s.strip() for s in segments]
-    assert segments == expected_sents
+    assert_segments(en_es_zh_default_fixture, text, expected_sents)
 
 
 def test_zh_mixed_cjk_latin(zh_default_fixture):
     """CJK boundary regex handles embedded Latin text correctly."""
     text = "版本号是3.14。下一句话。"
-    segments = [s.strip() for s in zh_default_fixture.segment(text)]
-    assert segments == ["版本号是3.14。", "下一句话。"]
+    assert_segments(zh_default_fixture, text, ["版本号是3.14。", "下一句话。"])
 
 
 def test_zh_char_spans(zh_no_clean_with_span_fixture):
@@ -163,13 +158,13 @@ def test_zh_char_spans(zh_no_clean_with_span_fixture):
 def test_zh_fullwidth_double_punctuation(zh_default_fixture):
     """All 4 full-width double punctuation combos split correctly."""
     # ？！
-    assert [s.strip() for s in zh_default_fixture.segment("真的？！下一句。")] == ["真的？！", "下一句。"]
+    assert_segments(zh_default_fixture, "真的？！下一句。", ["真的？！", "下一句。"])
     # ！？
-    assert [s.strip() for s in zh_default_fixture.segment("真的！？下一句。")] == ["真的！？", "下一句。"]
+    assert_segments(zh_default_fixture, "真的！？下一句。", ["真的！？", "下一句。"])
     # ？？
-    assert [s.strip() for s in zh_default_fixture.segment("真的？？下一句。")] == ["真的？？", "下一句。"]
+    assert_segments(zh_default_fixture, "真的？？下一句。", ["真的？？", "下一句。"])
     # ！！
-    assert [s.strip() for s in zh_default_fixture.segment("真的！！下一句。")] == ["真的！！", "下一句。"]
+    assert_segments(zh_default_fixture, "真的！！下一句。", ["真的！！", "下一句。"])
 
 
 def test_zh_corner_quote_spans(zh_no_clean_with_span_fixture):
@@ -187,5 +182,4 @@ def test_zh_corner_quote_spans(zh_no_clean_with_span_fixture):
     ],
 )
 def test_zh_ascii_brackets_split_after_closer(zh_default_fixture, text, expected):
-    segments = [s.strip() for s in zh_default_fixture.segment(text)]
-    assert segments == expected
+    assert_segments(zh_default_fixture, text, expected)

@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 import pytest
 
+from tests.helpers import assert_segments
+
 GOLDEN_AR_RULES_TEST_CASES = [
     (
         "سؤال وجواب: ماذا حدث بعد الانتخابات الايرانية؟ طرح الكثير من التساؤلات غداة ظهور نتائج الانتخابات الرئاسية الايرانية التي أججت مظاهرات واسعة واعمال عنف بين المحتجين على النتائج ورجال الامن. يقول معارضو الرئيس الإيراني إن الطريقة التي اعلنت بها النتائج كانت مثيرة للاستغراب.",
@@ -61,6 +63,4 @@ GOLDEN_AR_RULES_TEST_CASES = [
 @pytest.mark.parametrize("text,expected_sents", GOLDEN_AR_RULES_TEST_CASES)
 def test_ar_sbd(ar_default_fixture, text, expected_sents):
     """Arabic language SBD tests"""
-    segments = ar_default_fixture.segment(text)
-    segments = [s.strip() for s in segments]
-    assert segments == expected_sents
+    assert_segments(ar_default_fixture, text, expected_sents)

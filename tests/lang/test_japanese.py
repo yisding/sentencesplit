@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 import pytest
 
+from tests.helpers import assert_segments
+
 GOLDEN_JA_RULES_TEST_CASES = [
     ("これはペンです。それはマーカーです。", ["これはペンです。", "それはマーカーです。"]),
     ("それは何ですか？ペンですか？", ["それは何ですか？", "ペンですか？"]),
@@ -42,9 +44,7 @@ GOLDEN_JA_RULES_TEST_CASES = [
 @pytest.mark.parametrize("text,expected_sents", GOLDEN_JA_RULES_TEST_CASES)
 def test_ja_sbd(ja_default_fixture, text, expected_sents):
     """Japanese language SBD tests"""
-    segments = ja_default_fixture.segment(text)
-    segments = [s.strip() for s in segments]
-    assert segments == expected_sents
+    assert_segments(ja_default_fixture, text, expected_sents)
 
 
 JA_TEST_CASES_CLEAN = [
@@ -66,16 +66,13 @@ JA_TEST_CASES_CLEAN = [
 @pytest.mark.parametrize("text,expected_sents", JA_TEST_CASES_CLEAN)
 def test_ja_sbd_clean(ja_with_clean_no_span_fixture, text, expected_sents):
     """Japanese language SBD tests with clean=True"""
-    segments = ja_with_clean_no_span_fixture.segment(text)
-    segments = [s.strip() for s in segments]
-    assert segments == expected_sents
+    assert_segments(ja_with_clean_no_span_fixture, text, expected_sents)
 
 
 def test_ja_mixed_cjk_latin(ja_default_fixture):
     """CJK boundary regex handles embedded Latin text correctly."""
     text = "リリースはver.2.1です。次は2.2です。"
-    segments = [s.strip() for s in ja_default_fixture.segment(text)]
-    assert segments == ["リリースはver.2.1です。", "次は2.2です。"]
+    assert_segments(ja_default_fixture, text, ["リリースはver.2.1です。", "次は2.2です。"])
 
 
 def test_ja_char_spans(ja_no_clean_with_span_fixture):
@@ -90,13 +87,13 @@ def test_ja_char_spans(ja_no_clean_with_span_fixture):
 def test_ja_fullwidth_double_punctuation(ja_default_fixture):
     """All 4 full-width double punctuation combos split correctly."""
     # ？！
-    assert [s.strip() for s in ja_default_fixture.segment("本当？！次。")] == ["本当？！", "次。"]
+    assert_segments(ja_default_fixture, "本当？！次。", ["本当？！", "次。"])
     # ！？
-    assert [s.strip() for s in ja_default_fixture.segment("本当！？次。")] == ["本当！？", "次。"]
+    assert_segments(ja_default_fixture, "本当！？次。", ["本当！？", "次。"])
     # ？？
-    assert [s.strip() for s in ja_default_fixture.segment("本当？？次。")] == ["本当？？", "次。"]
+    assert_segments(ja_default_fixture, "本当？？次。", ["本当？？", "次。"])
     # ！！
-    assert [s.strip() for s in ja_default_fixture.segment("本当！！次。")] == ["本当！！", "次。"]
+    assert_segments(ja_default_fixture, "本当！！次。", ["本当！！", "次。"])
 
 
 def test_ja_corner_quote_spans(ja_no_clean_with_span_fixture):
@@ -114,8 +111,7 @@ def test_ja_corner_quote_spans(ja_no_clean_with_span_fixture):
     ],
 )
 def test_ja_ascii_brackets_are_protected(ja_default_fixture, text, expected):
-    segments = [s.strip() for s in ja_default_fixture.segment(text)]
-    assert segments == expected
+    assert_segments(ja_default_fixture, text, expected)
 
 
 @pytest.mark.parametrize(
@@ -126,5 +122,4 @@ def test_ja_ascii_brackets_are_protected(ja_default_fixture, text, expected):
     ],
 )
 def test_ja_ascii_brackets_can_close_cjk_sentences(ja_default_fixture, text, expected):
-    segments = [s.strip() for s in ja_default_fixture.segment(text)]
-    assert segments == expected
+    assert_segments(ja_default_fixture, text, expected)

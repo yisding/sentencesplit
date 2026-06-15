@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 import pytest
 
+from tests.helpers import assert_segments
+
 GOLDEN_HY_RULES_TEST_CASES = [
     ("Ի՞նչ ես մտածում: Ոչինչ:", ["Ի՞նչ ես մտածում:", "Ոչինչ:"]),
     ("Ապրիլի 24-ին սկսեց անձրևել...Այդպես էի գիտեի:", ["Ապրիլի 24-ին սկսեց անձրևել...Այդպես էի գիտեի:"]),
@@ -104,14 +106,10 @@ HY_MORE_TEST_CASES = [
 @pytest.mark.parametrize("text,expected_sents", GOLDEN_HY_RULES_TEST_CASES)
 def test_hy_sbd(hy_default_fixture, text, expected_sents):
     """Armenian language SBD tests"""
-    segments = hy_default_fixture.segment(text)
-    segments = [s.strip() for s in segments]
-    assert segments == expected_sents
+    assert_segments(hy_default_fixture, text, expected_sents)
 
 
 @pytest.mark.parametrize("text,expected_sents", HY_MORE_TEST_CASES)
 def test_hy_sbd_more(hy_default_fixture, text, expected_sents):
     """Armenian language SBD tests"""
-    segments = hy_default_fixture.segment(text)
-    segments = [s.strip() for s in segments]
-    assert segments == expected_sents
+    assert_segments(hy_default_fixture, text, expected_sents)

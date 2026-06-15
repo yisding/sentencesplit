@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 import pytest
 
+from tests.helpers import assert_segments
+
 HYBRID_RULES_TEST_CASES = [
     ("Hello World. My name is Jonas.", ["Hello World.", "My name is Jonas."]),
     ("St. Michael's Church is on 5th st. near the light.", ["St. Michael's Church is on 5th st. near the light."]),
@@ -45,9 +47,7 @@ HYBRID_RULES_TEST_CASES = [
 
 @pytest.mark.parametrize("text,expected_sents", HYBRID_RULES_TEST_CASES)
 def test_en_es_zh_sbd(en_es_zh_default_fixture, text, expected_sents):
-    segments = en_es_zh_default_fixture.segment(text)
-    segments = [s.strip() for s in segments]
-    assert segments == expected_sents
+    assert_segments(en_es_zh_default_fixture, text, expected_sents)
 
 
 def test_en_es_zh_char_spans(en_es_zh_no_clean_with_span_fixture):

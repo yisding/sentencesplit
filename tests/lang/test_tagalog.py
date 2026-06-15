@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 import pytest
 
+from tests.helpers import assert_segments
+
 TAGALOG_RULES_TEST_CASES = [
     ("Kumusta ka? Mabuti naman ako.", ["Kumusta ka?", "Mabuti naman ako."]),
     ("Nakilala ko si G. Dela Cruz. Mabait siya.", ["Nakilala ko si G. Dela Cruz.", "Mabait siya."]),
@@ -66,6 +68,4 @@ TAGALOG_RULES_TEST_CASES = [
 @pytest.mark.parametrize("text,expected_sents", TAGALOG_RULES_TEST_CASES)
 def test_tl_sbd(tl_default_fixture, text, expected_sents):
     """Tagalog language SBD tests"""
-    segments = tl_default_fixture.segment(text)
-    segments = [s.strip() for s in segments]
-    assert segments == expected_sents
+    assert_segments(tl_default_fixture, text, expected_sents)

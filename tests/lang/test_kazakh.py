@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 import pytest
 
+from tests.helpers import assert_segments
+
 GOLDEN_KK_RULES_TEST_CASES = [
     (
         "Мұхитқа тікелей шыға алмайтын мемлекеттердің ішінде Қазақстан - ең үлкені.",
@@ -65,9 +67,7 @@ GOLDEN_KK_RULES_TEST_CASES = [
 @pytest.mark.parametrize("text,expected_sents", GOLDEN_KK_RULES_TEST_CASES)
 def test_kk_sbd(kk_default_fixture, text, expected_sents):
     """Kazakh language SBD tests"""
-    segments = kk_default_fixture.segment(text)
-    segments = [s.strip() for s in segments]
-    assert segments == expected_sents
+    assert_segments(kk_default_fixture, text, expected_sents)
 
 
 def test_kk_single_period_abbreviations_do_not_split_before_numeric_continuation(kk_default_fixture):

@@ -2,6 +2,7 @@
 import pytest
 
 from sentencesplit.segmenter import Segmenter
+from tests.helpers import assert_segments
 
 LEGAL_TEST_CASES = [
     # --- Case citations with "v." should not split ---
@@ -107,5 +108,4 @@ LEGAL_TEST_CASES = [
 )
 def test_en_legal(text, expected):
     segmenter = Segmenter(language="en_legal", clean=False)
-    result = [s.strip() for s in segmenter.segment(text)]
-    assert result == expected
+    assert_segments(segmenter, text, expected)

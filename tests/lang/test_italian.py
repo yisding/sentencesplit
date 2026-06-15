@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 import pytest
 
+from tests.helpers import assert_segments
+
 GOLDEN_IT_RULES_TEST_CASES = [
     ("Salve Sig.ra Mengoni! Come sta oggi?", ["Salve Sig.ra Mengoni!", "Come sta oggi?"]),
     (
@@ -105,14 +107,10 @@ IT_MORE_TEST_CASES = [
 @pytest.mark.parametrize("text,expected_sents", GOLDEN_IT_RULES_TEST_CASES)
 def test_it_sbd(it_default_fixture, text, expected_sents):
     """Italian language SBD tests"""
-    segments = it_default_fixture.segment(text)
-    segments = [s.strip() for s in segments]
-    assert segments == expected_sents
+    assert_segments(it_default_fixture, text, expected_sents)
 
 
 @pytest.mark.parametrize("text,expected_sents", IT_MORE_TEST_CASES)
 def test_it_sbd_more_cases(it_default_fixture, text, expected_sents):
     """Italian language SBD tests more examples"""
-    segments = it_default_fixture.segment(text)
-    segments = [s.strip() for s in segments]
-    assert segments == expected_sents
+    assert_segments(it_default_fixture, text, expected_sents)

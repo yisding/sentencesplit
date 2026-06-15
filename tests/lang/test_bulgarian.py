@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 import pytest
 
+from tests.helpers import assert_segments
+
 GOLDEN_BG_RULES_TEST_CASES = [
     (
         "В първата половина на ноември т.г. ще бъде свикан Консултативният съвет за национална сигурност, обяви държавният глава.",
@@ -30,6 +32,4 @@ GOLDEN_BG_RULES_TEST_CASES = [
 @pytest.mark.parametrize("text,expected_sents", GOLDEN_BG_RULES_TEST_CASES)
 def test_bg_sbd(bg_default_fixture, text, expected_sents):
     """Bulgarian language SBD tests"""
-    segments = bg_default_fixture.segment(text)
-    segments = [s.strip() for s in segments]
-    assert segments == expected_sents
+    assert_segments(bg_default_fixture, text, expected_sents)

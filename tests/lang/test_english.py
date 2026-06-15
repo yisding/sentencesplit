@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 import pytest
 
+from tests.helpers import assert_segments
+
 GOLDEN_EN_RULES_TEST_CASES = [
     ("Hello World. My name is Jonas.", ["Hello World.", "My name is Jonas."]),
     ("What is your name? My name is Jonas.", ["What is your name?", "My name is Jonas."]),
@@ -152,16 +154,17 @@ GOLDEN_EN_RULES_TEST_CASES = [
 @pytest.mark.parametrize("text,expected_sents", GOLDEN_EN_RULES_TEST_CASES)
 def test_en_sbd(default_en_no_clean_no_span_fixture, text, expected_sents):
     """SBD tests from Pragmatic Segmenter"""
-    segments = default_en_no_clean_no_span_fixture.segment(text)
-    segments = [s.strip() for s in segments]
-    assert segments == expected_sents
+    assert_segments(default_en_no_clean_no_span_fixture, text, expected_sents)
 
 
 def test_en_url_with_country_code_domain(default_en_no_clean_no_span_fixture):
     """Shared abbreviation regex should not overprotect country-code domains."""
     text = "Visit us at https://example.co.uk. Thanks."
-    segments = [s.strip() for s in default_en_no_clean_no_span_fixture.segment(text)]
-    assert segments == ["Visit us at https://example.co.uk.", "Thanks."]
+    assert_segments(
+        default_en_no_clean_no_span_fixture,
+        text,
+        ["Visit us at https://example.co.uk.", "Thanks."],
+    )
 
 
 @pytest.mark.parametrize(
@@ -175,5 +178,4 @@ def test_en_url_with_country_code_domain(default_en_no_clean_no_span_fixture):
     ],
 )
 def test_en_additional_abbreviations(default_en_no_clean_no_span_fixture, text, expected):
-    segments = [s.strip() for s in default_en_no_clean_no_span_fixture.segment(text)]
-    assert segments == expected
+    assert_segments(default_en_no_clean_no_span_fixture, text, expected)
