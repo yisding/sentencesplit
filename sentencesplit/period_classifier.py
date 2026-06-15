@@ -95,6 +95,18 @@ class AbbrPolicy:
     # boundary_class is NOT stored here: it is read off ``_AbbreviationData.boundary_class``
     # at construction so fr/it elision ("\\s’'") is automatic and never duplicated.
     follower_class: str = "[a-z]"
+    # Per-stem REGULAR-branch follower-class override. ``(stems, follower_class)``:
+    # any candidate whose elision-stripped lowercased abbreviation is in *stems*
+    # uses *follower_class* in the REGULAR branch (and its global-realization suffix)
+    # instead of ``follower_class`` above. Kazakh uses this to widen the ASCII
+    # ``[a-z]`` follower to the Kazakh-Cyrillic + Latin lowercase class
+    # ``[a-zа-яёәғқңөұүһі]`` for the 39 formerly-dotted stems ("обл. қала" does NOT
+    # split) WITHOUT touching the always-dotless stems ("См. рис." still splits).
+    # The override only widens the lowercase-letter slot; the rest of the REGULAR
+    # suffix (``\.|:|-|\?|,`` and ``\s(I\s|I'm|I'll|\d|\()``) is identical, so a
+    # WIDE stem rides the base REGULAR dispatch with one swapped class. Base None ==
+    # every stem uses ``follower_class``.
+    regular_follower_overrides: tuple[frozenset[str], str] | None = None
     # An extra follower alternative WITHOUT a leading ``\s`` (so it matches a
     # follower that sits immediately after the period). en_es_zh uses the CJK
     # ideograph class ``[㐀-鿿]`` here: "U.S.标准" / "etc.标准" protect even
@@ -223,7 +235,20 @@ class PeriodClassifier:
         # prepositive / number-lower suffixes (they keep the base no-CJK shape).
         cjk = ("|" + policy.cjk_follower_class) if policy.cjk_follower_class else ""
         cjk_other = "" if policy.cjk_follower_regular_only else cjk
-        self.RE_REGULAR = re.compile(r"\.(?=((\.|\:|-|\?|,)" + cjk + r"|(\s(" + fc + r"|I\s|I'm|I'll|\d|\())))")
+
+        def _regular(follower: str) -> re.Pattern[str]:
+            return re.compile(r"\.(?=((\.|\:|-|\?|,)" + cjk + r"|(\s(" + follower + r"|I\s|I'm|I'll|\d|\())))")
+
+        self.RE_REGULAR = _regular(fc)
+        # Per-stem REGULAR follower-class override (kazakh): a second REGULAR regex
+        # with a widened follower class, selected by ``_regular_re`` for the
+        # override stems only. Inert (empty set) for every other policy.
+        if policy.regular_follower_overrides is not None:
+            self._regular_override_stems, override_class = policy.regular_follower_overrides
+            self.RE_REGULAR_OVERRIDE = _regular(override_class)
+        else:
+            self._regular_override_stems = frozenset()
+            self.RE_REGULAR_OVERRIDE = self.RE_REGULAR
         self.RE_PREPOSITIVE = re.compile(r"\.(?=(\s|:\d+" + cjk_other + r"))")
         # The number UPPER arms intentionally carry NO ``cjk`` alternative: in the
         # legacy en_es_zh override the upper branch fires only for an ASCII-upper
@@ -257,6 +282,13 @@ class PeriodClassifier:
         if self.data.elision_chars and am and am[0] in self.data.elision_chars:
             return am[1:]
         return am
+
+    def _regular_re(self, am_lower: str) -> re.Pattern[str]:
+        """REGULAR-branch suffix regex for *am_lower*: the per-stem widened variant
+        for an override stem (kazakh), else the base ``RE_REGULAR``."""
+        if am_lower in self._regular_override_stems:
+            return self.RE_REGULAR_OVERRIDE
+        return self.RE_REGULAR
 
     def _follower_is_upper(self, c: Candidate) -> bool:
         """Whether *c*'s follower counts as the capital-is-boundary cue (@652).
@@ -360,8 +392,9 @@ class PeriodClassifier:
         if am_lower in num:
             return self._classify_number_with_suffix(c, line, upper)
         # 5) REGULAR branch (@568/574/679)
-        if self.RE_REGULAR.match(line, c.period_idx):
-            return Decision.PROTECT, self.RE_REGULAR.pattern
+        regular = self._regular_re(am_lower)
+        if regular.match(line, c.period_idx):
+            return Decision.PROTECT, regular.pattern
         return Decision.BOUNDARY, None
 
     def _classify_prepositive(self, c: Candidate, line: str, am_lower: str) -> Decision:
@@ -402,8 +435,9 @@ class PeriodClassifier:
             # so any uppercase follower already took the UPPER arm above.
             if self.policy.ascii_only_upper_heuristic and c.follower_char and c.follower_char.isupper():
                 return Decision.BOUNDARY, None
-            if self.RE_REGULAR.match(line, i):
-                return Decision.PROTECT, self.RE_REGULAR.pattern
+            regular = self._regular_re(self._elision_strip(c.am_stripped).lower())
+            if regular.match(line, i):
+                return Decision.PROTECT, regular.pattern
             return Decision.BOUNDARY, None
         return Decision.BOUNDARY, None  # single-char 'p' excluded (@676)
 
@@ -441,8 +475,8 @@ class PeriodClassifier:
             if num_low.match(line, c.period_idx):
                 return num_low.pattern
             # multi-char NUMBER -> REGULAR fallthrough (@676)
-            return self.RE_REGULAR.pattern
-        return self.RE_REGULAR.pattern
+            return self._regular_re(am_lower).pattern
+        return self._regular_re(am_lower).pattern
 
     def _full_pattern(self, am_escaped: str, suffix: str) -> re.Pattern[str]:
         key = (am_escaped, suffix)

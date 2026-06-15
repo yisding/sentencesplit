@@ -3,7 +3,7 @@ import re
 
 from sentencesplit.abbreviation_replacer import DEFAULT_POST_STAGES, AbbreviationReplacer
 from sentencesplit.lang.common import Common, Standard, canonical_abbreviations
-from sentencesplit.period_classifier import NOT_HANDLED, AbbrPolicy, Decision
+from sentencesplit.period_classifier import AbbrPolicy
 from sentencesplit.processor import Processor
 from sentencesplit.utils import Rule, apply_rules
 
@@ -23,12 +23,13 @@ from sentencesplit.utils import Rule, apply_rules
 # stems, not to every Kazakh abbreviation (else "См. рис." — matching the
 # always-dotless "см" — would newly protect before lowercase " рис", diverging
 # from the retired pass). ``_KK_WIDE_FOLLOWER_STEMS`` is the frozen set of those
-# stems (lowercase, dot already removed); a candidate whose abbreviation is in it
-# is classified against ``_KK_WIDE_REGULAR_RE`` (the base REGULAR shape with the
-# Kazakh-Cyrillic + Latin lowercase follower class), and every other candidate
-# falls through to the base ASCII-follower dispatch. ``base`` policy's REGULAR
-# arms ``\.|:|-|\?|,`` and ``\s(I\s|I'm|I'll|\d|\()`` already match what the pass
-# protected, so only the lowercase-letter slot needs widening for this set.
+# stems (lowercase, dot already removed). It is wired into KK_POLICY as a
+# ``regular_follower_overrides`` FIELD (S10): the base dispatch's REGULAR branch
+# uses the widened follower class for these stems and the ASCII ``[a-z]`` class for
+# every other stem, so Kazakh rides the base dispatch with NO bespoke
+# ``classify_special``/``realize_suffix`` pair. The base policy's REGULAR arms
+# ``\.|:|-|\?|,`` and ``\s(I\s|I'm|I'll|\d|\()`` already match what the retired
+# pass protected, so only the lowercase-letter slot needs widening for this set.
 _KK_WIDE_FOLLOWER_STEMS = frozenset(
     {
         "авг",
@@ -73,25 +74,12 @@ _KK_WIDE_FOLLOWER_STEMS = frozenset(
     }
 )
 
-# Base REGULAR suffix (period_classifier.PeriodClassifier.RE_REGULAR) with the
-# follower class widened from ASCII ``[a-z]`` to Kazakh-Cyrillic + Latin lowercase,
-# matching the retired ``replace_period_of_kazakh_abbr`` lookahead exactly.
+# Follower class for the WIDE stems: the base REGULAR suffix's ASCII ``[a-z]``
+# slot widened to Kazakh-Cyrillic + Latin lowercase, matching the retired
+# ``replace_period_of_kazakh_abbr`` lookahead exactly. The classifier builds the
+# full REGULAR regex (lowercase slot replaced by this class) once from the
+# ``regular_follower_overrides`` field below.
 _KK_WIDE_FOLLOWER_CLASS = "[a-zа-яёәғқңөұүһі]"
-_KK_WIDE_REGULAR_SUFFIX = r"\.(?=((\.|\:|-|\?|,)|(\s(" + _KK_WIDE_FOLLOWER_CLASS + r"|I\s|I'm|I'll|\d|\())))"
-_KK_WIDE_REGULAR_RE = re.compile(_KK_WIDE_REGULAR_SUFFIX)
-
-
-def _kk_classify_special(pc, line, c):
-    """Apply the WIDE Cyrillic-lowercase follower test to the formerly-dotted stems
-    only; defer every other candidate to the base ASCII-follower dispatch."""
-    if pc._elision_strip(c.am_stripped).lower() not in _KK_WIDE_FOLLOWER_STEMS:
-        return NOT_HANDLED
-    return Decision.PROTECT if _KK_WIDE_REGULAR_RE.match(line, c.period_idx) else Decision.BOUNDARY
-
-
-def _kk_realize_suffix(pc, c, line, d):
-    """Global-realization suffix for the WIDE-follower PROTECT decisions."""
-    return _KK_WIDE_REGULAR_SUFFIX
 
 
 def _kk_protect_before_parenthesis(r) -> None:
@@ -103,12 +91,15 @@ def _kk_protect_before_parenthesis(r) -> None:
     r.protect_multi_period_abbreviations_before_parenthesis()
 
 
-# Kazakh rides the default downstream pipeline and appends one extra post-pass
-# (the paren protection above), owned by the policy now (S1) so ``replace()`` only
-# customizes the Kazakh upstream Cyrillic-initial rules and runs the driver.
+# Kazakh rides the base REGULAR dispatch with NO bespoke classify_special /
+# realize_suffix pair (S10): the ``regular_follower_overrides`` field widens the
+# REGULAR follower class to Kazakh-Cyrillic + Latin lowercase for the 39
+# formerly-dotted stems only ("обл. қала" joins; "См. рис." still splits), and the
+# default downstream pipeline gets one extra post-pass (the paren protection
+# above), owned by the policy now (S1) so ``replace()`` only customizes the Kazakh
+# upstream Cyrillic-initial rules and runs the driver.
 KK_POLICY = AbbrPolicy(
-    classify_special=_kk_classify_special,
-    realize_suffix=_kk_realize_suffix,
+    regular_follower_overrides=(_KK_WIDE_FOLLOWER_STEMS, _KK_WIDE_FOLLOWER_CLASS),
     post_stages=DEFAULT_POST_STAGES + (_kk_protect_before_parenthesis,),
 )
 
@@ -437,9 +428,12 @@ class Kazakh(Common, Standard):
         # (``scan_for_replacements`` / ``replace_period_of_abbr`` are inherited;
         # ``PREPOSITIVE_ABBREVIATIONS`` and ``NUMBER_ABBREVIATIONS`` are empty;
         # ``CAPITALIZED_FOLLOWER_IS_BOUNDARY_CUE`` stays False), so its per-line
-        # step is the BASE REGULAR branch with one widened arm: ``KK_POLICY``
-        # swaps the ASCII ``[a-z]`` follower class for the Kazakh-Cyrillic + Latin
-        # lowercase class ``[a-zа-яёәғқңөұүһі]`` so "обл. қала" does NOT split.
+        # step is the BASE REGULAR dispatch with one widened arm: ``KK_POLICY``'s
+        # ``regular_follower_overrides`` field widens the ASCII ``[a-z]`` follower
+        # class to the Kazakh-Cyrillic + Latin lowercase class
+        # ``[a-zа-яёәғқңөұүһі]`` for the 39 ``_KK_WIDE_FOLLOWER_STEMS`` only, so
+        # "обл. қала" does NOT split while "См. рис." (always-dotless "см") still
+        # does (S10).
         #
         # Previously the single-token Kazakh abbreviations ("обл.", "тех.", "м." …)
         # were stored WITH a trailing dot, so the automaton keyed them as
@@ -447,8 +441,8 @@ class Kazakh(Common, Standard):
         # ``replace_single_period_abbreviations`` pass compensated by sentinelizing
         # their period before a lowercase follower BEFORE the classifier ran. The
         # data now stores them dotless (keyed "<abbr>."), the classifier enumerates
-        # them directly, and ``KK_POLICY``'s follower class reproduces exactly what
-        # the retired pass protected — so that whole-text pass (and its
+        # them directly, and ``KK_POLICY``'s widened follower override reproduces
+        # exactly what the retired pass protected — so that whole-text pass (and its
         # ``_LOWERCASE_CONTINUATION_CHARS`` helper) is gone.
         #
         # Two Kazakh-specific whole-text passes remain because they cannot collapse
