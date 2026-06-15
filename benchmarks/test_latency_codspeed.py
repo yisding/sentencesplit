@@ -35,6 +35,17 @@ MEDIUM = (
 # A larger realistic document: repeat the medium sample to ~5 KB of prose.
 LARGE = " ".join([MEDIUM] * 20)
 
+# Abbreviation-dense legal prose. General prose spends little time in the
+# abbreviation phase, so the V2 PeriodClassifier change is barely visible there;
+# this dense sample (run through the en_legal profile below) is the workload that
+# actually guards the engine rewrite against regression.
+LEGAL = (
+    "Dr. Smith, Jr., Ph.D., M.D., et al., v. U.S. Dept. of Justice, No. 21-1234, "
+    "slip op. at 3 (2d Cir. Mar. 5, 2021). See 5 U.S.C. § 552(a)(4)(B); cf. Fed. R. "
+    "Civ. P. 12(b)(6). Mr. Lee, Esq., of Lee & Co., LLP, argued for appellant. The "
+    "Hon. J. Roberts, C.J., wrote for the majority. Compare id. at 5, with Ibid. n.7."
+)
+
 _SAMPLES = {"short": SHORT, "medium": MEDIUM, "large": LARGE}
 # Whitespace-delimited token stream (LLM/ASR-like) for the streaming benchmark.
 _STREAM_TOKENS = [tok + " " for tok in MEDIUM.split(" ")]
@@ -57,6 +68,13 @@ def en_segmenter() -> Segmenter:
 
 
 @pytest.fixture(scope="module")
+def en_legal_segmenter() -> Segmenter:
+    # The abbreviation-dense domain profile; pairs with the LEGAL sample to track
+    # the V2 abbreviation engine on the workload it most affects.
+    return Segmenter(language="en_legal", clean=False)
+
+
+@pytest.fixture(scope="module")
 def segmenter_cache() -> dict[str, Segmenter]:
     # Reused across parametrized cases so per-language construction stays out of
     # the timed callable.
@@ -67,6 +85,20 @@ def segmenter_cache() -> dict[str, Segmenter]:
 def test_segment(benchmark, en_segmenter: Segmenter, sample: str) -> None:
     text = _SAMPLES[sample]
     benchmark(en_segmenter.segment, text)
+
+
+@pytest.mark.parametrize("sample", ["short", "medium", "large"])
+def test_segment_spans(benchmark, en_segmenter: Segmenter, sample: str) -> None:
+    # segment_spans is the canonical span API in v2 (the char_span constructor arg
+    # was removed), so the span-mapping path gets its own regression guard.
+    text = _SAMPLES[sample]
+    benchmark(en_segmenter.segment_spans, text)
+
+
+def test_segment_legal_dense(benchmark, en_legal_segmenter: Segmenter) -> None:
+    # Abbreviation-dense legal text through the en_legal profile: the workload the
+    # V2 PeriodClassifier change is most visible on.
+    benchmark(en_legal_segmenter.segment, LEGAL)
 
 
 @pytest.mark.parametrize("sample", ["short", "medium", "large"])
