@@ -3,13 +3,18 @@ from __future__ import annotations
 
 import re
 
+from sentencesplit._normalize import (
+    _ZERO_WIDTH_CHARS,
+    _ZERO_WIDTH_CLASS,
+    strip_zero_width,
+    terminal_punctuation,
+)
 from sentencesplit.cleaner import Cleaner
 from sentencesplit.exceptions import InvalidConfigurationError
 from sentencesplit.languages import Language
 from sentencesplit.processor import Processor
 from sentencesplit.utils import (
     SPLIT_MODES,
-    ZERO_WIDTH_CHARS,
     DocType,
     SegmentLookahead,
     SplitMode,
@@ -37,77 +42,12 @@ _LANGUAGE_LOOKAHEAD_STEMS = {
 }
 _DIGIT_LOOKAHEAD_STEM = "1"
 _PERIOD_END_PUNCTUATION = frozenset({".", "．"})
-_TRAILING_SENTENCE_CLOSERS = frozenset("\"')]}»”’）】》」』")
-# Zero-width / format characters that str.isspace() does not flag. A lone one
-# (e.g. a Wikipedia U+200B reference marker) at a boundary survives str.strip()
-# and is otherwise emitted as a phantom sentence or folded into the next one.
-_ZERO_WIDTH_CHARS = frozenset(ZERO_WIDTH_CHARS)
-_ZERO_WIDTH_TRANSLATION = {ord(c): None for c in _ZERO_WIDTH_CHARS}
-_ZERO_WIDTH_CLASS = re.escape("".join(_ZERO_WIDTH_CHARS))
-# Fast presence test so the per-segment closer scan can early-out on the common
-# case of text with no zero-width/format characters at all.
-_ZERO_WIDTH_SEARCH_RE = re.compile(f"[{_ZERO_WIDTH_CLASS}]")
 
 # Above this length, the whole-sentence flexible-regex span fallback (which
 # emits ~8 pattern chars per input char with no cache) is replaced by a linear
 # whitespace/zero-width-tolerant index walk. Real sentences are far shorter than
 # this; the cap exists only to bound CPU on adversarial single-"sentence" input.
 _REGEX_FALLBACK_MAX_LEN = 4096
-
-
-def _strip_zero_width(text: str, punctuations=None) -> str:
-    """Drop boundary zero-width/format characters from a (plain, non-span) segment.
-
-    Only the leading/trailing run of whitespace-or-zero-width is cleaned, and
-    even there whitespace is kept — just the stray zero-width artifact (e.g. a
-    lone U+200B Wikipedia reference marker) is removed. Interior zero-width
-    joiners are preserved, so emoji sequences (👩‍💻) and scripts that use
-    U+200C/U+200D within a word (e.g. Hindi, Persian) are not corrupted.
-    """
-
-    def _is_boundary_trim(ch: str) -> bool:
-        return ch.isspace() or ch in _ZERO_WIDTH_CHARS
-
-    start, end = 0, len(text)
-    while start < end and _is_boundary_trim(text[start]):
-        start += 1
-    while end > start and _is_boundary_trim(text[end - 1]):
-        end -= 1
-    lead = text[:start].translate(_ZERO_WIDTH_TRANSLATION)
-    trail = text[end:].translate(_ZERO_WIDTH_TRANSLATION)
-    core = text[start:end]
-    if punctuations:
-        core = _strip_zero_width_before_sentence_closers(core, punctuations)
-    return lead + core + trail
-
-
-def _strip_zero_width_before_sentence_closers(text: str, punctuations) -> str:
-    # The only edit this makes is dropping a zero-width run that sits between a
-    # sentence terminator and a closing quote/bracket; with no zero-width char
-    # present it rebuilds the string unchanged, so skip the char-by-char scan.
-    if not _ZERO_WIDTH_SEARCH_RE.search(text):
-        return text
-    chars = []
-    punctuation_set = frozenset(punctuations)
-    index = 0
-    text_len = len(text)
-    while index < text_len:
-        char = text[index]
-        if char not in _ZERO_WIDTH_CHARS:
-            chars.append(char)
-            index += 1
-            continue
-
-        run_start = index
-        while index < text_len and text[index] in _ZERO_WIDTH_CHARS:
-            index += 1
-
-        previous_char = chars[-1] if chars else ""
-        next_char = text[index] if index < text_len else ""
-        if previous_char in punctuation_set and next_char in _TRAILING_SENTENCE_CLOSERS:
-            continue
-        chars.append(text[run_start:index])
-    return "".join(chars)
 
 
 class Segmenter:
@@ -203,7 +143,7 @@ class Segmenter:
         return text
 
     def _strip_zero_width(self, text: str) -> str:
-        return _strip_zero_width(text, self.language_module.Punctuations)
+        return strip_zero_width(text, self.language_module.Punctuations)
 
     def _processor_text(self, text: str) -> str:
         if self.clean:
@@ -211,15 +151,7 @@ class Segmenter:
         return self._strip_zero_width(text)
 
     def _terminal_punctuation(self, text: str) -> tuple[int, str] | None:
-        idx = len(text) - 1
-        while idx >= 0 and (text[idx] in _TRAILING_SENTENCE_CLOSERS or text[idx] in _ZERO_WIDTH_CHARS):
-            idx -= 1
-        if idx < 0:
-            return None
-        punct = text[idx]
-        if punct not in self.language_module.Punctuations:
-            return None
-        return idx, punct
+        return terminal_punctuation(text, self.language_module.Punctuations)
 
     def _lookahead_probe_stems(self) -> tuple[str, ...]:
         stems = _LANGUAGE_LOOKAHEAD_STEMS.get(self.language, _DEFAULT_LOOKAHEAD_STEMS)

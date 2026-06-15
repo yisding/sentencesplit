@@ -65,6 +65,7 @@ regardless of mode.
 
 from __future__ import annotations
 
+from sentencesplit._normalize import strip_zero_width, terminal_punctuation
 from sentencesplit.exceptions import InvalidConfigurationError
 from sentencesplit.segmenter import Segmenter
 from sentencesplit.utils import BufferingMode, SplitMode, TextSpan
@@ -238,8 +239,9 @@ class StreamSegmenter:
         if self.char_span:
             return items
         out: list[str] = []
+        punctuations = self._segmenter.language_module.Punctuations
         for span in items:
-            text = self._segmenter._strip_zero_width(span.sent)
+            text = strip_zero_width(span.sent, punctuations)
             if text.strip():
                 out.append(text)
         return out
@@ -256,7 +258,8 @@ class StreamSegmenter:
         """
         if not is_final:
             return True
-        if self._segmenter._terminal_punctuation(span.sent.rstrip()) is None:
+        punctuations = self._segmenter.language_module.Punctuations
+        if terminal_punctuation(span.sent.rstrip(), punctuations) is None:
             return False
         if self.buffering_mode == "aggressive":
             # Trust terminal punctuation immediately, before lookahead confirms.

@@ -1,8 +1,9 @@
 import pytest
 
 import sentencesplit
+from sentencesplit._normalize import strip_zero_width_before_sentence_closers
 from sentencesplit.languages import LANGUAGE_CODES
-from sentencesplit.segmenter import _DIGIT_LOOKAHEAD_STEM, _LANGUAGE_LOOKAHEAD_STEMS, _strip_zero_width_before_sentence_closers
+from sentencesplit.segmenter import _DIGIT_LOOKAHEAD_STEM, _LANGUAGE_LOOKAHEAD_STEMS
 from sentencesplit.utils import ZERO_WIDTH_CHARS, SegmentLookahead
 from tests.helpers import assert_span_contract, lookahead_sample_for_language, three_sentence_stream_sample
 
@@ -194,7 +195,7 @@ def test_boundary_zero_width_before_sentence_closers_is_linear():
 
     text = CountingStr("?" + "\u200b" * 2000 + '"')
 
-    assert _strip_zero_width_before_sentence_closers(text, {"?"}) == '?"'
+    assert strip_zero_width_before_sentence_closers(text, {"?"}) == '?"'
     assert text.getitem_calls < len(text) * 4
 
 
