@@ -5,6 +5,14 @@ import re
 
 from sentencesplit.abbreviation_replacer import AbbreviationReplacer
 from sentencesplit.between_punctuation import BetweenPunctuation
+from sentencesplit.boundary_resplit import (
+    _CJK_BANG_RESPLIT_RE,
+    _CJK_QUOTE_RESPLIT_RE,
+    _LATIN_RESPLIT_RE,
+    _MULTI_TERMINATOR_RESPLIT_RE,
+    _split_on_uppercase_boundary,
+    merge_quote_continuations,
+)
 from sentencesplit.lang.common import Common, Standard, canonical_abbreviations
 from sentencesplit.lang.common.cjk import (
     _QUOTE_CLOSER_RE,
@@ -15,14 +23,7 @@ from sentencesplit.lang.common.cjk import (
 )
 from sentencesplit.lang.spanish import Spanish
 from sentencesplit.period_classifier import AbbrPolicy
-from sentencesplit.processor import (
-    _CJK_BANG_RESPLIT_RE,
-    _CJK_QUOTE_RESPLIT_RE,
-    _LATIN_RESPLIT_RE,
-    _MULTI_TERMINATOR_RESPLIT_RE,
-    Processor,
-    _split_on_uppercase_boundary,
-)
+from sentencesplit.processor import Processor
 from sentencesplit.utils import _next_nonspace_char_starts_sentence
 
 _CJK_FOLLOWING_CHAR_RE = re.compile(r"[\u3400-\u9FFF]")
@@ -128,46 +129,19 @@ class EnglishSpanishChinese(CJKBoundaryProfile, Common, Standard):
                         continue
                     for part in _CJK_QUOTE_RESPLIT_RE.split(latin_part):
                         resplit.extend(p for p in _CJK_BANG_RESPLIT_RE.split(part) if p)
-            return self._merge_combined_quote_continuations(resplit or postprocessed_sents)
-
-        # NOTE: distinct from CJKProcessor._merge_quote_continuations /
-        # _should_merge_quote_continuation (lang/common/cjk.py). The combined
-        # profile does not set CJK_REPORTING_CLAUSE_REGEX (its profile value is
-        # None), so it cannot take the regex from self.profile like the CJK
-        # variants do; it hardcodes the module-global CJK_REPORTING_CLAUSE_RE and
-        # adds extra Latin-closer / separator handling. The differently-named
-        # methods make that divergence explicit rather than a silent overload.
-        def _merge_combined_quote_continuations(self, sentences: list[str]) -> list[str]:
-            merged: list[str] = []
-            idx = 0
-            while idx < len(sentences):
-                current = sentences[idx]
-                if merged and self._should_merge_combined_quote_continuation(merged[-1], current):
-                    separator = "" if _CJK_FOLLOWING_CHAR_RE.match(current.lstrip()) else " "
-                    merged[-1] = merged[-1] + separator + current.lstrip()
-                else:
-                    merged.append(current)
-                idx += 1
-            return merged
-
-        def _should_merge_combined_quote_continuation(self, previous: str, current: str) -> bool:
-            previous = previous.rstrip()
-            current = current.lstrip()
-            if not previous or not current:
-                return False
-            closer = _QUOTE_CLOSER_RE.search(previous)
-            if not closer:
-                return False
-            # A lowercase Latin continuation is only a quote continuation after a
-            # Latin quote closer ("…" then he said). After a CJK closer (」』》】)
-            # a lowercase word is a separate sentence (matching standalone zh);
-            # only the CJK reporting clause re-merges those.
-            is_cjk_closer = any(c in _CJK_QUOTE_CLOSERS for c in closer.group())
-            if current[0].islower() and not is_cjk_closer:
-                return True
-            if CJK_REPORTING_CLAUSE_RE.match(current):
-                return True
-            return False
+            # Unlike the CJK variants (lang/common/cjk.py), the combined profile
+            # does not set CJK_REPORTING_CLAUSE_REGEX (its profile value is None),
+            # so it passes the module-global CJK_REPORTING_CLAUSE_RE explicitly and
+            # enables the extra Latin-closer (latin_lowercase_continuation) and
+            # CJK-ideograph-separator handling that the shared merger supports.
+            return merge_quote_continuations(
+                resplit or postprocessed_sents,
+                closer_re=_QUOTE_CLOSER_RE,
+                reporting_clause_re=CJK_REPORTING_CLAUSE_RE,
+                latin_lowercase_continuation=True,
+                cjk_closers=_CJK_QUOTE_CLOSERS,
+                cjk_follower_re=_CJK_FOLLOWING_CHAR_RE,
+            )
 
         def _is_orphan_content_char(self, c: str) -> bool:
             # Combined profile also treats CJK ideographs as orphan content so a
