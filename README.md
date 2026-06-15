@@ -350,6 +350,16 @@ from `sentencesplit.languages` and the documented ISO 639-1 language codes (see
 `Processor` internals, and the nested language hooks — is private and may change
 without notice.
 
+**spaCy component.** The package registers a `spacy_factories` entry point so spaCy
+users can do `nlp.add_pipe("sentencesplit")` (see [spaCy integration](#spacy-integration)).
+The *stable* contract is the registered factory name `"sentencesplit"` and its
+`language` config option, both of which follow the SemVer policy above. The underlying
+Python factory (`sentencesplit.spacy_component.create_sentencesplit` and the
+`SentenceSplitFactory` class) is deliberately **not** in `sentencesplit.__all__`: its
+call signature tracks spaCy's factory protocol rather than this library's API, so it may
+change with spaCy's requirements without a SemVer bump here. Add the component by name —
+do not import or subclass the factory directly.
+
 **Output stability.** Sentence segmentation output is *not* part of the frozen API.
 It MAY change in minor or patch releases when the change is a net accuracy
 improvement; any such output change is recorded in [CHANGELOG.md](CHANGELOG.md).
