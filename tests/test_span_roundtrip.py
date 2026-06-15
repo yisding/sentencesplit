@@ -27,9 +27,22 @@ from __future__ import annotations
 import pytest
 
 import sentencesplit
-from sentencesplit.languages import LANGUAGE_CODES
 from sentencesplit.utils import TextSpan
-from tests.helpers import assert_span_contract
+from tests.helpers import (
+    ALL_CODES,
+    BOM,
+    COMBINING_ACUTE,
+    DIRTY_CHARS,
+    LRM,
+    NBSP,
+    RLM,
+    RTL_OVERRIDE,
+    ZWJ,
+    ZWNJ,
+    ZWSP,
+    assert_span_contract,
+)
+from tests.helpers import text_strategy as _text_strategy
 
 try:
     from hypothesis import given, settings
@@ -37,80 +50,10 @@ try:
 except ImportError:  # pragma: no cover - dev-only dependency
     pytest.skip("hypothesis is a dev-only dependency", allow_module_level=True)
 
-
-# Every registered code (24 languages + en_es_zh + en_legal). The round-trip
-# contract is language-agnostic, so exercising the full registry is free safety.
-ALL_CODES = sorted(LANGUAGE_CODES.keys())
-
-# Dirty / format characters that survive str.strip() and have historically
-# corrupted spans if mishandled.
-ZWSP = "​"  # zero-width space
-ZWNJ = "‌"  # zero-width non-joiner
-ZWJ = "‍"  # zero-width joiner
-NBSP = " "  # no-break space
-BOM = "﻿"  # byte-order mark / zero-width no-break space
-COMBINING_ACUTE = "́"  # combining acute accent (decomposed 'á' tail)
-RTL_OVERRIDE = "‮"  # right-to-left override (directional format)
-LRM = "‎"  # left-to-right mark
-RLM = "‏"  # right-to-left mark
-
-DIRTY_CHARS = [ZWSP, ZWNJ, ZWJ, NBSP, BOM, COMBINING_ACUTE, RTL_OVERRIDE, LRM, RLM]
-
-# Per-script alphabets used to build realistic generated inputs. Languages not
-# listed fall back to the Latin alphabet, which is harmless for span fidelity.
-_SCRIPT_ALPHABETS = {
-    "ar": "مرحبا كيف حالك",
-    "fa": "سلام چطوری دوست",
-    "ur": "سلام کیا حال ہے",
-    "zh": "你好世界甲乙丙",
-    "ja": "こんにちはあいうえお漢字",
-    "hi": "नमस्ते अच्छा है",
-    "mr": "नमस्कार छान आहे",
-    "el": "Αλφα βητα γαμμα δελτα",
-    "ru": "Привет как дела",
-    "bg": "Здравей как си",
-    "kk": "Сәлем қалайсың",
-    "hy": "Բարև ինչպես ես",
-    "am": "ሰላም እንዴት ነህ",
-    "my": "မင်္ဂလာပါ နေကောင်းလား",
-    "en_es_zh": "Hola hello 你好 world mundo 世界",
-}
-
-# Script-appropriate terminal punctuation so generated text actually splits.
-_SCRIPT_TERMINALS = {
-    "ar": "؟ . ",
-    "fa": "؟ . ",
-    "ur": "۔ ؟ ",
-    "zh": "。 ！ ？ ",
-    "ja": "。 ！ ？ ",
-    "hi": "। ! ? ",
-    "mr": "। ! ? ",
-    "el": ". ; ! ",
-    "am": "። ! ? ",
-    "my": "။ ၊ ? ",
-    "hy": "։ ՜ ՞ ",
-}
-
-
-def _alphabet_for(code: str) -> str:
-    return _SCRIPT_ALPHABETS.get(code, "Hello world the quick brown fox")
-
-
-def _terminals_for(code: str) -> str:
-    return _SCRIPT_TERMINALS.get(code, ". ! ? ")
-
-
-def _text_strategy(code: str) -> st.SearchStrategy[str]:
-    """Build a per-language text strategy: script letters, terminals, whitespace,
-    and the full dirty-character set, assembled into short strings (including the
-    empty string and whitespace-only / dirty-only strings)."""
-    pool = list(_alphabet_for(code)) + list(_terminals_for(code))
-    pool += ["\n", "\t", " ", "  "]
-    pool += DIRTY_CHARS
-    # Repeat the terminal/whitespace tokens so boundaries are actually exercised.
-    pool += [". ", "! ", "? ", "\n", " "]
-    char_st = st.sampled_from(pool)
-    return st.lists(char_st, min_size=0, max_size=24).map("".join)
+# Dirty-character constants, ``ALL_CODES``, and the per-language
+# ``_text_strategy`` are promoted into ``tests/helpers.py`` and imported above
+# so both the span round-trip contract and the core ``segment()`` property
+# tests share one source.
 
 
 # --------------------------------------------------------------------------- #
