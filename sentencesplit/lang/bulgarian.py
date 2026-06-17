@@ -33,7 +33,7 @@ from sentencesplit.lang.common.whole_span_abbr import whole_span_policy
 # (``r"(?<=\s{abbr})\.".format(abbr=abbr)``), so each interior ``.`` of a multi-period
 # abbreviation became a regex WILDCARD. When a genuine ``б.р.`` fired the automaton,
 # the global ``re.sub`` then ALSO protected an unrelated decoy on the same line whose
-# shape matched the wildcard ("…б.р. … бхр. …" -> the spurious "бхр∯"). The V2 path
+# shape matched the wildcard ("…б.р. … бхр. …" -> the spurious "бхр∯"). The classifier
 # classifies + splices only the candidates the reachability gate (word-boundary,
 # re.escape-d ``match_re``) actually enumerates, so only the genuine ``б.р.`` is
 # protected and the decoy keeps its boundary period — linguistically correct, and
@@ -138,7 +138,7 @@ class Bulgarian(Common, Standard):
         PREPOSITIVE_ABBREVIATIONS = []
 
     class AbbreviationReplacer(AbbreviationReplacer):
-        # V2 PeriodClassifier (Phase 5). The legacy ``replace_period_of_abbr``
+        # Routed through the PeriodClassifier. The former ``replace_period_of_abbr``
         # override — an UNCONDITIONAL trailing-period protect plus a WHOLE-SPAN
         # interior-period protect for Cyrillic multi-period abbreviations ("б.р",
         # "бел.пр", "к.с") so the boundary regex does not shatter the token

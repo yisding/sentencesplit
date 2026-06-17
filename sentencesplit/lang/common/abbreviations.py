@@ -18,7 +18,7 @@ def canonical_abbreviations(*lists: list[str]) -> list[str]:
     (``tests/test_languages.py``) assert each list equals its canonical form so a
     future non-canonical addition is caught.
 
-    Lowercasing is behavior-neutral for the V2 engine: the Aho-Corasick automaton
+    Lowercasing is behavior-neutral for the engine: the Aho-Corasick automaton
     keys on ``stripped.lower()``, ``match_re`` is ``re.IGNORECASE``, and the
     ``abbr_set``/``prepositive_set``/``number_abbr_set`` are all lowercased — so an
     entry's stored case never reaches a behavioral decision. Accepts one or more

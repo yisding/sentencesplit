@@ -25,8 +25,8 @@ from sentencesplit.utils import Rule
 # Already-correct (not a quirk fix): the legacy rule escaped ``am`` before
 # interpolation (the only Arabic-script override that did — see
 # tests/regression/test_arabic_script_abbreviation_metachar.py), so a dotted
-# abbreviation like ``e.g`` did not wildcard-match an unrelated ``egg.``. The V2
-# path uses ``data.abbreviations[idx][2]`` (the pre-built ``re.escape``) for the
+# abbreviation like ``e.g`` did not wildcard-match an unrelated ``egg.``. The
+# classifier uses ``data.abbreviations[idx][2]`` (the pre-built ``re.escape``) for the
 # lookbehind in ``_full_pattern``, so the literal ``.`` stays escaped and the same
 # regression case keeps splitting.
 _AR_PROTECT_BARE = re.compile(r"\.")
@@ -65,7 +65,7 @@ class ArabicScriptProfile:
     ReplaceColonBetweenNumbersRule = Rule(r"(?<=\d):(?=\d)", "♭")
 
     class AbbreviationReplacer(AbbreviationReplacer):
-        # V2 single-pass classifier (Phase 5). ``AR_POLICY`` reproduces the legacy
+        # Single-pass classifier. ``AR_POLICY`` reproduces the former
         # bare-period protect (any follower) as an ``AbbrPolicy`` hook: the matched
         # abbreviation occurs at a word boundary and its period is always
         # non-terminal (Arabic script has no letter case, so no capital-follower

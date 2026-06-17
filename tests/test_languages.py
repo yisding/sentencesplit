@@ -102,9 +102,9 @@ def test_single_token_abbreviations_have_no_trailing_dot(code):
     period; see ``abbreviation_replacer._AbbreviationData.__init__``). A single-token
     abbreviation stored WITH a trailing dot is therefore keyed ``<abbr>..`` and is
     never enumerated as a candidate by the period classifier — so its period is
-    never protected via the main path. This is the exact rot mode the V2 cleanup
-    closed; it must stay closed for every registered language (including future
-    additions).
+    never protected via the main path. This is the exact rot mode the abbreviation
+    cleanup closed; it must stay closed for every registered language (including
+    future additions).
 
     Only single-token entries are checked: an entry with an INTERNAL dot
     (initialisms like ``s.r.o``, ``p.m.``) or any whitespace (multi-token entries
@@ -128,7 +128,7 @@ def test_abbreviations_are_canonical_form(code):
     de-duplicated, and sorted. Languages build their list THROUGH that helper, so
     this lint is the guard that a future hand-edited addition (a stray uppercase
     entry, an out-of-order or duplicate literal) is caught instead of silently
-    rotting. Lowercasing is behavior-neutral for the V2 engine: the automaton keys
+    rotting. Lowercasing is behavior-neutral for the engine: the automaton keys
     on ``stripped.lower()``, ``match_re`` is ``re.IGNORECASE``, and the
     abbr/prepositive/number sets are all lowercased.
     """

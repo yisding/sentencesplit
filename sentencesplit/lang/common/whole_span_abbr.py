@@ -23,9 +23,9 @@ from sentencesplit.period_classifier import NOT_HANDLED, AbbrPolicy, Candidate, 
 # realizes the whole-span splice; ``realize_per_occurrence`` anchors each
 # word-boundary occurrence to its own span.
 #
-# Quirk FIXED (BC not required, plan §3, reviewed Golden-Rule-anchored): the legacy
+# Quirk FIXED (BC not required, reviewed Golden-Rule-anchored): the former
 # ``str.replace`` / unescaped-lookbehind ``re.sub`` were GLOBAL and could mutate an
-# unrelated EMBEDDED / decoy occurrence on the same line. The V2 per-occurrence path
+# unrelated EMBEDDED / decoy occurrence on the same line. The per-occurrence classifier path
 # classifies + splices only the candidates the reachability gate (word-boundary,
 # ``re.escape``-d ``match_re``) actually enumerates, so the spurious
 # cross-contamination is dropped. No Golden Rule exercises that case.

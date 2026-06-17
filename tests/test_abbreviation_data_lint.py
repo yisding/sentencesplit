@@ -5,7 +5,7 @@ The four storage-shape data tests in ``test_languages.py`` only check that the
 ``ABBREVIATIONS`` lists are well-formed (deduped, trimmed, no single-token
 trailing dot, canonical order). None of them checks that an entry actually *works*
 — i.e. that the engine keeps the period after it NON-terminal. Hundreds of
-declared entries silently rot because the V2 automaton + ``match_re`` +
+declared entries silently rot because the automaton + ``match_re`` +
 ``PeriodClassifier`` path cannot enumerate them.
 
 This module renders each entry in a neutral lowercase-follower carrier
@@ -16,19 +16,17 @@ possible context to protect (the base REGULAR branch's follower class is
 
 QUARANTINE (discoverable backlog)
 ---------------------------------
-~70 declared entries fail this contract today (down from ~95: S6 made the base
-``MULTI_PERIOD_ABBREVIATION_REGEX`` Unicode-aware and sentinel-aware, promoting
+~70 declared entries fail this contract today (down from ~95: making the base
+``MULTI_PERIOD_ABBREVIATION_REGEX`` Unicode-aware and sentinel-aware promoted
 the ~26 non-ASCII single-final-letter multi-period initialisms out of the list).
 The remaining failures are NOT bugs introduced here; they are a pre-existing,
 now-*measured* gap. Rather than red CI, each known failure is listed in
 ``QUARANTINE`` below and converted to an ``xfail`` at runtime (``pytest.xfail`` is
 unaffected by the global ``xfail_strict=true``, so a quarantined entry that later
 starts working simply turns GREEN — it never XPASS-reds the suite). The allowlist
-is the remaining backlog for S6's successors; promote entries out of it as they
-are made to work.
+is the remaining backlog; promote entries out of it as they are made to work.
 
-The remaining failures fall into two families (see
-``analysis/V2_REFACTOR_ROADMAP.md`` S5/S6):
+The remaining failures fall into two families:
 
 1. **Mid-token breaks.** The entry contains structure the engine cannot carry
    through one ``match_re`` + automaton key — and which the now-Unicode base

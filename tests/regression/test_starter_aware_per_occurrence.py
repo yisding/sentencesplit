@@ -6,13 +6,13 @@ prepositives: in ``aggressive`` mode the boundary decision depends on the
 per-occurrence follower (``_follower_is_likely_sentence_start``) — "Cir. held"
 joins, "Cir. The" splits.
 
-The V2 PeriodClassifier realizes a PROTECT decision GLOBALLY per (abbr, follower)
+The PeriodClassifier realizes a PROTECT decision GLOBALLY per (abbr, follower)
 unit by re-anchoring a follower-independent suffix (``\\.(?=(\\s|:\\d+))``). For a
 position-dependent starter-aware decision that is wrong: a single joined "Cir."
 on a line re-protected EVERY other "Cir. <whitespace>" on that line, so a sibling
 occurrence that should end a sentence was wrongly merged. ``en_legal`` now uses an
 ``AbbrPolicy(realize_per_occurrence=True)`` so each occurrence is anchored to its
-own period from its own context (matching the pre-V2 per-match ``re.sub`` callback).
+own period from its own context (matching the former per-match ``re.sub`` callback).
 """
 
 import pytest

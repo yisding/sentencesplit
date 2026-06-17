@@ -193,8 +193,8 @@ class Russian(Common, Standard):
         NUMBER_ABBREVIATIONS = []
 
     class AbbreviationReplacer(AbbreviationReplacer):
-        # V2: route abbreviation protection through the PeriodClassifier. The
-        # legacy override touched ONLY the regular branch (PREPOSITIVE/NUMBER lists
+        # Route abbreviation protection through the PeriodClassifier. The
+        # former override touched ONLY the regular branch (PREPOSITIVE/NUMBER lists
         # are empty), so RU_POLICY.classify_special re-encodes it as data:
         #   - protect a known abbreviation's period unconditionally (no follower
         #     lookahead — "5 куб.м." keeps "куб." even with no space before "м");

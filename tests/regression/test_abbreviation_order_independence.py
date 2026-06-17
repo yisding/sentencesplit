@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Regression: abbreviation protection must be order-independent on a single line.
 
-The V2 ``PeriodClassifier`` deduplicates candidates to ONE representative per
+The ``PeriodClassifier`` deduplicates candidates to ONE representative per
 ``(am_lower, follower_char)`` key and then realizes the representative's decision
 GLOBALLY over the line. ``follower_char`` is populated only for the ``". "``
 (period + ASCII space) case; every other real follower — an immediate non-space

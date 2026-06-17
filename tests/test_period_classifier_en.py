@@ -1,12 +1,12 @@
 # -*- coding: utf-8 -*-
-"""Focused unit tests for the V2 English ``PeriodClassifier`` decision logic.
+"""Focused unit tests for the English ``PeriodClassifier`` decision logic.
 
 These exercise each branch of ``classify`` in isolation (REGULAR / PREPOSITIVE /
 NUMBER, with the upper/Roman/?? sub-cases and the multi-char number -> regular
 fallthrough), the candidate enumeration reachability gate, the dedup +
 global-per-unit realization, the PLACEHOLDER edit shape, and the ``_rebuild``
-non-overlap guard. The maintainability deliverable of Phase 2 is that each
-per-period decision is unit-testable without driving the whole pipeline.
+non-overlap guard. Each per-period decision is unit-testable in isolation,
+without driving the whole pipeline.
 """
 
 from __future__ import annotations

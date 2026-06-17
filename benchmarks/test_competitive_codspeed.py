@@ -37,7 +37,7 @@ MEDIUM = (
     "She paid $4.50 for the U.S. edition (vol. 2, p. 17). Mr. Lee agreed."
 )
 LARGE = " ".join([MEDIUM] * 20)
-# Abbreviation-dense prose: the workload the V2 abbreviation engine reworked, where
+# Abbreviation-dense prose: the workload the abbreviation engine reworked, where
 # the engines' handling of "Dr."/"No."/"U.S."/"et al." diverges most. Same input for
 # all three engines, so the per-size rows stay directly comparable.
 DENSE = (

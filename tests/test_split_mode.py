@@ -61,7 +61,7 @@ def test_split_mode_ampm_dial_applies_to_german_override():
 
 
 def test_split_mode_number_abbrev_dial_applies_to_en_es_zh_override():
-    # en_es_zh rides EN_ES_ZH_POLICY in the V2 period classifier; the conservative
+    # en_es_zh rides EN_ES_ZH_POLICY in the period classifier; the conservative
     # number-abbrev dial must apply there too, while "Vol. IV" stays joined in
     # every mode.
     text = "See Fig. Several panels follow."

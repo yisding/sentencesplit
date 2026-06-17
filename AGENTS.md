@@ -18,8 +18,7 @@ Tests are in `tests/`:
 Docs and research assets:
 - `README.md`: install, public API, lookahead behavior, multi-language usage, and spaCy integration.
 - `CONTRIBUTING.md`: contribution workflow and TDD guidance.
-- `analysis/`: comparison scripts plus checked-in JSON/Markdown reports.
-- `benchmarks/`: benchmark helpers and golden-rule benchmark data.
+- `benchmarks/`: benchmark helpers, the cross-library comparison harness, and golden-rule benchmark data.
 - `examples/`: runnable examples, including the spaCy component and timing script.
 
 ## Build, Test, and Development Commands

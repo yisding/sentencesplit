@@ -272,10 +272,9 @@ class AbbreviationReplacer:
     PROTECT_ALLCAPS_IMPRINT_SUFFIXES = False
     RESTORE_STANDALONE_I_BOUNDARIES = False
 
-    # V2 single-pass period classifier. The per-line abbreviation-protection step
-    # always routes through PeriodClassifier (the legacy per-occurrence re.sub loop
-    # was retired in Phase 6 / cutover). ABBR_POLICY selects the per-language policy
-    # by data; None resolves to period_classifier.BASE_POLICY lazily.
+    # Single-pass period classifier. The per-line abbreviation-protection step
+    # always routes through PeriodClassifier. ABBR_POLICY selects the per-language
+    # policy by data; None resolves to period_classifier.BASE_POLICY lazily.
     ABBR_POLICY = None
 
     # Opt-in for scripts (e.g. Greek, Cyrillic) that do not capitalize common
@@ -392,7 +391,7 @@ class AbbreviationReplacer:
             self._data = AbbreviationReplacer._data_cache[abbr_class]
 
     def _period_classifier(self):
-        """Return a V2 PeriodClassifier, reusing the one cached per
+        """Return a PeriodClassifier, reusing the one cached per
         ``(policy, split_mode, replacer_cls)`` on the shared ``_AbbreviationData``.
 
         The classifier's compiled ``RE_*`` suffix patterns and ``_full_cache`` are
@@ -437,10 +436,6 @@ class AbbreviationReplacer:
                 pc = cache.setdefault(key, pc)
         self._pc = pc
         return pc
-
-    def classifier_protect_positions_for_line(self, line: str) -> list[int]:
-        """Oracle adapter (tests/v2/oracle.py:166,184): protected period offsets in *line*."""
-        return self._period_classifier().protect_positions(line)
 
     @property
     def _leans_split(self) -> bool:

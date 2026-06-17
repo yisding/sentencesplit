@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Single-pass period classifier for abbreviation boundary protection (V2 engine).
+"""Single-pass period classifier for abbreviation boundary protection.
 
 This module implements the ``PeriodClassifier`` that replaces ONLY the per-line
 abbreviation-protection step inside
@@ -9,8 +9,7 @@ the upstream single-letter/possessive rules, ``replace_multi_period_abbreviation
 the compact-ampm / uppercase-initialism / allcaps-imprint / ampm / standalone-I
 passes all still run after this step and still see the same ``∯``/``.`` mix.
 
-Design (per ``analysis/ABBREVIATION_ENGINE_V2_PLAN.md`` §2): each candidate period
-is classified ONCE from the ORIGINAL line text (never from a sentinel left by a
+Design: each candidate period is classified ONCE from the ORIGINAL line text (never from a sentinel left by a
 prior decision), into one of three decisions — PROTECT (``.`` -> ``∯``), BOUNDARY
 (``.`` stays), or PLACEHOLDER (the rare number-abbr ``??`` case). The decisions
 are then realized GLOBALLY per (abbr, follower-char) unit — mirroring the legacy

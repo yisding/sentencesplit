@@ -10,7 +10,7 @@ from sentencesplit.utils import Rule
 # a naive Unicode letter class (or the ``(?<!\w)`` lookbehind the bg/el overrides
 # use) treats CJK as ``\w`` and mis-anchors ``项目代号是A.I.-7。`` — greedily eating
 # ``号是`` into the match — so the base MUST anchor on this non-CJK-aware class
-# (see ``test_chinese.py::test_zh_challenging`` and V2 roadmap S6). The excluded
+# (see ``test_chinese.py::test_zh_challenging``). The excluded
 # ranges are Hiragana/Katakana, CJK Unified + Ext A, CJK Compatibility Ideographs,
 # Hangul syllables, Bopomofo, and Halfwidth/Fullwidth forms.
 _NON_CJK_LETTER = r"[^\W\d_぀-ヿ㐀-䶿一-鿿豈-﫿가-힯㄀-ㄯ＀-￯]"

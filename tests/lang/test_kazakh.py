@@ -105,9 +105,9 @@ def test_kk_single_period_abbreviations_do_not_split_before_cyrillic_lowercase(k
     assert kk_default_fixture.segment(text) == [text]
 
 
-# --- Parity assertions re-homed from the retired v2 oracle (tests/v2/oracle.py) ---
-# The deleted differential oracle froze two Kazakh facts about KK_POLICY's
-# follower-class dispatch; they are asserted here directly at segment() level.
+# --- Kazakh KK_POLICY follower-class parity assertions ---
+# Two Kazakh facts about KK_POLICY's follower-class dispatch, asserted directly at
+# the segment() level.
 
 
 def test_kk_obl_wide_follower_keeps_period_joined(kk_default_fixture):

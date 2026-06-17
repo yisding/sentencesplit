@@ -76,7 +76,7 @@ class EnglishSpanishChinese(CJKBoundaryProfile, Common, Standard):
         PROTECT_ALLCAPS_IMPRINT_SUFFIXES = True
         RESTORE_STANDALONE_I_BOUNDARIES = True
 
-        # V2: route the per-line abbreviation-protection step through the
+        # Route the per-line abbreviation-protection step through the
         # PeriodClassifier. EN_ES_ZH_POLICY re-encodes the two formerly-
         # overridden methods (replace_period_of_abbr + scan_for_replacements)
         # as data:

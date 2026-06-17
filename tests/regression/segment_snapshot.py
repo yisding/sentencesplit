@@ -1,14 +1,13 @@
-"""Deterministic 26-language ``segment()`` snapshot for the V2 abbreviation-engine
-cleanup.
+"""Deterministic 26-language ``segment()`` regression snapshot.
 
-Phase 0 of the cleanup builds a frozen baseline of the live engine's ``segment()``
-output across every registered language code, using each language's *own*
-Golden-Rule inputs (extracted straight from ``tests/lang/test_<lang>.py``) plus a
-short, hand-fixed script-appropriate sample per language. Later phases re-run
-``build_snapshot()`` and call ``diff()`` against the saved JSON
-(``tests/v2/segment_snapshot.json``) to surface every changed ``(lang, input)``
-pair so it can be adjudicated as an intended correctness change or caught as a
-regression.
+Builds a frozen baseline of the live engine's ``segment()`` output across every
+registered language code, using each language's *own* Golden-Rule inputs
+(extracted straight from ``tests/lang/test_<lang>.py``) plus a short, hand-fixed
+script-appropriate sample per language. ``build_snapshot()`` re-runs the engine
+and ``diff()`` compares it against the saved JSON
+(``tests/regression/segment_snapshot.json``) to surface every changed
+``(lang, input)`` pair so it can be adjudicated as an intended correctness change
+or caught as a regression.
 
 Determinism contract
 --------------------
@@ -35,9 +34,9 @@ from sentencesplit.languages import LANGUAGE_CODES
 from sentencesplit.segmenter import Segmenter
 
 # --------------------------------------------------------------------------- paths
-_V2_DIR = Path(__file__).resolve().parent
-_LANG_TEST_DIR = _V2_DIR.parent / "lang"
-SNAPSHOT_PATH = _V2_DIR / "segment_snapshot.json"
+_THIS_DIR = Path(__file__).resolve().parent
+_LANG_TEST_DIR = _THIS_DIR.parent / "lang"
+SNAPSHOT_PATH = _THIS_DIR / "segment_snapshot.json"
 
 # Unit separator: cannot appear in any of our inputs, keeps the key reversible.
 _KEY_SEP = "\x1f"
@@ -294,7 +293,7 @@ def _print_diff(records: list[dict[str, object]]) -> None:
 def _main(argv: list[str]) -> int:
     """CLI entry point.
 
-    * ``python -m tests.v2.segment_snapshot`` (bare) — diff the live engine
+    * ``python -m tests.regression.segment_snapshot`` (bare) — diff the live engine
       against the committed baseline and exit non-zero if they differ. A bare
       run is *read-only*: it never rewrites the baseline.
     * ``--diff`` / ``diff`` — explicit alias for the read-only diff above.

@@ -18,7 +18,7 @@ class Greek(Common, Standard):
         # Greek flags — PROTECT_ALLCAPS_IMPRINT_SUFFIXES, NON_LATIN_CAPITAL_STARTS_SENTENCE
         # — plus the Unicode MULTI_PERIOD_ABBREVIATION_REGEX drive only the later
         # passes (replace_multi_period_abbreviations, the all-caps imprint /
-        # uppercase-initialism restores) that V2 leaves untouched, so no policy
+        # uppercase-initialism restores) that the classifier leaves untouched, so no policy
         # hook is needed.
         CAPITALIZED_FOLLOWER_IS_BOUNDARY_CUE = True
         PROTECT_ALLCAPS_IMPRINT_SUFFIXES = True

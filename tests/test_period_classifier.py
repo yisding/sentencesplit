@@ -1,11 +1,11 @@
 # -*- coding: utf-8 -*-
-"""First-class, multi-language unit suite for the V2 ``PeriodClassifier``.
+"""First-class, multi-language unit suite for the ``PeriodClassifier``.
 
-``tests/v2/test_classifier_en.py`` already covers the English (``BASE_POLICY``)
-decision logic branch-by-branch. This module is the cross-language companion T4
-asks for: it exercises every *policy seam* the classifier exposes through the
-shipping languages that actually use it, so a regression in one language's
-``AbbrPolicy`` is caught at the classifier level instead of only at ``segment()``:
+``tests/test_period_classifier_en.py`` already covers the English (``BASE_POLICY``)
+decision logic branch-by-branch. This module is the cross-language companion: it
+exercises every *policy seam* the classifier exposes through the shipping
+languages that actually use it, so a regression in one language's ``AbbrPolicy``
+is caught at the classifier level instead of only at ``segment()``:
 
 * the three base classify branches (REGULAR / PREPOSITIVE / NUMBER) plus the
   capital-follower-is-boundary cue, on a non-English base-policy language;

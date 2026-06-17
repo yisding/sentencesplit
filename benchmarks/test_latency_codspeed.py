@@ -41,7 +41,7 @@ def en_segmenter() -> Segmenter:
 @pytest.fixture(scope="module")
 def en_legal_segmenter() -> Segmenter:
     # The abbreviation-dense domain profile; pairs with the LEGAL sample to track
-    # the V2 abbreviation engine on the workload it most affects.
+    # the abbreviation engine on the workload it most affects.
     return Segmenter(language="en_legal", clean=False)
 
 
@@ -60,7 +60,7 @@ def test_segment(benchmark, en_segmenter: Segmenter, sample: str) -> None:
 
 @pytest.mark.parametrize("sample", ["short", "medium", "large"])
 def test_segment_spans(benchmark, en_segmenter: Segmenter, sample: str) -> None:
-    # segment_spans is the canonical span API in v2 (the char_span constructor arg
+    # segment_spans is the canonical span API (the char_span constructor arg
     # was removed), so the span-mapping path gets its own regression guard.
     text = _SAMPLES[sample]
     benchmark(en_segmenter.segment_spans, text)
@@ -68,7 +68,7 @@ def test_segment_spans(benchmark, en_segmenter: Segmenter, sample: str) -> None:
 
 def test_segment_legal_dense(benchmark, en_legal_segmenter: Segmenter) -> None:
     # Abbreviation-dense legal text through the en_legal profile: the workload the
-    # V2 PeriodClassifier change is most visible on.
+    # PeriodClassifier is most visible on.
     benchmark(en_legal_segmenter.segment, LEGAL)
 
 

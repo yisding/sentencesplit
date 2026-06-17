@@ -25,7 +25,7 @@ class Chinese(CJKBoundaryProfile, Common, Standard):
     CJK_REPORTING_CLAUSE_REGEX = CJK_REPORTING_CLAUSE_RE
 
     class AbbreviationReplacer(AbbreviationReplacer):
-        # V2: route the per-line abbreviation-protection step through the
+        # Route the per-line abbreviation-protection step through the
         # PeriodClassifier. ZH_POLICY re-encodes the formerly-overridden
         # ``replace_period_of_abbr`` (the regular branch) as data — the base
         # ``[a-z]`` follower class plus a CJK-ideograph follower

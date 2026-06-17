@@ -108,11 +108,8 @@ ENV/
 # vscode
 .vscode/
 
-# Regenerable benchmark/analysis JSON dumps (produced by sibling
-# analysis/benchmark scripts; not consumed by tests or the package).
-analysis/*comparison*.json
-analysis/*results*.json
-analysis/verdicts.json
+# Regenerable benchmark JSON dumps (produced by the comparison harness;
+# not consumed by tests or the package).
 benchmarks/corpus_compare/results/divergences_all.json
 benchmarks/corpus_compare/results/verdicts.json
 

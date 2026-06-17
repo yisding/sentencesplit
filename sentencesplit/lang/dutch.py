@@ -14,7 +14,7 @@ class Dutch(Common, Standard):
         # keep balanced mode on the joined side for that 3+ initials ambiguity.
         # This is a language-specific exception: aggressive still splits.
         # UPPERCASE_INITIALISM_SPLIT_MIN_RANK drives the later uppercase-initialism
-        # pass that V2 leaves untouched, so it is unaffected by the classifier.
+        # pass that the classifier leaves untouched, so it is unaffected by it.
         UPPERCASE_INITIALISM_SPLIT_MIN_RANK = 2
 
     class Abbreviation(Standard.Abbreviation):

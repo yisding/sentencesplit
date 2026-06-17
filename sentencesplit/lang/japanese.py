@@ -55,7 +55,7 @@ class Japanese(CJKBoundaryProfile, Common, Standard):
             self.text = apply_rules(self.text, NewLineInMiddleOfWordRule)
 
     class AbbreviationReplacer(AbbreviationReplacer):
-        # V2: route the per-line abbreviation-protection step through the
+        # Route the per-line abbreviation-protection step through the
         # PeriodClassifier. JA_POLICY re-encodes the formerly-overridden
         # ``replace_period_of_abbr`` (the regular branch) as data — the base
         # ``[a-z]`` follower class plus a kana+CJK-ideograph follower

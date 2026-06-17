@@ -34,7 +34,7 @@ class Danish(Common, Standard):
         # base PeriodClassifier (BASE_POLICY) directly. The classifier reads the
         # CAPITALIZED_FOLLOWER_IS_BOUNDARY_CUE flag off this replacer, so no
         # policy hook is needed; PROTECT_ALLCAPS_IMPRINT_SUFFIXES runs in a later
-        # pass that V2 leaves untouched.
+        # pass that the classifier leaves untouched.
         CAPITALIZED_FOLLOWER_IS_BOUNDARY_CUE = True
         PROTECT_ALLCAPS_IMPRINT_SUFFIXES = True
 

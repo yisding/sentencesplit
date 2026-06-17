@@ -432,7 +432,7 @@ class Kazakh(Common, Standard):
         NUMBER_ABBREVIATIONS = []
 
     class AbbreviationReplacer(AbbreviationReplacer):
-        # V2: route the per-line abbreviation-protection step through the
+        # Route the per-line abbreviation-protection step through the
         # PeriodClassifier. Kazakh overrides ZERO scan methods
         # (``scan_for_replacements`` / ``replace_period_of_abbr`` are inherited;
         # ``PREPOSITIVE_ABBREVIATIONS`` and ``NUMBER_ABBREVIATIONS`` are empty;

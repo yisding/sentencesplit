@@ -4,7 +4,7 @@ Settles which abbreviation-*discovery* mechanism is faster at each input size.
 Both find the identical set of present abbreviations; this times only that
 discovery step (not the per-occurrence regex replacement that follows it).
 
-Finding (see analysis/SHORT_STRING_LATENCY_PLAN.md §2a): our pure-Python
+Finding: our pure-Python
 automaton is faster on short input; the `in` loop only overtakes around
 ~100-150 chars. So the scan is *not* the short-string bottleneck — it is ~3% of
 the call — and must not be replaced.

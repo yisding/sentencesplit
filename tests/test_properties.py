@@ -17,7 +17,7 @@ language code:
 
 QUARANTINE (discoverable backlog)
 ---------------------------------
-Invariants (2) and (3) are *not* universally true of the live v2 engine — they
+Invariants (2) and (3) are *not* universally true of the live engine — they
 are real, pre-existing gaps this module turns into a measured backlog rather
 than papering over. Each known-failing code is listed in a quarantine allowlist
 with a **deterministic counterexample**; for those codes the test asserts the

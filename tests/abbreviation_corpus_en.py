@@ -1,23 +1,20 @@
 # -*- coding: utf-8 -*-
-"""Curated English abbreviation-boundary correctness corpus (V2 acceptance gate).
+"""Curated English abbreviation-boundary correctness corpus.
 
-Per ``analysis/ABBREVIATION_ENGINE_V2_PLAN.md`` §1.2 and §1.5, this corpus is a
-PRIMARY gate (alongside the Golden Rules + full suite), NOT a legacy-mimicry
-oracle. Each entry labels the **linguistically-correct** sentence segmentation —
-which is *not always* what the legacy engine produces today.
+This corpus is a PRIMARY correctness gate (alongside the Golden Rules + full
+suite), NOT a behavior-mimicry oracle. Each entry labels the
+**linguistically-correct** sentence segmentation.
 
-Entries are ``CorpusCase`` records. ``xfail=True`` marks a case the LEGACY engine
+Entries are ``CorpusCase`` records. ``xfail=True`` marks a case the engine
 currently gets wrong or quirky; the listed ``expected`` is the linguistically
-correct target, and these become the Phase-2 correctness targets for the V2
-``PeriodClassifier`` (the classifier "may FIX load-bearing quirks", plan §0).
-A non-xfail entry must pass on the current engine and must keep passing through
-the V2 cutover.
+correct target. A non-xfail entry must pass on the current engine and must keep
+passing.
 
-Categories covered (V2_RFC_EVALUATION §4): trailing-period abbreviations,
-multi-period initialisms (U.S.A., I.B.M.), a.m./p.m., number abbreviations and
-the ``??`` placeholder analogue, prepositive starters, adjacent-abbreviation
-chains, initials+surname, possessive/standalone ``I``, and decimals/structural
-non-abbreviation periods that must stay boundaries-or-not correctly.
+Categories covered: trailing-period abbreviations, multi-period initialisms
+(U.S.A., I.B.M.), a.m./p.m., number abbreviations and the ``??`` placeholder
+analogue, prepositive starters, adjacent-abbreviation chains, initials+surname,
+possessive/standalone ``I``, and decimals/structural non-abbreviation periods
+that must stay boundaries-or-not correctly.
 """
 
 from __future__ import annotations
@@ -30,7 +27,7 @@ class CorpusCase:
     text: str
     expected: list[str]
     category: str
-    xfail: bool = False  # True => legacy engine currently diverges from `expected`
+    xfail: bool = False  # True => engine currently diverges from `expected`
     note: str = ""
     tags: tuple[str, ...] = field(default_factory=tuple)
     lang: str = "en"  # language code the case is segmented under (en / en_legal)
@@ -239,7 +236,7 @@ _GREEN: list[CorpusCase] = [
         ["We met at 10 a.m. ", "Monday morning."],
         "ampm-capital-follower",
     ),
-    # ---- titled-name prefix / timezone unit (Phase-3 fixes, promoted from xfail) -
+    # ---- titled-name prefix / timezone unit (fixes promoted from xfail) ---------
     CorpusCase(
         "Ph.D. Smith arrived. He lectured.",
         ["Ph.D. Smith arrived. ", "He lectured."],
@@ -265,12 +262,10 @@ _GREEN: list[CorpusCase] = [
             "timezone name after a.m./p.m. is recognized by the ampm zone guard."
         ),
     ),
-    # ---- en/en_legal parity (re-homed from the retired v2 oracle) -------------
-    # The deleted differential oracle (tests/v2/oracle.py) froze the per-period
-    # protect decisions of the (now-removed) legacy engine. Its load-bearing
-    # English assertion — Dr./Sen./No./Vol. keep their period non-terminal, the
-    # boundary lands at the real sentence break — is captured here directly at the
-    # segment() level so the parity it guarded survives the oracle's deletion.
+    # ---- en/en_legal abbreviation-period parity -------------------------------
+    # These pin the per-period protect decisions at the segment() level: Dr./Sen./
+    # No./Vol. keep their period non-terminal and the boundary lands at the real
+    # sentence break, and the en vs en_legal contrast on 'Bankr.' is locked in.
     CorpusCase(
         "Dr. Smith met Sen. Jones. See No. 5 and Vol. IV. The 9th Cir. reversed.",
         [
@@ -278,9 +273,8 @@ _GREEN: list[CorpusCase] = [
             "See No. 5 and Vol. IV. ",
             "The 9th Cir. reversed.",
         ],
-        "oracle-parity-en",
+        "abbr-period-parity-en",
         note=(
-            "Re-homed from oracle._LEGACY_SNAPSHOT[('en', ...)] = [2, 17, 32, 43]: "
             "Dr./Sen./No./Vol. periods stay joined (non-terminal); in plain 'en' "
             "the 9th Cir. period is NOT a registered prepositive abbreviation, but "
             "the lowercase follower 'reversed' keeps it joined anyway."
@@ -295,18 +289,17 @@ _GREEN: list[CorpusCase] = [
             "Cf. ",
             "id. at 5.",
         ],
-        "oracle-parity-en",
+        "abbr-period-parity-en",
         note=(
-            "Re-homed from oracle._LEGACY_SNAPSHOT[('en', ...)] = [29]: in plain "
-            "'en', 'Bankr.' is NOT a registered abbreviation, so it splits before "
-            "the capitalized 'Court'; only the lowercase-followed 'Cir.' stays "
-            "joined. Contrast the ('en_legal', ...) case below where 'Bankr.' joins."
+            "In plain 'en', 'Bankr.' is NOT a registered abbreviation, so it splits "
+            "before the capitalized 'Court'; only the lowercase-followed 'Cir.' "
+            "stays joined. Contrast the ('en_legal', ...) case below where 'Bankr.' "
+            "joins."
         ),
     ),
     # en_legal specializes English: 'Bankr.' (a legal prepositive) keeps its
     # period non-terminal before the capitalized 'Court', so 'See Bankr. Court.'
-    # is one sentence. This is the en_legal-only arm of the oracle snapshot
-    # (legacy positions [9, 29, 47] included Bankr. at 9; plain 'en' did not).
+    # is one sentence — the en_legal-only contrast with plain 'en' above.
     CorpusCase(
         "See Bankr. Court. The 9th Cir. reversed. Cf. id. at 5.",
         [
@@ -315,22 +308,18 @@ _GREEN: list[CorpusCase] = [
             "Cf. ",
             "id. at 5.",
         ],
-        "oracle-parity-en-legal",
-        note=(
-            "Re-homed from oracle._LEGACY_SNAPSHOT[('en_legal', ...)] = [9, 29, 47]: "
-            "the legal profile registers 'Bankr.' as prepositive, so it joins "
-            "'Bankr. Court' where plain 'en' splits."
-        ),
+        "abbr-period-parity-en-legal",
+        note=("The legal profile registers 'Bankr.' as prepositive, so it joins 'Bankr. Court' where plain 'en' splits."),
         lang="en_legal",
     ),
 ]
 
 
-# --- Cases the LEGACY engine currently gets WRONG (Phase-2 correctness targets) -
+# --- Cases the engine currently gets WRONG (correctness targets) ---------------
 # `expected` is the linguistically-correct target; xfail=True marks the divergence.
-# The three original Phase-2 targets (Ph.D.-surname titled name, the Dr.+Ph.D.
-# title chain, and the "9 a.m. Eastern Standard Time" timezone unit) were fixed in
-# Phase 3 (downstream multi-period / a.m.-p.m. passes) and promoted to _GREEN.
+# The original targets (Ph.D.-surname titled name, the Dr.+Ph.D. title chain, and
+# the "9 a.m. Eastern Standard Time" timezone unit) have all been fixed in the
+# downstream multi-period / a.m.-p.m. passes and promoted to _GREEN.
 _XFAIL: list[CorpusCase] = []
 
 

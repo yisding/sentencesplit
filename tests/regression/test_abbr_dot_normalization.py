@@ -3,7 +3,7 @@
 
 The Aho-Corasick prefilter keys an abbreviation as ``<abbr>.`` (it appends a
 period). An entry already stored *with* a trailing dot (e.g. ``"обл."``, ``"np."``)
-was therefore keyed ``<abbr>..`` and never enumerated as a candidate by the V2
+was therefore keyed ``<abbr>..`` and never enumerated as a candidate by the
 period classifier, so its period was never protected — the abbreviation silently
 over-split. The cleanup converged single-token abbreviations on the dominant
 no-trailing-dot convention (kk/pl/ar/sk) and a guard

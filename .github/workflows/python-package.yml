@@ -180,9 +180,9 @@ jobs:
               if arc not in names:
                   errors.append(f"missing language module {arc}")
 
-          # (c) no test/analysis/benchmark files may leak into the wheel.
+          # (c) no test/benchmark files may leak into the wheel.
           for name in sorted(names):
-              if name.startswith(("tests/", "analysis/", "benchmarks/")):
+              if name.startswith(("tests/", "benchmarks/")):
                   errors.append(f"leaked non-shipping path {name}")
 
           if errors:
@@ -194,6 +194,6 @@ jobs:
           print(f"Wheel contents OK: {wheel}")
           print(
               f"  py.typed shipped, {len(expected)} language modules present, "
-              "no test/analysis/benchmark leakage"
+              "no test/benchmark leakage"
           )
           PY

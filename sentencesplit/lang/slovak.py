@@ -58,7 +58,7 @@ class Slovak(Common, Standard):
             return self.text
 
     class AbbreviationReplacer(AbbreviationReplacer):
-        # V2 PeriodClassifier (Phase 5). The legacy ``replace_period_of_abbr``
+        # Routed through the PeriodClassifier. The former ``replace_period_of_abbr``
         # override — a literal whole-span ``txt.replace(abbr + ".", abbr.replace(".",
         # "∯") + "∯")`` that protected EVERY interior period of a spaced/compact
         # abbreviation ("Company name s. r. o." stays one token) UNCONDITIONALLY

@@ -26,11 +26,11 @@ _BETWEEN_UNCONVENTIONAL_DOUBLE_QUOTE_DE_RE = re.compile(r",,(?=(?P<tmp>[^“\\]+
 # below replaces every branch; ``realize_suffix_pattern`` pins the realization pass
 # to the same ``\.(?=\s)`` suffix so global PROTECT matches the decision exactly.
 #
-# Quirk FIXED (BC not required, plan §3): the legacy interpolated ``{am}``
+# Quirk FIXED (BC not required): the former interpolated ``{am}``
 # (== ``m.group()``, the boundary char + abbreviation) UNescaped into the
-# lookbehind. ``_full_pattern`` re.escapes the abbreviation, so the V2 path is
-# escape-everything-correct. The legacy "" works only by accident of the German
-# abbreviation list containing no regex metacharacters; the V2 path is robust.
+# lookbehind. ``_full_pattern`` re.escapes the abbreviation, so the classifier path is
+# escape-everything-correct. The former "" works only by accident of the German
+# abbreviation list containing no regex metacharacters; the classifier path is robust.
 _DE_PROTECT_BEFORE_WHITESPACE = re.compile(r"\.(?=\s)")
 
 
@@ -257,7 +257,7 @@ class Deutsch(Common, Standard):
         NUMBER_ABBREVIATIONS = ["art", "ca", "no", "nos", "nr", "pp"]
 
     class AbbreviationReplacer(AbbreviationReplacer):
-        # V2: route the abbreviation-protection step through the PeriodClassifier.
+        # Route the abbreviation-protection step through the PeriodClassifier.
         # DE_POLICY re-encodes the formerly-overridden ``scan_for_replacements``
         # (one rule, all branches collapsed) as data:
         #   - classify_special: PROTECT a known abbreviation's period whenever it
@@ -288,7 +288,7 @@ class Deutsch(Common, Standard):
             )
 
             # Whole-text (not per-line) abbreviation protection; this routes
-            # through the V2 classifier's single-pass rewrite (same DE_POLICY
+            # through the classifier's single-pass rewrite (same DE_POLICY
             # decision on every candidate).
             self.text = self.search_for_abbreviations_in_string(self.text)
             # DE_POLICY.post_stages is the German reduced pipeline

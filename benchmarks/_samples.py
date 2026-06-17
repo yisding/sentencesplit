@@ -18,9 +18,9 @@ MEDIUM = (
 LARGE = " ".join([MEDIUM] * 20)
 
 # Abbreviation-dense legal prose. General prose spends little time in the
-# abbreviation phase, so the V2 PeriodClassifier change is barely visible there;
-# this dense sample (run through the en_legal profile) is the workload that
-# actually guards the engine rewrite against regression.
+# abbreviation phase, so the PeriodClassifier is barely visible there; this dense
+# sample (run through the en_legal profile) is the workload that actually guards
+# the abbreviation engine against regression.
 LEGAL = (
     "Dr. Smith, Jr., Ph.D., M.D., et al., v. U.S. Dept. of Justice, No. 21-1234, "
     "slip op. at 3 (2d Cir. Mar. 5, 2021). See 5 U.S.C. § 552(a)(4)(B); cf. Fed. R. "

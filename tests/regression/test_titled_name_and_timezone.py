@@ -2,7 +2,7 @@
 """Regression: titled-name prefix and spelled-out a.m./p.m. timezone unit.
 
 These three boundaries are owned by the abbreviation passes that run AFTER the
-V2 PeriodClassifier:
+PeriodClassifier:
 
 * ``replace_multi_period_abbreviations`` — a degree/title abbreviation such as
   "Ph.D." in *name-prefix* position (opening the line, or itself preceded only
