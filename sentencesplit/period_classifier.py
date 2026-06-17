@@ -76,7 +76,6 @@ class Edit:
 @dataclass(frozen=True, slots=True)
 class Candidate:
     period_idx: int  # index of the '.' in the ORIGINAL line (== match.end())
-    occ_start: int  # m.start() (for elision/possessive context if ever needed)
     am_stripped: str  # abbreviation text as stored (elision NOT yet stripped)
     am_lower: str  # elision-stripped, lowercased am — the set-lookup / dedup key (computed once)
     am_escaped: str  # data.abbreviations[idx][2], the pre-built re.escape
@@ -344,7 +343,7 @@ class PeriodClassifier:
                 if line[end : end + 1] != ".":  # period-less skip (@601)
                     continue
                 fch = line[end + 2 : end + 3] if line[end : end + 2] == ". " else ""  # follower-char (@603)
-                cands.append(Candidate(end, m.start(), stripped, am_lower, escaped, fch))
+                cands.append(Candidate(end, stripped, am_lower, escaped, fch))
         # PER-OCCURRENCE policies (russian) classify + anchor every occurrence at
         # its own period from its own ORIGINAL context, so the (am, char) dedup
         # that the global-realize model relies on would lose distinct positions.

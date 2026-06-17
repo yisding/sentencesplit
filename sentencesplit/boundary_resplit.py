@@ -20,6 +20,7 @@ the CJK / combined-profile processors share one implementation instead of three.
 from __future__ import annotations
 
 import re
+from typing import Callable
 
 from sentencesplit.abbreviation_replacer import AbbreviationReplacer
 from sentencesplit.utils import _next_nonspace_char_starts_sentence
@@ -170,11 +171,18 @@ def _resplit_multi_sentence_quote(
     return spans
 
 
-def _split_on_uppercase_boundary(text: str, whitespace_re: re.Pattern[str]) -> list[str] | None:
+def _split_on_uppercase_boundary(
+    text: str,
+    whitespace_re: re.Pattern[str],
+    starts_sentence: Callable[[str, int], bool] = _next_nonspace_char_starts_sentence,
+) -> list[str] | None:
+    # *starts_sentence* is the boundary predicate (default: the base Latin
+    # uppercase-start test); en_es_zh passes its combined-profile variant so the
+    # split loop is shared instead of copied.
     parts = []
     last = 0
     for match in whitespace_re.finditer(text):
-        if not _next_nonspace_char_starts_sentence(text, match.end()):
+        if not starts_sentence(text, match.end()):
             continue
         parts.append(text[last : match.start()])
         last = match.end()

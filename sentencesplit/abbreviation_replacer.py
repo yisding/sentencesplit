@@ -198,7 +198,7 @@ class _AbbreviationData:
         self.abbr_set = frozenset(a.strip().lower() for a in raw)
         self.prepositive_set = frozenset(a.lower() for a in lang_abbreviation_class.PREPOSITIVE_ABBREVIATIONS)
         self.number_abbr_set = frozenset(a.lower() for a in lang_abbreviation_class.NUMBER_ABBREVIATIONS)
-        self._classifier_cache: dict[tuple[int, str], object] = {}
+        self._classifier_cache: dict[tuple[int, str, type], object] = {}
 
 
 # --------------------------------------------------------------------------- #

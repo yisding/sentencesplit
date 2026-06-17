@@ -59,20 +59,6 @@ def _next_nonspace_char_starts_combined_sentence(text: str, start: int = 0) -> b
     return False
 
 
-def _split_on_combined_sentence_boundary(text: str, whitespace_re: re.Pattern[str]) -> list[str] | None:
-    parts = []
-    last = 0
-    for match in whitespace_re.finditer(text):
-        if not _next_nonspace_char_starts_combined_sentence(text, match.end()):
-            continue
-        parts.append(text[last : match.start()])
-        last = match.end()
-    if not parts:
-        return None
-    parts.append(text[last:])
-    return [part for part in parts if part]
-
-
 class EnglishSpanishChinese(CJKBoundaryProfile, Common, Standard):
     iso_code = "en_es_zh"
 
@@ -121,8 +107,8 @@ class EnglishSpanishChinese(CJKBoundaryProfile, Common, Standard):
         def _resplit_segments(self, postprocessed_sents: list[str]) -> list[str]:
             resplit = []
             for pps in postprocessed_sents:
-                latin_parts = _split_on_uppercase_boundary(pps, _LATIN_RESPLIT_RE) or _split_on_combined_sentence_boundary(
-                    pps, _MULTI_TERMINATOR_RESPLIT_RE
+                latin_parts = _split_on_uppercase_boundary(pps, _LATIN_RESPLIT_RE) or _split_on_uppercase_boundary(
+                    pps, _MULTI_TERMINATOR_RESPLIT_RE, starts_sentence=_next_nonspace_char_starts_combined_sentence
                 )
                 for latin_part in latin_parts or [pps]:
                     if not latin_part:

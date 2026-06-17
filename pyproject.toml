@@ -148,11 +148,6 @@ addopts = ["-ra", "--strict-config", "--import-mode=importlib"]
 markers = [
   "perf: timing-sensitive performance regression guards",
 ]
-filterwarnings = [
-  # Many span-contract tests intentionally exercise the deprecated char_span
-  # alias. The dedicated regression tests still assert the warning fires.
-  "ignore:char_span is deprecated; use segment_spans\\(\\):DeprecationWarning",
-]
 
 [tool.semantic_release]
 tag_format = "v{version}"
@@ -171,9 +166,8 @@ source = ["sentencesplit"]
 
 [tool.coverage.report]
 show_missing = true
-# Conservative ratchet: floor(measured TOTAL %) minus 3. Branch coverage and
-# the intentional char_span deprecation path keep this comfortably below the
-# observed ~95% so the gate is non-flaky.
+# Conservative ratchet: floor(measured TOTAL %) minus 3. Branch coverage keeps
+# this comfortably below the observed ~95% so the gate is non-flaky.
 fail_under = 93
 exclude_lines = [
   "pragma: no cover",
