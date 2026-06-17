@@ -109,8 +109,17 @@ class Kazakh(Common, Standard):
 
     # Handling Cyrillic characters in re module
     # https://stackoverflow.com/a/10982308/5462100
+    #
+    # Sentinel-aware ``[.\u222f]`` separators/terminator, mirroring the base
+    # ``Common.MULTI_PERIOD_ABBREVIATION_REGEX`` and this language's own
+    # ``protect_multi_period_abbreviations_before_parenthesis``: when a declared
+    # dotless multi-period abbreviation ("\u0442.\u0441.\u0441") is followed by a REGULAR-branch
+    # follower, the classifier has already protected its trailing period to "\u222f"
+    # ("\u0442.\u0441.\u0441\u222f") before this pass runs, so the token must still be re-found to
+    # protect its interior dots. The ASCII-only "." form could only re-find it via a
+    # lucky shorter-prefix match; matching "\u222f" makes the whole token match directly.
     MULTI_PERIOD_ABBREVIATION_REGEX = re.compile(
-        r"\b[\u0400-\u0500]+(?:\.\s?[\u0400-\u0500])+[.]|\b[a-z](?:\.[a-z])+[.]", re.IGNORECASE
+        r"\b[\u0400-\u0500]+(?:[.\u222f]\s?[\u0400-\u0500])+[.\u222f]|\b[a-z](?:[.\u222f][a-z])+[.\u222f]", re.IGNORECASE
     )
 
     class Processor(Processor):

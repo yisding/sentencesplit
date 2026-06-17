@@ -74,7 +74,7 @@ def _ru_classify_special(pc: "PeriodClassifier", line: str, c: Candidate) -> obj
     abbr_lower = c.am_lower  # elision-stripped lowercase, computed once on the Candidate
     period_idx = c.period_idx
     match_end = period_idx + 1  # legacy match.end()
-    abbr_start = period_idx - len(c.am_stripped.strip())  # legacy match.start(2)
+    abbr_start = c.abbr_start  # legacy match.start(2); computed once on the Candidate
     if abbr_lower == "ср":
         if not _ru_starts_with_cyrillic_upper(line, match_end):
             return Decision.PROTECT

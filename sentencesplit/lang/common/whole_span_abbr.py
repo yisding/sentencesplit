@@ -45,16 +45,15 @@ def _whole_span_classify_special(pc: "PeriodClassifier", line: str, c: Candidate
 def _whole_span_protect_edit(pc: "PeriodClassifier", c: Candidate, line: str) -> "Edit":
     """Whole-span protect: ``<abbr>.`` -> ``<abbr with every '.' -> ∯>∯``.
 
-    The abbreviation text occupies ``line[period_idx - len(am) : period_idx]`` (the
-    stored ``am_stripped`` in the occurrence's ORIGINAL case); the trailing period
-    is at ``period_idx``. Reproduces ``abbr.replace(".", "∯") + "∯"`` over the full
-    span ``[am_start, period_idx + 1)``.
+    The abbreviation token occupies ``line[c.abbr_start : c.period_idx]`` (its
+    original-case text on the line); the trailing period is at ``period_idx``.
+    Reproduces ``abbr.replace(".", "∯") + "∯"`` over the full span
+    ``[abbr_start, period_idx + 1)``. ``Candidate.abbr_start`` already excludes any
+    leading elision boundary char, so no elision dance is needed here.
     """
-    am = pc._elision_strip(c.am_stripped)
-    am_start = c.period_idx - len(am)
-    span_text = line[am_start : c.period_idx]  # original-case abbreviation, no trailing '.'
+    span_text = line[c.abbr_start : c.period_idx]  # original-case abbreviation, no trailing '.'
     replacement = span_text.replace(".", "∯") + "∯"
-    return Edit(am_start, c.period_idx + 1, replacement, c.period_idx)
+    return Edit(c.abbr_start, c.period_idx + 1, replacement, c.period_idx)
 
 
 def whole_span_policy() -> AbbrPolicy:
