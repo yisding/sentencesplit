@@ -17,9 +17,10 @@ from sentencesplit.utils import Rule
 # this profile; Persian additionally inherits the full English abbreviation lists
 # (``Standard.Abbreviation`` — including prepositive/number entries like ``e.g``),
 # so the bare-protect applies uniformly to all of them, never the trichotomy.
-# ``classify_special`` replaces every branch (always PROTECT); ``realize_suffix``
-# pins the global realization pass to the same bare ``\.`` so PROTECT is realized
-# over every occurrence with the rule that decided it.
+# ``classify_special`` replaces every branch (always PROTECT);
+# ``realize_suffix_pattern`` pins the global realization pass to the same bare
+# ``\.`` so PROTECT is realized over every occurrence with the rule that decided
+# it.
 #
 # Already-correct (not a quirk fix): the legacy rule escaped ``am`` before
 # interpolation (the only Arabic-script override that did — see
@@ -42,14 +43,11 @@ def _ar_classify_special(pc: "PeriodClassifier", line: str, c: Candidate) -> obj
     return Decision.PROTECT
 
 
-def _ar_realize_suffix(pc: "PeriodClassifier", c: Candidate, line: str, d: "Decision") -> str:
-    """Arabic / Persian global-realization suffix: bare ``\\.`` for every PROTECT."""
-    return _AR_PROTECT_BARE.pattern
-
-
 AR_POLICY = AbbrPolicy(
     classify_special=_ar_classify_special,
-    realize_suffix=_ar_realize_suffix,
+    # Constant bare ``\.`` suffix for every PROTECT, independent of (c, line,
+    # decision); ``_AR_PROTECT_BARE`` stays the single source of the string.
+    realize_suffix_pattern=_AR_PROTECT_BARE.pattern,
 )
 
 

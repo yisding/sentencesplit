@@ -59,6 +59,8 @@ _QUOTE_PAIR_BY_OPENER = {opener: closer for opener, closer in _QUOTE_PAIRS}
 _LEADING_QUOTE_RE = re.compile(r"\A[\s_]*([“\"«])")
 _QUOTE_ABBREVIATION_SCAN_TRANS = str.maketrans({char: " " for char in "".join(_QUOTE_PAIR_BY_OPENER) + "([{"})
 # Any quotation character — used to reject quotes with nested quotes/attribution.
+# Intentionally quotes-only (no brackets): a narrower set than
+# ``_normalize._TRAILING_SENTENCE_CLOSERS`` for this specific role, not a duplicate.
 _ANY_QUOTE_CHARS = frozenset("“”\"«»‘’'")
 # Interior boundary inside a restored (already de-protected) quoted segment: a
 # single PERIOD, optional whitespace, then an uppercase-letter sentence start.

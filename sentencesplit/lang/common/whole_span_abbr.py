@@ -37,8 +37,7 @@ def _whole_span_classify_special(pc: "PeriodClassifier", line: str, c: Candidate
     REGULAR abbreviations PROTECT unconditionally; PREPOSITIVE/NUMBER fall through
     (``NOT_HANDLED``) to the base trichotomy, which neither language overrides.
     """
-    am_lower = pc._elision_strip(c.am_stripped).lower()
-    if am_lower in pc.data.prepositive_set or am_lower in pc.data.number_abbr_set:
+    if c.am_lower in pc.data.prepositive_set or c.am_lower in pc.data.number_abbr_set:
         return NOT_HANDLED
     return Decision.PROTECT
 

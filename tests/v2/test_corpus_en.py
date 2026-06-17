@@ -33,14 +33,27 @@ def test_corpus_en_green(segmenters: dict[str, Segmenter], case) -> None:
     assert seg.segment(case.text) == case.expected, case.note or case.category
 
 
+def _xfail_params() -> list:
+    # Wrap each Phase-2 target in a per-case strict xfail marker rather than
+    # calling pytest.xfail() inside the body: the imperative call raises
+    # immediately, short-circuiting the assert below so the case could never
+    # XPASS and the strict-xfail promotion gate was dead. As a marker the assert
+    # actually runs, so a fix that makes the case pass XPASSes and (being strict)
+    # turns the suite red, forcing promotion to a GREEN case.
+    return [
+        pytest.param(
+            case,
+            marks=pytest.mark.xfail(strict=True, reason=case.note or f"Phase-2 correctness target: {case.category}"),
+        )
+        for case in xfail_cases()
+    ]
+
+
 @pytest.mark.skipif(
     not xfail_cases(),
     reason="no Phase-2 xfail targets left (all promoted to GREEN); see corpus_en.py for the strict-xfail promotion mechanism",
 )
-@pytest.mark.parametrize("case", xfail_cases(), ids=lambda c: f"{c.lang}:{c.text}")
+@pytest.mark.parametrize("case", _xfail_params(), ids=lambda c: f"{c.lang}:{c.text}")
 def test_corpus_en_xfail(segmenters: dict[str, Segmenter], case) -> None:
-    # strict xfail: a fix that makes this pass is intentional and must be
-    # promoted to a GREEN case (the suite goes red on the unexpected XPASS).
-    pytest.xfail(reason=case.note or f"Phase-2 correctness target: {case.category}")
     seg = segmenters[case.lang]
     assert seg.segment(case.text) == case.expected

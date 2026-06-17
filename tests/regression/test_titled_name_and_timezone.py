@@ -86,3 +86,31 @@ def test_titled_name_and_timezone_units_stay_joined(seg, text, expected):
 )
 def test_real_boundaries_after_abbreviation_still_split(seg, text, expected):
     assert seg.segment(text) == expected
+
+
+# ``NAME_TITLE_PREFIX_ABBREVIATIONS`` is the English-honorific default for the
+# shared title-prefix heuristic and lives on the base ``AbbreviationReplacer``;
+# every Latin-script language inherits it by class inheritance (no language
+# overrides it today). These parametrized cases pin that cross-language
+# inheritance contract so an accidental change to which languages treat which
+# tokens as title prefixes is caught: the title chain "Dr. Ph.D. Smith" must
+# stay joined, while a trailing degree "Ph.D." (not a name prefix) must still
+# split, for every Latin-script language plus the en_legal profile.
+@pytest.mark.parametrize("language", ["en", "es", "fr", "it", "de", "en_legal"])
+@pytest.mark.parametrize(
+    "text,expected",
+    [
+        # Title chain stays joined (Dr. + degree prefixing a surname).
+        (
+            "Dr. Ph.D. Smith spoke at noon.",
+            ["Dr. Ph.D. Smith spoke at noon."],
+        ),
+        # Trailing degree (not a name prefix) still splits before a new subject.
+        (
+            "She earned a Ph.D. Smith advised her.",
+            ["She earned a Ph.D. ", "Smith advised her."],
+        ),
+    ],
+)
+def test_title_prefix_default_inherited_across_latin_languages(language, text, expected):
+    assert Segmenter(language).segment(text) == expected

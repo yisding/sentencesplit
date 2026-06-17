@@ -23,8 +23,8 @@ _BETWEEN_UNCONVENTIONAL_DOUBLE_QUOTE_DE_RE = re.compile(r",,(?=(?P<tmp>[^“\\]+
 # followed by whitespace, REGARDLESS of the follower's case — so "Dr. med. Meyer"
 # keeps both periods even though "Meyer" is capitalized (German capitalizes all
 # nouns, so a capital follower is NOT a sentence-start cue). ``classify_special``
-# below replaces every branch; ``realize_suffix`` pins the realization pass to the
-# same ``\.(?=\s)`` suffix so global PROTECT matches the decision exactly.
+# below replaces every branch; ``realize_suffix_pattern`` pins the realization pass
+# to the same ``\.(?=\s)`` suffix so global PROTECT matches the decision exactly.
 #
 # Quirk FIXED (BC not required, plan §3): the legacy interpolated ``{am}``
 # (== ``m.group()``, the boundary char + abbreviation) UNescaped into the
@@ -47,14 +47,12 @@ def _de_classify_special(pc: "PeriodClassifier", line: str, c: Candidate) -> obj
     return Decision.BOUNDARY
 
 
-def _de_realize_suffix(pc: "PeriodClassifier", c: Candidate, line: str, d: "Decision") -> str:
-    """German global-realization suffix: ``\\.(?=\\s)`` for every PROTECT."""
-    return _DE_PROTECT_BEFORE_WHITESPACE.pattern
-
-
 DE_POLICY = AbbrPolicy(
     classify_special=_de_classify_special,
-    realize_suffix=_de_realize_suffix,
+    # Constant ``\.(?=\s)`` suffix for every PROTECT, independent of (c, line,
+    # decision). ``_DE_PROTECT_BEFORE_WHITESPACE`` stays compiled for the
+    # ``classify_special`` match call above; only the wrapper indirection is gone.
+    realize_suffix_pattern=_DE_PROTECT_BEFORE_WHITESPACE.pattern,
     # German's reduced downstream pipeline (no Kommanditgesellschaft / compact-ampm
     # / uppercase-initialism / allcaps-imprint / standalone-I passes; a.m./p.m.
     # without the non-ASCII boundary restore). Owned by the policy now (S1), so
@@ -266,7 +264,8 @@ class Deutsch(Common, Standard):
         #     is followed by whitespace, regardless of follower case (German
         #     capitalizes all nouns, so a capital follower is not a boundary cue);
         #     so "Dr. med. Meyer" keeps both periods.
-        #   - realize_suffix: pin the global realization to the same ``\.(?=\s)``.
+        #   - realize_suffix_pattern: pin the global realization to the same
+        #     ``\.(?=\s)``.
         # The reordered German ``replace()`` (whole-text protection; no
         # Kommanditgesellschaft / compact-ampm / uppercase-initialism / allcaps
         # imprint / standalone-I passes) is preserved below — only the protection

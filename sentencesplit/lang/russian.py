@@ -71,7 +71,7 @@ def _ru_classify_special(pc: "PeriodClassifier", line: str, c: Candidate) -> obj
     candidate's own ORIGINAL context. Mirrors the legacy ``replacement`` callback:
     ``match.group()[:-1] + "∯"`` == PROTECT, ``match.group()`` == BOUNDARY.
     """
-    abbr_lower = c.am_stripped.strip().lower()
+    abbr_lower = c.am_lower  # elision-stripped lowercase, computed once on the Candidate
     period_idx = c.period_idx
     match_end = period_idx + 1  # legacy match.end()
     abbr_start = period_idx - len(c.am_stripped.strip())  # legacy match.start(2)

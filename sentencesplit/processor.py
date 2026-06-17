@@ -31,6 +31,8 @@ _ELLIPSIS_RE = re.compile(r"\A\.{3,}\Z")
 _TRAILING_EXCL_RE = re.compile(r"&ᓴ&$")
 _PAREN_SPACE_BEFORE_RE = re.compile(r"\s(?=\()")
 _PAREN_SPACE_AFTER_RE = re.compile(r"(?<=\))\s")
+# Intentionally a NARROW subset of ``_normalize._TRAILING_SENTENCE_CLOSERS`` \u2014 only
+# the single closers that can be orphaned onto the next fragment, not every closer.
 _ORPHAN_SINGLE_CHARS = frozenset("'\")\u2019\u201d")
 # Shared with segmenter.py via utils so the two stay in sync. A lone zero-width
 # char (e.g. a Wikipedia U+200B reference marker) survives str.strip() and would
@@ -51,6 +53,14 @@ _PERIOD_BEFORE_COMMA_RE = re.compile(r"\.(?=\s*,(?!,))")
 # a segment with none of them passes through them unchanged, so the per-segment
 # pass can be skipped on the common case (one C scan vs five no-op subs).
 _REINSERT_ELLIPSIS_RE = re.compile(r"[ƪ♟♝☏∮]")
+
+
+def _rule_key(rule) -> tuple[str, str, int]:
+    """Content identity of a :class:`~sentencesplit.utils.Rule` (pattern, replacement,
+    flags). Used to drop specific rules by value rather than object identity, so a
+    language that rebuilds its rule list with fresh-but-equivalent Rule objects
+    still has the intended rules removed."""
+    return (rule.pattern, rule.replacement, rule.flags)
 
 
 # Internal placeholder ("sentinel") characters the pipeline uses to protect
@@ -389,6 +399,11 @@ class Processor:
             # ("Wait... She left.") is treated as a trailing-thought ellipsis
             # (joined) rather than a sentence boundary. The remaining rules then
             # protect all three dots via OtherThreePeriodRule.
+            # Dropped by object identity (not _rule_key content) because
+            # ``ellipsis_rules`` is heterogeneous — it includes non-Rule objects
+            # like ``_GluedLowercaseRunOnRule`` that have no ``.flags`` — so the
+            # content-key approach used for the homogeneous exclamation rules does
+            # not apply here.
             ellipsis_rules = [r for r in ellipsis_rules if r is not self.profile.ellipsis_three_consecutive_rule]
         return apply_rules(text, self.profile.single_newline_rule, *ellipsis_rules)
 
@@ -583,11 +598,14 @@ class Processor:
             # aggressive: stop protecting "!" before a lowercase continuation
             # ("Wow! amazing.") so it ends the sentence. InQuotationRule is
             # structural ("!" before a closing quote) and kept in every mode.
+            # Drop by rule CONTENT (pattern/replacement/flags), not object identity,
+            # so a language that rebuilds ``ExclamationPointRules.All`` with fresh
+            # but equivalent Rule objects still has these two dropped.
             drop = {
-                id(self.profile.exclamation_mid_sentence_rule),
-                id(self.profile.exclamation_before_comma_rule),
+                _rule_key(self.profile.exclamation_mid_sentence_rule),
+                _rule_key(self.profile.exclamation_before_comma_rule),
             }
-            exclamation_rules = [r for r in exclamation_rules if id(r) not in drop]
+            exclamation_rules = [r for r in exclamation_rules if _rule_key(r) not in drop]
         return apply_rules(text, self.profile.question_mark_in_quotation_rule, *exclamation_rules)
 
     def _replace_list_parens(self, text: str) -> str:

@@ -178,3 +178,58 @@ def test_quarantine_allowlist_has_no_stale_entries() -> None:
             if entry not in declared:
                 stale.append((code, entry))
     assert stale == [], f"stale quarantine entries (no longer declared): {stale}"
+
+
+# Anti-deletion floor: the number of distinct declared abbreviations per language.
+# ``test_declared_abbreviation_keeps_period_joined`` parametrizes over the CURRENT
+# lists, so a dropped entry simply produces no test case and ships silently — a
+# real risk given the large per-language list reformats (danish/dutch/italian/…).
+# This floor fails loudly when a language's distinct-abbreviation count shrinks, so
+# a reformat that silently loses entries is caught in review. Raising a count is
+# fine (add the new entries, bump the floor); LOWERING one must be a deliberate,
+# diff-visible edit with a rationale.
+_DECLARED_ABBREVIATION_COUNT_FLOOR: dict[str, int] = {
+    "am": 199,
+    "ar": 18,
+    "bg": 71,
+    "da": 473,
+    "de": 146,
+    "el": 208,
+    "en": 199,
+    "en_es_zh": 340,
+    "en_legal": 292,
+    "es": 173,
+    "fa": 199,
+    "fr": 106,
+    "hi": 199,
+    "hy": 199,
+    "it": 2223,
+    "ja": 199,
+    "kk": 283,
+    "mr": 199,
+    "my": 199,
+    "nl": 1585,
+    "pl": 132,
+    "ru": 81,
+    "sk": 199,
+    "tl": 27,
+    "ur": 199,
+    "zh": 199,
+}
+
+
+@pytest.mark.parametrize("code", sorted(_DECLARED_ABBREVIATION_COUNT_FLOOR))
+def test_declared_abbreviation_count_does_not_silently_shrink(code: str) -> None:
+    floor = _DECLARED_ABBREVIATION_COUNT_FLOOR[code]
+    distinct = {a.strip() for a in LANGUAGE_CODES[code].Abbreviation.ABBREVIATIONS if a.strip()}
+    assert len(distinct) >= floor, (
+        f"{code}: distinct abbreviation count fell to {len(distinct)} (floor {floor}); "
+        "an entry was dropped. If intentional, lower the floor in this test with a rationale."
+    )
+
+
+def test_declared_abbreviation_count_floor_covers_every_language() -> None:
+    """The floor must list every registered language, so a new language can't be
+    added without an anti-deletion baseline."""
+    missing = sorted(set(LANGUAGE_CODES) - set(_DECLARED_ABBREVIATION_COUNT_FLOOR))
+    assert missing == [], f"languages missing an abbreviation-count floor: {missing}"

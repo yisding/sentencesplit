@@ -24,7 +24,11 @@ _ZERO_WIDTH_CLASS = re.escape("".join(_ZERO_WIDTH_CHARS))
 # Fast presence test so the per-segment closer scan can early-out on the common
 # case of text with no zero-width/format characters at all.
 _ZERO_WIDTH_SEARCH_RE = re.compile(f"[{_ZERO_WIDTH_CLASS}]")
-# Closing quotes/brackets that may trail a sentence-terminal mark.
+# Closing quotes/brackets that may trail a sentence-terminal mark. This is the
+# full trailing-closer set; ``processor._ORPHAN_SINGLE_CHARS`` (orphan-fragment
+# merging) and ``boundary_resplit._ANY_QUOTE_CHARS`` (quote-nesting detection) are
+# DELIBERATELY narrower subsets for their own roles — they are not meant to equal
+# this set, so do not "unify" them.
 _TRAILING_SENTENCE_CLOSERS = frozenset("\"')]}»”’）】》」』")
 
 

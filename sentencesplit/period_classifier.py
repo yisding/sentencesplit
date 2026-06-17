@@ -24,8 +24,9 @@ from __future__ import annotations
 
 import enum
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import auto
+from threading import Lock
 from typing import Callable
 
 from sentencesplit.utils import split_mode_rank
@@ -77,6 +78,7 @@ class Candidate:
     period_idx: int  # index of the '.' in the ORIGINAL line (== match.end())
     occ_start: int  # m.start() (for elision/possessive context if ever needed)
     am_stripped: str  # abbreviation text as stored (elision NOT yet stripped)
+    am_lower: str  # elision-stripped, lowercased am — the set-lookup / dedup key (computed once)
     am_escaped: str  # data.abbreviations[idx][2], the pre-built re.escape
     follower_char: str  # char after "abbr. " (line[end+2:end+3] if line[end:end+2]==". " else "")
 
@@ -136,7 +138,6 @@ class AbbrPolicy:
     # sentinel NOT_HANDLED to fall through to the generic 3-branch dispatch, or
     # None == BOUNDARY. A language may override ONE branch and inherit the other two.
     classify_special: Callable[["PeriodClassifier", str, Candidate], object] | None = None
-    candidate_filter: Callable[[Candidate, str], bool] | None = None  # base None == accept all
     # When a policy collapses every branch onto ONE suffix (german: protect any
     # period before whitespace, regardless of follower case), the branch-based
     # ``_suffix_for`` selection no longer describes the decision that
@@ -145,6 +146,14 @@ class AbbrPolicy:
     # PROTECT is realized over every occurrence with the same rule that decided it.
     # base None == fall back to the branch-derived suffix.
     realize_suffix: Callable[["PeriodClassifier", Candidate, str, "Decision"], str] | None = None
+    # When a ``classify_special`` policy collapses every branch onto ONE constant
+    # suffix that is independent of (c, line, decision) — e.g. arabic "protect any
+    # known abbr's bare period" or german "protect any period before whitespace" —
+    # it names that lookbehind-free pattern string directly here instead of a
+    # wrapper Callable. ``_suffix_for`` returns this string verbatim for the GLOBAL
+    # realization pass. base None == fall back to the ``realize_suffix`` callable,
+    # then (if that is also None) the branch-derived suffix / loud contract error.
+    realize_suffix_pattern: str | None = None
     # When True the line is rewritten PER OCCURRENCE rather than per (abbr, char)
     # unit: every occurrence is classified from its own ORIGINAL context and its
     # edit is anchored to its own period, never realized globally. Required when
@@ -167,7 +176,6 @@ class AbbrPolicy:
     # ``str.replace`` (shorter embedded spans become no-ops post-mutation).
     # base None == the lone-trailing-period Edit(p, p+1, "∯", p).
     protect_edit: Callable[["PeriodClassifier", Candidate, str], "Edit"] | None = None
-    pre_stages: tuple = field(default_factory=tuple)  # tuple[Callable[[str, replacer], str]]; base empty
     # Ordered downstream per-period post-classifier stages, each a
     # ``(replacer) -> None`` primitive that mutates ``replacer.text`` (defined in
     # ``abbreviation_replacer.py``: multi-period / compact-ampm / uppercase-initialism
@@ -175,10 +183,11 @@ class AbbrPolicy:
     # be a fixed sequence hard-coded in ``AbbreviationReplacer.replace()``; owning
     # them here completes the single-pass model (S1) — a language reorders / drops /
     # augments the pipeline as data (German's reduced set, Kazakh's extra paren
-    # pass). An EMPTY tuple means "inherit ``DEFAULT_POST_STAGES``" (the historical
-    # full sequence), so the base languages are unchanged. Stages still consume the
-    # ``∯`` IR; S4 moves them out-of-band and deletes the sentinel only afterward.
-    post_stages: tuple = field(default_factory=tuple)  # base empty == DEFAULT_POST_STAGES
+    # pass). ``None`` means "inherit ``DEFAULT_POST_STAGES``" (the historical full
+    # sequence), so the base languages are unchanged; an EMPTY tuple is honored as a
+    # deliberate "run no post-stages" pipeline (distinct from None). Stages still
+    # consume the ``∯`` IR; S4 moves them out-of-band and deletes the sentinel after.
+    post_stages: tuple | None = None  # None == inherit DEFAULT_POST_STAGES; () == run nothing
 
 
 BASE_POLICY = AbbrPolicy()  # module-level frozen constant; shared, read-only (free-threaded-safe)
@@ -268,7 +277,11 @@ class PeriodClassifier:
         self.RE_NUM_QQ = re.compile(r"\.(?=\s\?\?(?!\?))")  # the PLACEHOLDER alternative, isolated
         # Lookbehind-anchored full patterns for the GLOBAL realization pass, keyed by
         # the suffix that drove the decision. Built lazily per (am_escaped, suffix).
+        # The classifier is shared across concurrent ``segment()`` calls, so the
+        # lazy write is guarded (double-checked) under ``_full_cache_lock`` — a free-
+        # threaded build has no GIL to make the dict insert implicitly atomic.
         self._full_cache: dict[tuple[str, str], re.Pattern[str]] = {}
+        self._full_cache_lock = Lock()
 
     @property
     def _leans_split(self) -> bool:
@@ -321,13 +334,17 @@ class PeriodClassifier:
         found = self.data.automaton.search(lowered)
         cands: list[Candidate] = []
         for idx in sorted(found):  # legacy ID order (@587)
-            stripped, _stripped_lower, escaped, match_re, _next_word_re = self.data.abbreviations[idx]
+            stripped, _stripped_lower, escaped, match_re = self.data.abbreviations[idx]
+            # The elision-stripped lowercase form is identical for every occurrence
+            # of this abbr on the line, so derive it once here (set lookups / dedup /
+            # classify all read it off the Candidate instead of recomputing).
+            am_lower = self._elision_strip(stripped).lower()
             for m in match_re.finditer(line):  # ORIGINAL line, word-boundary-prefixed, IGNORECASE
                 end = m.end()
                 if line[end : end + 1] != ".":  # period-less skip (@601)
                     continue
                 fch = line[end + 2 : end + 3] if line[end : end + 2] == ". " else ""  # follower-char (@603)
-                cands.append(Candidate(end, m.start(), stripped, escaped, fch))
+                cands.append(Candidate(end, m.start(), stripped, am_lower, escaped, fch))
         # PER-OCCURRENCE policies (russian) classify + anchor every occurrence at
         # its own period from its own ORIGINAL context, so the (am, char) dedup
         # that the global-realize model relies on would lose distinct positions.
@@ -338,17 +355,54 @@ class PeriodClassifier:
                 by_idx.setdefault(c.period_idx, c)
             return [by_idx[i] for i in sorted(by_idx)]
         # DEDUP exactly as legacy @609: classify ONE representative per
-        # (elision-stripped am_lower, follower_char); each PROTECT is realized
-        # GLOBALLY over the line in rewrite().
-        seen: dict[tuple[str, str], bool] = {}
+        # (elision-stripped am_lower, follower_char) — PLUS a structural
+        # follower-class discriminator computed from the period position on the
+        # ORIGINAL line. ``follower_char`` is populated ONLY for the ``". "``
+        # (period + ASCII space) case, so every other real follower — an immediate
+        # non-space follower (``inc.)`` / ``inc.x``) or a non-ASCII / other-
+        # whitespace follower (``inc.\xa0`` / ``inc.\t`` / EOL) — collapses to
+        # follower_char "". Without the discriminator two occurrences of the SAME
+        # abbr with genuinely different real followers shared one key and only the
+        # FIRST (representative) was classified: if it was a BOUNDARY, the global
+        # realization was skipped and a colliding sibling that should PROTECT was
+        # dropped, making the output depend on clause order. The follower-class
+        # ('I' immediate non-space / 'S' ASCII-space / 'W' other-whitespace /
+        # 'E' end-of-line) keeps those distinct real followers from colliding so
+        # each is classified on its own period. This is a STRICT REFINEMENT of the
+        # old key (a former key only ever splits into finer keys, never merges),
+        # so every former representative is still a representative and the
+        # GLOBAL per-unit realization in rewrite() — which re-tests each
+        # occurrence's own follower via the case-sensitive full.finditer — is
+        # unchanged.
+        seen: dict[tuple[str, str, str], bool] = {}
         out: list[Candidate] = []
         for c in cands:
-            a_low = self._elision_strip(c.am_stripped).lower()
-            k = (a_low, c.follower_char)
+            k = (c.am_lower, c.follower_char, self._follower_class(line, c.period_idx))
             if k not in seen:
                 seen[k] = True
                 out.append(c)
         return out
+
+    @staticmethod
+    def _follower_class(line: str, p: int) -> str:
+        """Structural follower-class at period index *p* on the ORIGINAL *line*.
+
+        Dedup-key discriminator ONLY (never stored on the Candidate, so
+        ``follower_char`` and all its readers stay byte-identical):
+          - 'E' end-of-line / no follower: ``p + 1 >= len(line)``
+          - 'I' immediate non-space follower: ``not line[p + 1].isspace()``
+          - 'S' ASCII-space follower: ``line[p : p + 2] == ". "``
+          - 'W' other-whitespace follower (``\\xa0``/``\\t``/``\\n``/…): otherwise
+        Whitespace is judged with ``str.isspace`` (Unicode-aware), matching the
+        suffix regexes' Unicode ``\\s`` so the realization re-test agrees.
+        """
+        if p + 1 >= len(line):
+            return "E"
+        if not line[p + 1].isspace():
+            return "I"
+        if line[p : p + 2] == ". ":
+            return "S"
+        return "W"
 
     # ------------------------------------------------------------------- classify
     def classify(self, c: Candidate, line: str) -> Decision:
@@ -377,7 +431,7 @@ class PeriodClassifier:
             if d is not NOT_HANDLED:
                 # realize_suffix / realize_per_occurrence own realization for these.
                 return (Decision.BOUNDARY if d is None else d), None
-        am_lower = self._elision_strip(c.am_stripped).lower()
+        am_lower = c.am_lower
         upper = self._follower_is_upper(c)  # @652
         prep = self.data.prepositive_set
         num = self.data.number_abbr_set
@@ -435,7 +489,7 @@ class PeriodClassifier:
             # so any uppercase follower already took the UPPER arm above.
             if self.policy.ascii_only_upper_heuristic and c.follower_char and c.follower_char.isupper():
                 return Decision.BOUNDARY, None
-            regular = self._regular_re(self._elision_strip(c.am_stripped).lower())
+            regular = self._regular_re(c.am_lower)
             if regular.match(line, i):
                 return Decision.PROTECT, regular.pattern
             return Decision.BOUNDARY, None
@@ -451,37 +505,35 @@ class PeriodClassifier:
 
     # -------------------------------------------------------- suffix selection
     def _suffix_for(self, c: Candidate, line: str, d: Decision) -> str:
-        """Return the suffix pattern (sans lookbehind) that drove decision *d*.
+        """Return the global-realization suffix for a ``classify_special`` decision.
 
-        Used to re-anchor the global realization pass. Mirrors classify()'s branch
-        selection so the SAME suffix that PROTECTed/PLACEHOLDERed is applied to
-        every occurrence of this abbr on the line.
+        Only reached from ``_collect_edits`` when ``_classify_with_suffix`` returned
+        no suffix, which happens exclusively for a ``classify_special`` decision on a
+        non-per-occurrence policy. Every such policy owns its realization via
+        ``realize_suffix`` (the generic 3-branch dispatch in ``_classify_with_suffix``
+        already returns the suffix for all non-special decisions, so it is never
+        re-derived here). A ``classify_special`` policy that sets neither
+        ``realize_suffix`` nor ``realize_per_occurrence`` is a policy bug and is
+        rejected loudly rather than silently re-deriving a possibly-wrong suffix.
         """
+        if self.policy.realize_suffix_pattern is not None:
+            return self.policy.realize_suffix_pattern
         if self.policy.realize_suffix is not None:
             return self.policy.realize_suffix(self, c, line, d)
-        am_lower = self._elision_strip(c.am_stripped).lower()
-        upper = self._follower_is_upper(c)
-        prep = self.data.prepositive_set
-        num = self.data.number_abbr_set
-        if am_lower in prep:
-            # STARTER_AWARE / base prepositive both protect via the PREPOSITIVE suffix.
-            return self.RE_PREPOSITIVE.pattern
-        if am_lower in num:
-            if upper:
-                return self.RE_NUM_UP_JOIN.pattern if self._leans_join else self.RE_NUM_UP_SPLIT.pattern
-            if d is Decision.PLACEHOLDER:
-                return self.RE_NUM_QQ.pattern
-            num_low = self._num_low_pattern()
-            if num_low.match(line, c.period_idx):
-                return num_low.pattern
-            # multi-char NUMBER -> REGULAR fallthrough (@676)
-            return self._regular_re(am_lower).pattern
-        return self._regular_re(am_lower).pattern
+        raise ValueError(  # pragma: no cover - policy contract; no shipping policy hits this
+            "classify_special policy must set realize_suffix or realize_per_occurrence "
+            f"to own its global realization (decision={d!r})"
+        )
 
     def _full_pattern(self, am_escaped: str, suffix: str) -> re.Pattern[str]:
         key = (am_escaped, suffix)
         pat = self._full_cache.get(key)
-        if pat is None:
+        if pat is not None:
+            return pat
+        with self._full_cache_lock:
+            pat = self._full_cache.get(key)
+            if pat is not None:
+                return pat
             # The stored ``am_escaped`` is the lowercase abbreviation form, but the
             # line carries the occurrence's ORIGINAL case ("Dr."). Legacy escapes
             # the original-case ``am.strip()`` and runs a case-SENSITIVE ``re.sub``
@@ -506,14 +558,22 @@ class PeriodClassifier:
         # capture exactly the single whitespace + the two '?'.
         return line[p + 1 : p + 4]  # e.g. " ??"
 
+    def _placeholder_edit(self, line: str, p: int) -> Edit:
+        """The PLACEHOLDER splice for the candidate period at *p*: overwrite the
+        '. ??' run with '∯ <placeholder>'. Shared by the per-occurrence and global
+        branches of ``_collect_edits`` so the qq-span width lives in one place."""
+        qq_end = (p + 1) + len(self._qq_span(line, p))
+        return Edit(p, qq_end, "∯ " + self.r._UNKNOWN_PLACEHOLDER, p)
+
     # -------------------------------------------------------------------- rewrite
     def _collect_edits(self, line: str) -> list[Edit]:
         edits: list[Edit] = []
         per_occurrence = self.policy.realize_per_occurrence
-        candidate_filter = self.policy.candidate_filter
+        # The leading-space probe is candidate-independent (it just lets the
+        # lookbehind match an abbr that opens the line, the legacy " " + txt trick),
+        # so build it once per line instead of once per candidate.
+        probe = " " + line
         for c in self.enumerate_candidates(line):
-            if candidate_filter is not None and not candidate_filter(c, line):
-                continue
             # Decided ONCE from original text for this (am, char); the combined call
             # also yields the global-realization suffix so the global path never
             # re-derives am_lower/upper/branch in a second pass.
@@ -534,8 +594,7 @@ class PeriodClassifier:
                     else:
                         edits.append(Edit(p, p + 1, "∯", p))
                 else:  # PLACEHOLDER (unused by current per-occurrence policies)
-                    qq_end = (p + 1) + len(self._qq_span(line, p))
-                    edits.append(Edit(p, qq_end, "∯ " + self.r._UNKNOWN_PLACEHOLDER, p))
+                    edits.append(self._placeholder_edit(line, p))
                 continue
             # ``_classify_with_suffix`` returns None for decisions made by
             # ``classify_special`` (the ``realize_suffix`` policies own realization):
@@ -547,14 +606,12 @@ class PeriodClassifier:
             # occurrence of THIS abbr on the line. Leading-space prefix matches the
             # legacy _replace_with_escape/replace_period_of_abbr " " + txt trick.
             full = self._full_pattern(c.am_escaped, suffix)
-            probe = " " + line
             for m in full.finditer(probe):
                 p = m.start() - 1  # original-line period index
                 if d is Decision.PROTECT:
                     edits.append(Edit(p, p + 1, "∯", p))
                 else:  # PLACEHOLDER
-                    qq_end = (p + 1) + len(self._qq_span(line, p))
-                    edits.append(Edit(p, qq_end, "∯ " + self.r._UNKNOWN_PLACEHOLDER, p))
+                    edits.append(self._placeholder_edit(line, p))
         return edits
 
     @staticmethod

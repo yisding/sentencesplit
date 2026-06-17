@@ -11,8 +11,9 @@ shipping languages that actually use it, so a regression in one language's
   capital-follower-is-boundary cue, on a non-English base-policy language;
 * the ``cjk_follower_class`` arm (zh / ja regular-only, en_es_zh woven-everywhere
   with ``ascii_only_upper_heuristic``);
-* ``classify_special`` + ``realize_suffix`` collapsing every branch onto one rule
-  (German "protect any period before whitespace, even before a capital");
+* ``classify_special`` + ``realize_suffix_pattern`` collapsing every branch onto
+  one constant rule (Arabic bare-period protect / German "protect any period
+  before whitespace, even before a capital");
 * ``classify_special`` + ``protect_edit`` + ``realize_per_occurrence`` for the
   whole-span splice (Bulgarian ``б.р.`` -> ``б∯р∯``);
 * the per-occurrence realization path (Russian ``ср.``: two occurrences sharing
@@ -155,10 +156,11 @@ def test_en_es_zh_ascii_only_upper_lets_non_ascii_capital_protect() -> None:
 # --------------------------------------------------------------------------- #
 # classify_special + realize_suffix collapsing every branch (German).
 # --------------------------------------------------------------------------- #
-def test_german_policy_uses_classify_special_and_realize_suffix() -> None:
+def test_german_policy_uses_classify_special_and_realize_suffix_pattern() -> None:
     pc = _classifier("de")
     assert pc.policy.classify_special is not None
-    assert pc.policy.realize_suffix is not None
+    assert pc.policy.realize_suffix_pattern == r"\.(?=\s)"
+    assert pc.policy.realize_suffix is None
 
 
 def test_german_protects_before_capital_follower() -> None:
@@ -180,6 +182,27 @@ def test_german_boundary_when_no_whitespace_follower() -> None:
             break
     else:
         pytest.skip("no 'dr' candidate enumerated")
+
+
+def test_arabic_policy_uses_realize_suffix_pattern() -> None:
+    pc = _classifier("ar")
+    # Arabic collapses every branch onto a constant bare ``\.`` realization suffix
+    # named directly as a string (no wrapper Callable).
+    assert pc.policy.classify_special is not None
+    assert pc.policy.realize_suffix_pattern == r"\."
+    assert pc.policy.realize_suffix is None
+
+
+def test_realize_suffix_pattern_matches_legacy_wrapper_constant() -> None:
+    # Lock the stored strings to the pre-existing compiled-pattern constants so a
+    # future edit to either constant can't silently drift the global realization.
+    from sentencesplit.lang import deutsch
+    from sentencesplit.lang.common import arabic_script
+
+    ar = _classifier("ar")
+    de = _classifier("de")
+    assert ar.policy.realize_suffix_pattern == arabic_script._AR_PROTECT_BARE.pattern
+    assert de.policy.realize_suffix_pattern == deutsch._DE_PROTECT_BEFORE_WHITESPACE.pattern
 
 
 # --------------------------------------------------------------------------- #
