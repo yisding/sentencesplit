@@ -614,11 +614,8 @@ class Processor:
     def replace_numbers(self, text: str) -> str:
         return apply_rules(text, *self.profile.number_rules)
 
-    def abbreviations_replacer(self, text: str):
-        return self.profile.abbreviation_replacer_cls(text, self.profile.language, split_mode=self.split_mode)
-
     def replace_abbreviations(self, text: str) -> str:
-        return self.abbreviations_replacer(text).replace()
+        return self.profile.abbreviation_replacer_cls(text, self.profile.language, split_mode=self.split_mode).replace()
 
     def between_punctuation_processor(self, txt: str):
         return self.profile.between_punctuation_cls(txt)
