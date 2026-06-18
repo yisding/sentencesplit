@@ -665,10 +665,6 @@ class AbbreviationReplacer:
         return _STANDALONE_I_BOUNDARY_RE.sub(_restore, self.text)
 
     @staticmethod
-    def _two_letter_initialism_key(parts: list[str]) -> str:
-        return ".".join(parts).lower()
-
-    @staticmethod
     def _normalize_follower_token(token: str) -> str:
         normalized = token.strip(",.;:([{)]}\"'“”‘’").lower()
         for possessive_suffix in ("'s", "’s"):
@@ -695,7 +691,7 @@ class AbbreviationReplacer:
         return tuple(words)
 
     def _two_letter_initialism_has_always_joined_follower(self, parts: list[str], content_offset: int) -> bool:
-        initialism_key = self._two_letter_initialism_key(parts)
+        initialism_key = ".".join(parts).lower()
         max_words = max((len(phrase) - 1 for phrase in self.ALWAYS_JOIN_TWO_LETTER_INITIALISM_PHRASES), default=0)
         followers = self._next_normalized_words(content_offset, max_words)
         for word_count in range(1, len(followers) + 1):
