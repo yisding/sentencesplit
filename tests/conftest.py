@@ -7,23 +7,25 @@ import sentencesplit
 
 @pytest.fixture()
 def segmenter_factory() -> Callable[..., sentencesplit.Segmenter]:
-    def make_segmenter(language: str = "en", *, clean: bool = False, char_span: bool = False, **kwargs):
-        return sentencesplit.Segmenter(language=language, clean=clean, char_span=char_span, **kwargs)
+    def make_segmenter(language: str = "en", *, clean: bool = False, **kwargs):
+        return sentencesplit.Segmenter(language=language, clean=clean, **kwargs)
 
     return make_segmenter
 
 
-def _segmenter_fixture(name: str, language: str, *, clean: bool = False, char_span: bool = False):
+def _segmenter_fixture(name: str, language: str, *, clean: bool = False):
     @pytest.fixture(name=name)
     def fixture(segmenter_factory):
-        return segmenter_factory(language=language, clean=clean, char_span=char_span)
+        return segmenter_factory(language=language, clean=clean)
 
     return fixture
 
 
 default_en_no_clean_no_span_fixture = _segmenter_fixture("default_en_no_clean_no_span_fixture", "en")
 en_with_clean_no_span_fixture = _segmenter_fixture("en_with_clean_no_span_fixture", "en", clean=True)
-en_no_clean_with_span_fixture = _segmenter_fixture("en_no_clean_with_span_fixture", "en", char_span=True)
+# Spans are now obtained via ``segment_spans()`` regardless of construction, so the
+# "with span" fixtures are plain segmenters; call sites use ``segment_spans()``.
+en_no_clean_with_span_fixture = _segmenter_fixture("en_no_clean_with_span_fixture", "en")
 
 hi_default_fixture = _segmenter_fixture("hi_default_fixture", "hi")
 mr_default_fixture = _segmenter_fixture("mr_default_fixture", "mr")
@@ -51,8 +53,8 @@ de_default_fixture = _segmenter_fixture("de_default_fixture", "de")
 de_with_clean_no_span_fixture = _segmenter_fixture("de_with_clean_no_span_fixture", "de", clean=True)
 kk_default_fixture = _segmenter_fixture("kk_default_fixture", "kk")
 sk_default_fixture = _segmenter_fixture("sk_default_fixture", "sk")
-zh_no_clean_with_span_fixture = _segmenter_fixture("zh_no_clean_with_span_fixture", "zh", char_span=True)
-ja_no_clean_with_span_fixture = _segmenter_fixture("ja_no_clean_with_span_fixture", "ja", char_span=True)
+zh_no_clean_with_span_fixture = _segmenter_fixture("zh_no_clean_with_span_fixture", "zh")
+ja_no_clean_with_span_fixture = _segmenter_fixture("ja_no_clean_with_span_fixture", "ja")
 tl_default_fixture = _segmenter_fixture("tl_default_fixture", "tl")
 en_es_zh_default_fixture = _segmenter_fixture("en_es_zh_default_fixture", "en_es_zh")
-en_es_zh_no_clean_with_span_fixture = _segmenter_fixture("en_es_zh_no_clean_with_span_fixture", "en_es_zh", char_span=True)
+en_es_zh_no_clean_with_span_fixture = _segmenter_fixture("en_es_zh_no_clean_with_span_fixture", "en_es_zh")

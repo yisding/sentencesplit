@@ -15,3 +15,15 @@ class Urdu(Common, Standard):
 
     SENTENCE_BOUNDARY_REGEX = re.compile(r".*?[۔؟!\?]|.*?$")
     Punctuations = ["?", "!", "۔", "؟"]
+
+    # Urdu overrides zero scan methods and uses no elision (it inherits
+    # Standard.Abbreviation with ELISION_CHARACTERS == ""), so it rides the base
+    # PeriodClassifier (BASE_POLICY) inherited from Standard directly — identical
+    # shape to Burmese/Amharic. It inherits Standard.Abbreviation (the
+    # English-derived lists) and the Arabic script Urdu uses is unicameral (no
+    # letter case), so it is NOT one of the CAPITALIZED_FOLLOWER_IS_BOUNDARY_CUE
+    # languages; that flag stays off and capital (Latin) followers flow through
+    # the split-mode ambiguity dial. Urdu terminates sentences with the danda
+    # "۔", "؟", plus the ASCII "!" and "?", so the Latin "." is never a
+    # terminator; the classifier just protects abbreviation periods (e.g.
+    # embedded "Dr.", "U.S.").

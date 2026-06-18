@@ -2,6 +2,7 @@
 import pytest
 
 import sentencesplit
+from tests.helpers import assert_segments
 
 GOLDEN_DE_RULES_TEST_CASES = [
     (
@@ -177,23 +178,17 @@ DE_PDF_CLEAN_RULES_TEST_CASES = [
 @pytest.mark.parametrize("text,expected_sents", GOLDEN_DE_RULES_TEST_CASES)
 def test_de_sbd(de_default_fixture, text, expected_sents):
     """Deutsch language SBD tests"""
-    segments = de_default_fixture.segment(text)
-    segments = [s.strip() for s in segments]
-    assert segments == expected_sents
+    assert_segments(de_default_fixture, text, expected_sents)
 
 
 @pytest.mark.parametrize("text,expected_sents", DE_CLEAN_RULES_TEST_CASES)
 def test_de_sbd_clean(de_with_clean_no_span_fixture, text, expected_sents):
     """Deutsch language SBD tests with clean=True"""
-    segments = de_with_clean_no_span_fixture.segment(text)
-    segments = [s.strip() for s in segments]
-    assert segments == expected_sents
+    assert_segments(de_with_clean_no_span_fixture, text, expected_sents)
 
 
 @pytest.mark.parametrize("text,expected_sents", DE_PDF_CLEAN_RULES_TEST_CASES)
 def test_de_pdf_type(text, expected_sents):
     """SBD tests from Pragmatic Segmenter for deutsch & doctype:pdf"""
     seg = sentencesplit.Segmenter(language="de", clean=True, doc_type="pdf")
-    segments = seg.segment(text)
-    segments = [s.strip() for s in segments]
-    assert segments == expected_sents
+    assert_segments(seg, text, expected_sents)

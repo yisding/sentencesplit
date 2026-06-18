@@ -80,7 +80,7 @@ seg.segment_spans("My name is Jonas E. Smith. Please turn to p. 55.")
 #  TextSpan(sent='Please turn to p. 55.', start=27, end=48)]
 ```
 
-`segment_spans()` always returns `TextSpan` objects with `.sent`, `.start`, `.end` regardless of the `char_span` constructor flag.
+`segment_spans()` always returns `TextSpan` objects with `.sent`, `.start`, `.end`; `segment()` always returns plain strings. Spans are byte-for-byte faithful: every span is an exact slice of the source and reassembling them reproduces it verbatim.
 
 ### Streaming / lookahead
 
@@ -126,7 +126,7 @@ stream.feed(full_text)
 assert stream.get_completed_sentences() + stream.flush() == Segmenter(language="en").segment(full_text)
 ```
 
-`StreamSegmenter` accepts the same `language` / `clean` / `char_span` / `split_mode` params as `Segmenter`, plus a streaming-specific `buffering_mode` (`"conservative"` (default) / `"balanced"` / `"aggressive"`) and an optional `max_buffer_size` guard against an unbounded tail.
+`StreamSegmenter` accepts the same `language` / `clean` / `split_mode` params as `Segmenter`, plus a `char_span` flag selecting `TextSpan` vs plain-string output, a streaming-specific `buffering_mode` (`"conservative"` (default) / `"balanced"` / `"aggressive"`), and an optional `max_buffer_size` guard against an unbounded tail.
 
 See [examples/streaming_to_tts_recipe.py](examples/streaming_to_tts_recipe.py) for a runnable LLM-to-TTS recipe.
 
@@ -251,7 +251,7 @@ seg = sentencesplit.Segmenter(language="en", clean=False)
 seg.segment("My name is Jonas E. Smith. Please turn to p. 55.")
 ```
 
-`Segmenter(language=..., clean=..., char_span=...)`, `segment()`, and the `TextSpan` fields (`.sent`, `.start`, `.end`) all behave as they do in pySBD, and the English [Golden Rules](https://github.com/diasks2/pragmatic_segmenter#the-golden-rules) pass identically. What you gain on top:
+`Segmenter(language=..., clean=...)`, `segment()`, and the `TextSpan` fields (`.sent`, `.start`, `.end`) all behave as they do in pySBD, and the English [Golden Rules](https://github.com/diasks2/pragmatic_segmenter#the-golden-rules) pass identically. The one break: pySBD's `char_span=True` constructor flag is gone — call `segment_spans()` for `TextSpan` output instead (`Segmenter(char_span=True).segment(text)` → `Segmenter().segment_spans(text)`). What you gain on top:
 
 - **Streaming/lookahead** — `segment_with_lookahead()` / `should_wait_for_more()` for incremental input, plus the higher-level [`StreamSegmenter`](#streaming-segmentation) feed/flush wrapper for token-by-token sources (LLM output, ASR partials).
 - **`split_mode`** — a `"conservative"` / `"balanced"` / `"aggressive"` bias for ambiguous boundaries (`"balanced"` is the default and matches the historically tuned output).
@@ -374,6 +374,16 @@ from `sentencesplit.languages` and the documented ISO 639-1 language codes (see
 [Supported languages](#supported-languages)). Everything else — internal modules,
 `Processor` internals, and the nested language hooks — is private and may change
 without notice.
+
+**spaCy component.** The package registers a `spacy_factories` entry point so spaCy
+users can do `nlp.add_pipe("sentencesplit")` (see [spaCy integration](#spacy-integration)).
+The *stable* contract is the registered factory name `"sentencesplit"` and its
+`language` config option, both of which follow the SemVer policy above. The underlying
+Python factory (`sentencesplit.spacy_component.create_sentencesplit` and the
+`SentenceSplitFactory` class) is deliberately **not** in `sentencesplit.__all__`: its
+call signature tracks spaCy's factory protocol rather than this library's API, so it may
+change with spaCy's requirements without a SemVer bump here. Add the component by name —
+do not import or subclass the factory directly.
 
 **Output stability.** Sentence segmentation output is *not* part of the frozen API.
 It MAY change in minor or patch releases when the change is a net accuracy

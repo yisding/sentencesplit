@@ -94,7 +94,7 @@ def score_corpus(language: str, units: list[dict]):
     """
     import sentencesplit
 
-    seg = sentencesplit.Segmenter(language=language, clean=False, char_span=False)
+    seg = sentencesplit.Segmenter(language=language, clean=False)
     em_correct = 0
     f1_sum = 0.0
     f1_n = 0

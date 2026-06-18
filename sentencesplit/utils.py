@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 import unicodedata
 from dataclasses import dataclass
-from typing import Literal, Optional, get_args
+from typing import Generic, Literal, Optional, TypeVar, get_args
 
 # Mode parameter type aliases. The runtime ``*_MODES`` tuples below remain the
 # source of truth for validation; these Literal aliases let type checkers catch
@@ -107,7 +107,17 @@ class TextSpan:
     end: int
 
 
+_SegmentT = TypeVar("_SegmentT", str, TextSpan)
+
+
 @dataclass
-class SegmentLookahead:
-    segments: list[str] | list[TextSpan]
+class SegmentLookahead(Generic[_SegmentT]):
+    """Segmentation result plus a trailing-boundary lookahead verdict.
+
+    Generic over the element type: ``SegmentLookahead[str]`` from
+    ``segment_with_lookahead`` and ``SegmentLookahead[TextSpan]`` from
+    ``segment_spans_with_lookahead``.
+    """
+
+    segments: list[_SegmentT]
     should_wait_for_more: bool

@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 import re
 
-from sentencesplit.lang.common import Common, Standard
+from sentencesplit.lang.common import Common, Standard, canonical_abbreviations
 from sentencesplit.lang.common.arabic_script import ArabicScriptProfile
 
 
@@ -18,25 +18,30 @@ class Arabic(ArabicScriptProfile, Common, Standard):
     SENTENCE_BOUNDARY_REGEX = re.compile(r".*?[:\.!\?؟]|.*?\Z|.*?$")
 
     class Abbreviation(Standard.Abbreviation):
-        ABBREVIATIONS = [
-            "ا",
-            "ا. د",
-            "ا.د",
-            "ا.ش.ا",
-            "إلخ",
-            "ت.ب",
-            "ج.ب",
-            "جم",
-            "ج.م.ع",
-            "س.ت",
-            "سم",
-            "ص.ب.",
-            "ص.ب",
-            "كج.",
-            "كلم.",
-            "م",
-            "م.ب",
-            "ه",
-        ]
+        # Stored in canonical form (lowercased, de-duplicated, sorted); see
+        # ``canonical_abbreviations`` and the
+        # ``test_abbreviations_are_canonical_form`` lint.
+        ABBREVIATIONS = canonical_abbreviations(
+            [
+                "ا",
+                "ا. د",
+                "ا.د",
+                "ا.ش.ا",
+                "إلخ",
+                "ت.ب",
+                "ج.ب",
+                "جم",
+                "ج.م.ع",
+                "س.ت",
+                "سم",
+                "ص.ب.",
+                "ص.ب",
+                "كج",
+                "كلم",
+                "م",
+                "م.ب",
+                "ه",
+            ]
+        )
         PREPOSITIVE_ABBREVIATIONS = []
         NUMBER_ABBREVIATIONS = []

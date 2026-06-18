@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 import pytest
 
+from tests.helpers import assert_segments
+
 GOLDEN_IT_RULES_TEST_CASES = [
     ("Salve Sig.ra Mengoni! Come sta oggi?", ["Salve Sig.ra Mengoni!", "Come sta oggi?"]),
     (
@@ -11,7 +13,6 @@ GOLDEN_IT_RULES_TEST_CASES = [
 ]
 
 IT_MORE_TEST_CASES = [
-    ("Salve Sig.ra Mengoni! Come sta oggi?", ["Salve Sig.ra Mengoni!", "Come sta oggi?"]),
     (
         "Buongiorno! Sono l'Ing. Mengozzi. È presente l'Avv. Cassioni?",
         ["Buongiorno!", "Sono l'Ing. Mengozzi.", "È presente l'Avv. Cassioni?"],
@@ -79,7 +80,6 @@ IT_MORE_TEST_CASES = [
     ("La stanza misurava 20m².", ["La stanza misurava 20m²."]),
     ("1°C corrisponde a 33.8°F.", ["1°C corrisponde a 33.8°F."]),
     ("Oggi è il 27-10-14.", ["Oggi è il 27-10-14."]),
-    ("La casa costa 170.500.000,00€!", ["La casa costa 170.500.000,00€!"]),
     ("Il corridore 103 è arrivato 4°.", ["Il corridore 103 è arrivato 4°."]),
     ("Oggi è il 27/10/2014.", ["Oggi è il 27/10/2014."]),
     ("Ecco l'elenco: 1.gelato, 2.carne, 3.riso.", ["Ecco l'elenco: 1.gelato, 2.carne, 3.riso."]),
@@ -105,14 +105,10 @@ IT_MORE_TEST_CASES = [
 @pytest.mark.parametrize("text,expected_sents", GOLDEN_IT_RULES_TEST_CASES)
 def test_it_sbd(it_default_fixture, text, expected_sents):
     """Italian language SBD tests"""
-    segments = it_default_fixture.segment(text)
-    segments = [s.strip() for s in segments]
-    assert segments == expected_sents
+    assert_segments(it_default_fixture, text, expected_sents)
 
 
 @pytest.mark.parametrize("text,expected_sents", IT_MORE_TEST_CASES)
 def test_it_sbd_more_cases(it_default_fixture, text, expected_sents):
     """Italian language SBD tests more examples"""
-    segments = it_default_fixture.segment(text)
-    segments = [s.strip() for s in segments]
-    assert segments == expected_sents
+    assert_segments(it_default_fixture, text, expected_sents)

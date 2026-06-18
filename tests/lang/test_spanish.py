@@ -2,6 +2,7 @@
 import pytest
 
 import sentencesplit
+from tests.helpers import assert_segments
 
 GOLDEN_ES_RULES_TEST_CASES = [
     ("¿Cómo está hoy? Espero que muy bien.", ["¿Cómo está hoy?", "Espero que muy bien."]),
@@ -106,10 +107,6 @@ ES_MORE_TEST_CASES = [
             "De esta manera se consagró ¡Campeón mundial!",
         ],
     ),
-    (
-        "¡La casa cuesta $170.500.000,00! ¡Muy costosa! Se prevé una disminución del 12.5% para el próximo año.",
-        ["¡La casa cuesta $170.500.000,00!", "¡Muy costosa!", "Se prevé una disminución del 12.5% para el próximo año."],
-    ),
     ("El corredor No. 103 arrivó 4°.", ["El corredor No. 103 arrivó 4°."]),
     ("Vea nos. 4 y 5. Luego confirme.", ["Vea nos. 4 y 5.", "Luego confirme."]),
     ("Revise pp. 12-13. Luego confirme.", ["Revise pp. 12-13.", "Luego confirme."]),
@@ -190,25 +187,19 @@ ES_CLEAN_TEST_CASES = [
 @pytest.mark.parametrize("text,expected_sents", GOLDEN_ES_RULES_TEST_CASES)
 def test_es_sbd(es_default_fixture, text, expected_sents):
     """Spanish (Espanol) language SBD tests from Pragmatic Segmenter"""
-    segments = es_default_fixture.segment(text)
-    segments = [s.strip() for s in segments]
-    assert segments == expected_sents
+    assert_segments(es_default_fixture, text, expected_sents)
 
 
 @pytest.mark.parametrize("text,expected_sents", ES_MORE_TEST_CASES)
 def test_es_sbd_more_examples(es_default_fixture, text, expected_sents):
     """Spanish (Espanol) language SBD tests from Pragmatic Segmenter Contributors"""
-    segments = es_default_fixture.segment(text)
-    segments = [s.strip() for s in segments]
-    assert segments == expected_sents
+    assert_segments(es_default_fixture, text, expected_sents)
 
 
 @pytest.mark.parametrize("text,expected_sents", ES_CLEAN_TEST_CASES)
 def test_es_sbd_clean_examples(es_with_clean_no_span_fixture, text, expected_sents):
     """Spanish (Espanol) language SBD tests from Pragmatic Segmenter Contributors"""
-    segments = es_with_clean_no_span_fixture.segment(text)
-    segments = [s.strip() for s in segments]
-    assert segments == expected_sents
+    assert_segments(es_with_clean_no_span_fixture, text, expected_sents)
 
 
 ES_PDF_CASE = [
@@ -225,9 +216,7 @@ ES_PDF_CASE = [
 def test_es_pdf_type(text, expected_sents):
     """Spanish SBD tests from Pragmatic Segmenter for doctype:pdf"""
     seg = sentencesplit.Segmenter(language="es", clean=True, doc_type="pdf")
-    segments = seg.segment(text)
-    segments = [s.strip() for s in segments]
-    assert segments == expected_sents
+    assert_segments(seg, text, expected_sents)
 
 
 ES_CHALLENGING_TEST_CASES = [
@@ -350,14 +339,10 @@ ES_CHALLENGING_TEST_CASES = [
 @pytest.mark.parametrize("text,expected_sents", ES_CHALLENGING_TEST_CASES)
 def test_es_challenging(es_default_fixture, text, expected_sents):
     """Spanish challenging SBD tests for parity with English edge-case coverage."""
-    segments = es_default_fixture.segment(text)
-    segments = [s.strip() for s in segments]
-    assert segments == expected_sents
+    assert_segments(es_default_fixture, text, expected_sents)
 
 
 @pytest.mark.parametrize("text,expected_sents", ES_CHALLENGING_TEST_CASES)
 def test_es_challenging_shared_splitter(en_es_zh_default_fixture, text, expected_sents):
     """Shared en/es/zh splitter should preserve Spanish challenging-case parity."""
-    segments = en_es_zh_default_fixture.segment(text)
-    segments = [s.strip() for s in segments]
-    assert segments == expected_sents
+    assert_segments(en_es_zh_default_fixture, text, expected_sents)

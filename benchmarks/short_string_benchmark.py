@@ -21,7 +21,7 @@ N_ITERATIONS = 5000
 
 
 def benchmark_language(lang_code, text, n=N_ITERATIONS):
-    seg = sentencesplit.Segmenter(language=lang_code, clean=False, char_span=False)
+    seg = sentencesplit.Segmenter(language=lang_code, clean=False)
     # Warmup
     for _ in range(50):
         seg.segment(text)

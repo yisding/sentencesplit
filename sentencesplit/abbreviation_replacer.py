@@ -107,13 +107,6 @@ class AhoCorasickAutomaton:
         return found
 
 
-def _replace_with_escape(txt: str, escaped: str, suffix_pattern: str, replacement: str, boundary_class: str = r"\s") -> str:
-    """Replace period after abbreviation match using pre-escaped abbreviation."""
-    txt = " " + txt
-    txt = re.sub(rf"(?<=[{boundary_class}]{escaped}){suffix_pattern}", replacement, txt)
-    return txt[1:]
-
-
 # Constant patterns run on every ``replace()`` call. Compiling them once at import
 # (rather than via a raw ``re.sub`` literal each call) skips the per-call pattern
 # cache lookup in the abbreviation hot path.
@@ -139,6 +132,20 @@ class _AbbreviationData:
         "automaton",
         "elision_chars",
         "boundary_class",
+        # Persistent cache of PeriodClassifier instances keyed by
+        # ``(id(policy), split_mode, replacer_cls)``. The classifier's compiled
+        # ``RE_*`` suffix patterns and its ``_full_cache`` are line-independent and
+        # depend only on ``(policy, split_mode, data)`` — all immutable for a given
+        # ``_AbbreviationData`` — so reusing one classifier across the per-call
+        # ``AbbreviationReplacer`` instances avoids recompiling ~9 regexes and
+        # rebuilding the full-pattern cache on every ``segment()`` call. The
+        # replacer CLASS is part of the key because two replacer classes can share
+        # one ``_AbbreviationData`` (e.g. English and Urdu both use
+        # ``Standard.Abbreviation``) yet differ in the class-level flags the
+        # classifier reads (``CAPITALIZED_FOLLOWER_IS_BOUNDARY_CUE`` …); keying by
+        # class keeps each its own classifier. Published after full construction
+        # under ``AbbreviationReplacer._cache_lock``.
+        "_classifier_cache",
     )
 
     def __init__(self, lang_abbreviation_class):
@@ -157,19 +164,17 @@ class _AbbreviationData:
             stripped = abbr.strip()
             stripped_lower = stripped.lower()
             escaped = re.escape(stripped)
-            # Pre-compile the two findall patterns for this abbreviation
+            # Pre-compile the word-boundary-prefixed match pattern for this abbr.
             if elision:
                 match_re = re.compile(r"(?:^|\s|\r|\n|[{ec}]){esc}".format(ec=escaped_elision, esc=escaped), re.IGNORECASE)
             else:
                 match_re = re.compile(r"(?:^|\s|\r|\n){}".format(escaped), re.IGNORECASE)
-            next_word_re = re.compile(r"(?<={escaped}\. ).{{1}}".format(escaped=escaped), re.IGNORECASE)
             self.abbreviations.append(
                 (
                     stripped,
                     stripped_lower,
                     escaped,
                     match_re,
-                    next_word_re,
                 )
             )
             # Add the trailing period to the automaton key. search_for_abbreviations
@@ -193,6 +198,71 @@ class _AbbreviationData:
         self.abbr_set = frozenset(a.strip().lower() for a in raw)
         self.prepositive_set = frozenset(a.lower() for a in lang_abbreviation_class.PREPOSITIVE_ABBREVIATIONS)
         self.number_abbr_set = frozenset(a.lower() for a in lang_abbreviation_class.NUMBER_ABBREVIATIONS)
+        self._classifier_cache: dict[tuple[int, str, type], object] = {}
+
+
+# --------------------------------------------------------------------------- #
+# Downstream per-period post-stages (S1 — completing the single-pass model).
+#
+# These were a fixed sequence hard-coded in ``AbbreviationReplacer.replace()``;
+# they are now ``(replacer) -> None`` primitives that an ``AbbrPolicy`` lists in
+# ``post_stages``, so a language declares its post-classifier pipeline as data.
+# Each mutates ``replacer.text`` and self-gates on the same class flags as before,
+# so the assembled tuples reproduce the historical behavior byte-for-byte. They
+# still run AFTER the per-line classifier and continue to read the ``∯`` IR the
+# classifier (and earlier stages) produce — i.e. they are *owned by the policy*
+# now, but not yet out-of-band (S4 deletes the sentinel only once they are).
+# --------------------------------------------------------------------------- #
+def _stage_multi_period(r: "AbbreviationReplacer") -> None:
+    r.replace_multi_period_abbreviations()
+
+
+def _stage_compact_ampm(r: "AbbreviationReplacer") -> None:
+    # Protect compact time tokens with no space before them (e.g. "3P.M.") so the
+    # a.m./p.m. rules can decide boundary vs non-boundary using context.
+    r.text = _COMPACT_AMPM_RE.sub(r"\1∯\2∯", r.text)
+
+
+def _stage_uppercase_initialism(r: "AbbreviationReplacer") -> None:
+    r.text = r._restore_uppercase_initialism_boundaries()
+
+
+def _stage_allcaps_imprint(r: "AbbreviationReplacer") -> None:
+    r.text = r.protect_allcaps_imprint_abbreviations()
+
+
+def _stage_ampm_rules(r: "AbbreviationReplacer") -> None:
+    r.apply_ampm_boundary_rules()
+
+
+def _stage_ampm_rules_ascii_only(r: "AbbreviationReplacer") -> None:
+    # German never restored non-ASCII a.m./p.m. boundaries.
+    r.apply_ampm_boundary_rules(restore_non_ascii=False)
+
+
+def _stage_standalone_i(r: "AbbreviationReplacer") -> None:
+    if r.RESTORE_STANDALONE_I_BOUNDARIES:
+        r.text = r.restore_standalone_i_boundaries()
+
+
+# The historical full post-classifier sequence (english/en_legal/greek/zh/ja/...
+# all inherit this when their policy leaves ``post_stages`` as None).
+DEFAULT_POST_STAGES = (
+    _stage_multi_period,
+    _stage_compact_ampm,
+    _stage_uppercase_initialism,
+    _stage_allcaps_imprint,
+    _stage_ampm_rules,
+    _stage_standalone_i,
+)
+
+# German's reduced pipeline (no Kommanditgesellschaft / compact-ampm /
+# uppercase-initialism / allcaps-imprint / standalone-I passes; a.m./p.m. without
+# the non-ASCII boundary restore). Previously the body of ``Deutsch...replace()``.
+GERMAN_POST_STAGES = (
+    _stage_multi_period,
+    _stage_ampm_rules_ascii_only,
+)
 
 
 class AbbreviationReplacer:
@@ -201,6 +271,11 @@ class AbbreviationReplacer:
     CAPITALIZED_FOLLOWER_IS_BOUNDARY_CUE = False
     PROTECT_ALLCAPS_IMPRINT_SUFFIXES = False
     RESTORE_STANDALONE_I_BOUNDARIES = False
+
+    # Single-pass period classifier. The per-line abbreviation-protection step
+    # always routes through PeriodClassifier. ABBR_POLICY selects the per-language
+    # policy by data; None resolves to period_classifier.BASE_POLICY lazily.
+    ABBR_POLICY = None
 
     # Opt-in for scripts (e.g. Greek, Cyrillic) that do not capitalize common
     # nouns mid-sentence: there, a capital letter following a multi-period
@@ -244,6 +319,67 @@ class AbbreviationReplacer:
     _UNKNOWN_PLACEHOLDER = "&ᓷ&&ᓷ&"
     _SENTENCE_START_OPENERS = frozenset("\"'“‘«([")
 
+    # English-honorific DEFAULT for the shared title-prefix heuristic, and an
+    # explicit per-language-overridable policy.
+    #
+    # Personal-title / honorific abbreviations that can introduce a name and chain
+    # in front of a degree abbreviation ("Dr. Ph.D. Smith"). Used by
+    # ``_preceding_token_is_title_prefix`` (reached from ``_is_titled_name_prefix``)
+    # to tell a genuine title chain from an unrelated protected prepositive that
+    # merely precedes a capitalized degree token (a geographic "Mt." or a legal
+    # "v." is NOT a personal title, so "We climbed Mt. Ph.D. Smith advised her."
+    # still splits).
+    #
+    # Altitude / override contract:
+    #   * This is the ENGLISH-HONORIFIC DEFAULT. Because it is a class attribute on
+    #     the shared base ``AbbreviationReplacer``, every Latin-script language
+    #     (es, fr, it, de, ... as well as en and en_legal) inherits this exact set
+    #     unchanged via class inheritance — no language overrides it today.
+    #   * A language customizes the policy by setting
+    #     ``NAME_TITLE_PREFIX_ABBREVIATIONS`` in its OWN ``AbbreviationReplacer``
+    #     subclass. ``_is_titled_name_prefix`` reads it as
+    #     ``self.NAME_TITLE_PREFIX_ABBREVIATIONS`` (see below), so a subclass
+    #     attribute transparently wins. To extend rather than replace the default,
+    #     do as ``en_legal`` does for ``STARTER_AWARE_PREPOSITIVE``, e.g.
+    #     ``NAME_TITLE_PREFIX_ABBREVIATIONS = (
+    #         AbbreviationReplacer.NAME_TITLE_PREFIX_ABBREVIATIONS | frozenset({"qc"})
+    #     )``.
+    #
+    # Format contract: each entry is the BARE LOWERCASE form with periods stripped
+    # (so "Dr." -> "dr", "Ph.D." -> "phd"). Include any degree forms used in chains
+    # (e.g. "phd", "md") so a longer chain ("Ph.D. M.D. Smith") also links.
+    NAME_TITLE_PREFIX_ABBREVIATIONS: frozenset[str] = frozenset(
+        {
+            "dr",
+            "mr",
+            "mrs",
+            "ms",
+            "miss",
+            "mx",
+            "prof",
+            "rev",
+            "hon",
+            "sr",
+            "fr",
+            "sir",
+            "dame",
+            "gen",
+            "col",
+            "capt",
+            "lt",
+            "sgt",
+            "maj",
+            "sen",
+            "rep",
+            "gov",
+            "pres",
+            "phd",
+            "md",
+            "dds",
+            "esq",
+        }
+    )
+
     def __init__(self, text: str, lang, split_mode: str = "balanced") -> None:
         self.text = text
         self.lang = lang
@@ -253,6 +389,53 @@ class AbbreviationReplacer:
             if abbr_class not in AbbreviationReplacer._data_cache:
                 AbbreviationReplacer._data_cache[abbr_class] = _AbbreviationData(lang.Abbreviation)
             self._data = AbbreviationReplacer._data_cache[abbr_class]
+
+    def _period_classifier(self):
+        """Return a PeriodClassifier, reusing the one cached per
+        ``(policy, split_mode, replacer_cls)`` on the shared ``_AbbreviationData``.
+
+        The classifier's compiled ``RE_*`` suffix patterns and ``_full_cache`` are
+        line-independent and depend only on ``(policy, split_mode, data)`` — all
+        immutable for a given ``_AbbreviationData`` — so one classifier serves every
+        per-call ``AbbreviationReplacer`` instance, avoiding ~9 regex compiles and a
+        cold full-pattern cache on each ``segment()`` call. It reuses the SAME
+        ``_AbbreviationData`` (automaton + sets), never rebuilding the keys or the
+        automaton, preserving the U+0130 İ exception and the publish-after-build
+        thread-safety invariant.
+
+        The classifier's back-reference (``self.r``) is bound ONCE, at construction,
+        to a document-free *reference* replacer of this class — never rebound to the
+        live, document-holding instance. Everything the classifier reads through the
+        back-ref (``CAPITALIZED_FOLLOWER_IS_BOUNDARY_CUE``, ``STARTER_AWARE_PREPOSITIVE``,
+        ``_follower_is_likely_sentence_start``, ``_UNKNOWN_PLACEHOLDER`` …) is
+        class-level, so a same-class reference is interchangeable with the live one.
+        Binding to the class (not the instance) keeps the process-global cache free
+        of any caller's input text (no retention) and immune to a per-call back-ref
+        rebind race when concurrent ``segment()`` calls share one classifier.
+        """
+        pc = getattr(self, "_pc", None)
+        if pc is not None:
+            return pc
+        # Local import keeps imports lazy and avoids a cycle.
+        from sentencesplit.period_classifier import BASE_POLICY, PeriodClassifier
+
+        policy = self.ABBR_POLICY if self.ABBR_POLICY is not None else BASE_POLICY
+        cls = type(self)
+        key = (id(policy), self.split_mode, cls)
+        cache = self._data._classifier_cache
+        pc = cache.get(key)
+        if pc is None:
+            # Build against a document-free reference replacer of THIS class so the
+            # cached classifier never pins a caller's input text and reads only
+            # class-level config through its back-ref.
+            reference = cls("", self.lang, split_mode=self.split_mode)
+            pc = PeriodClassifier(reference, self._data, policy)
+            with AbbreviationReplacer._cache_lock:
+                # Publish after full construction; first writer wins (the value is
+                # behavior-identical for a given key, so a benign race is harmless).
+                pc = cache.setdefault(key, pc)
+        self._pc = pc
+        return pc
 
     @property
     def _leans_split(self) -> bool:
@@ -366,15 +549,48 @@ class AbbreviationReplacer:
         for line in self.text.splitlines(True):
             lines.append(self.search_for_abbreviations_in_string(line))
         self.text = "".join(lines)
-        self.replace_multi_period_abbreviations()
-        # Protect compact time tokens with no space before them (e.g. "3P.M.")
-        # so a.m./p.m. rules can decide boundary vs non-boundary using context.
-        self.text = _COMPACT_AMPM_RE.sub(r"\1∯\2∯", self.text)
-        # Restore a sentence-boundary period when an all-uppercase multi-period
-        # abbreviation with 3+ parts (e.g. "S∯A∯T∯", "E∯S∯T∯") is followed
-        # by a space and uppercase letter.
-        # Only uppercase lookbehind so lowercase abbreviations like "a.k.a."
-        # keep their non-boundary separator.
+        self._run_post_stages()
+        return self.text
+
+    def _run_post_stages(self) -> None:
+        """Run the policy's ordered downstream per-period post-stages over ``self.text``.
+
+        Each stage is a ``(replacer) -> None`` callable that mutates ``self.text``;
+        the ordered tuple is OWNED by the active ``AbbrPolicy`` (S1 — completing the
+        single-pass model: the downstream period decisions that used to be a fixed
+        sequence hard-coded in ``replace()`` now flow through the policy, so a
+        language reorders/drops/augments them as data, e.g. German's reduced
+        pipeline or Kazakh's extra paren pass). A policy that leaves ``post_stages``
+        as None inherits ``DEFAULT_POST_STAGES`` (the historical full sequence), so the
+        base languages are unchanged. Stages self-gate on the same class flags as
+        before (``PROTECT_ALLCAPS_IMPRINT_SUFFIXES``, ``RESTORE_STANDALONE_I_BOUNDARIES``,
+        the ``split_mode`` dial), so this is behavior-preserving.
+        """
+        for stage in self._post_stages():
+            stage(self)
+
+    def _post_stages(self) -> tuple:
+        """Resolve the active policy's ``post_stages`` (or the default full sequence).
+
+        ``None`` inherits ``DEFAULT_POST_STAGES``; an explicit empty tuple is honored
+        as a deliberate "run no post-stages" pipeline.
+        """
+        from sentencesplit.period_classifier import BASE_POLICY
+
+        policy = self.ABBR_POLICY if self.ABBR_POLICY is not None else BASE_POLICY
+        return DEFAULT_POST_STAGES if policy.post_stages is None else policy.post_stages
+
+    def _restore_uppercase_initialism_boundaries(self) -> str:
+        """Restore a sentence-boundary period after an all-uppercase 3+ part initialism.
+
+        An all-uppercase multi-period abbreviation ("S∯A∯T∯", "E∯S∯T∯") followed by a
+        space and an uppercase letter is ambiguous between a surname/initialism
+        reading and a real boundary; split-mode resolves it. Only an uppercase
+        lookbehind is matched so lowercase abbreviations like "a.k.a." keep their
+        non-boundary separator. Reads the pre-substitution text (``restore_source``)
+        for the follower/left-context checks so the decision is not perturbed by its
+        own rewrites.
+        """
         restore_source = self.text
 
         def restore_uppercase_initialism_boundary(match):
@@ -392,12 +608,7 @@ class AbbreviationReplacer:
                 return match.group()
             return "."
 
-        self.text = _UPPERCASE_INITIALISM_BOUNDARY_RE.sub(restore_uppercase_initialism_boundary, self.text)
-        self.text = self.protect_allcaps_imprint_abbreviations()
-        self.apply_ampm_boundary_rules()
-        if self.RESTORE_STANDALONE_I_BOUNDARIES:
-            self.text = self.restore_standalone_i_boundaries()
-        return self.text
+        return _UPPERCASE_INITIALISM_BOUNDARY_RE.sub(restore_uppercase_initialism_boundary, self.text)
 
     def apply_ampm_boundary_rules(self, restore_non_ascii: bool = True) -> None:
         """Apply a.m./p.m. handling to ``self.text``, honoring the split-bias.
@@ -494,6 +705,57 @@ class AbbreviationReplacer:
                 return True
         return False
 
+    @staticmethod
+    def _preceding_token_is_title_prefix(text: str, start: int, title_abbreviations: frozenset[str]) -> bool:
+        """Whether the multi-period abbr ending its name-title prefix at *start*.
+
+        A multi-period title/degree abbreviation acts as a *prefix* of a personal
+        name ("Ph.D. Smith", "Dr. Ph.D. Smith") when it opens the sentence/line or
+        is itself preceded only by another protected *personal-title* abbreviation.
+        Walk left over whitespace: a string/line start (or only whitespace back to a
+        newline) qualifies. Landing on a protected abbreviation separator ('∯')
+        qualifies ONLY when that preceding token is itself a personal title in
+        *title_abbreviations* ("Dr∯ ") — an unrelated protected prepositive ("Mt∯ ",
+        "v∯ ") does not, since it is not a title and the degree token begins a new
+        sentence. Landing on an ordinary word ("earned a Ph.D.", "his Ph.D.") does
+        not qualify either.
+        """
+        i = start
+        while i > 0 and text[i - 1].isspace():
+            if text[i - 1] in "\r\n":
+                return True
+            i -= 1
+        if i == 0:
+            return True
+        if text[i - 1] != "∯":
+            return False
+        # The preceding token is a protected abbreviation: it only chains as a
+        # title prefix when it is itself a personal title/honorific, not an
+        # unrelated geographic/legal prepositive. Extract that token (letters plus
+        # its own protected separators) and normalize to the bare lowercase form.
+        k = i
+        while k > 0 and (text[k - 1].isalnum() or text[k - 1] in ".∯"):
+            k -= 1
+        token = text[k:i].replace("∯", "").replace(".", "").lower()
+        return token in title_abbreviations
+
+    def _is_titled_name_prefix(self, parts: list[str], start: int) -> bool:
+        """True if a degree/title abbr precedes a surname ("Ph.D. Smith").
+
+        Restricted to *mixed* abbreviations carrying a multi-letter part with a
+        lowercase letter (the "Ph" in "Ph.D."): pure all-caps initialisms
+        ("A.S.E. Ackermann", "M.B.A.") deliberately follow the uppercase-initialism
+        split dial instead. The caller has already confirmed a capitalized
+        follower; this adds the structural left-context check so only a
+        name-title prefix keeps its final period non-terminal.
+        """
+        if not any(len(part) > 1 and not part.isupper() for part in parts):
+            return False
+        # Read the policy via ``self.`` so a per-language ``AbbreviationReplacer``
+        # subclass that sets its own ``NAME_TITLE_PREFIX_ABBREVIATIONS`` overrides
+        # the inherited English-honorific default (see the attribute's docstring).
+        return self._preceding_token_is_title_prefix(self.text, start, self.NAME_TITLE_PREFIX_ABBREVIATIONS)
+
     def replace_multi_period_abbreviations(self) -> None:
         def mpa_replace(match):
             matched = match.group()
@@ -540,9 +802,17 @@ class AbbreviationReplacer:
                 two_letter_uppercase_initialism
                 and self._two_letter_initialism_has_always_joined_follower(parts, content_offset)
             )
+            # A degree/title abbreviation that opens the name ("Ph.D. Smith",
+            # "Dr. Ph.D. Smith") prefixes a surname, so its final period is a
+            # name-internal separator, not a boundary — even before a capital.
+            # Restricted to the title-prefix position so a trailing degree
+            # ("She earned a Ph.D. Smith advised her.") still splits.
+            titled_name_prefix = not self._leans_split and likely_start and self._is_titled_name_prefix(parts, match.start())
             if self._leans_join:
                 protect_final_period = True
             elif has_always_joined_follower:
+                protect_final_period = True
+            elif titled_name_prefix:
                 protect_final_period = True
             elif not is_ampm and ((split_candidate and likely_start) or capital_boundary):
                 protect_final_period = False
@@ -565,116 +835,5 @@ class AbbreviationReplacer:
         self.text = _NON_ASCII_AMPM_SPACED_RE.sub(_restore, self.text)
         return self.text
 
-    def replace_period_of_abbr(self, txt: str, abbr: str, escaped: str | None = None) -> str:
-        txt = " " + txt
-        if escaped is None:
-            escaped = re.escape(abbr.strip())
-        boundary = self._data.boundary_class
-        txt = re.sub(
-            r"(?<=[{boundary}]{abbr})\.(?=((\.|\:|-|\?|,)|(\s([a-z]|I\s|I'm|I'll|\d|\())))".format(
-                boundary=boundary, abbr=escaped
-            ),
-            "∯",
-            txt,
-        )
-        return txt[1:]
-
     def search_for_abbreviations_in_string(self, text: str) -> str:
-        lowered = text.lower()
-        data = self._data
-        found_indices = data.automaton.search(lowered)
-        abbreviations = data.abbreviations
-        for idx in sorted(found_indices):
-            stripped, stripped_lower, escaped, match_re, next_word_re = abbreviations[idx]
-            # Capture each occurrence that is actually followed by a period
-            # together with its OWN following character (the char after
-            # "abbr. ", else ""). Computing both from the same match keeps them
-            # aligned — the previous code zipped two independent findall() lists
-            # of different lengths, so the case heuristic was read from the wrong
-            # occurrence. A period-less occurrence (e.g. a decoy "Cir held"
-            # before the real "Cir.") has no period to protect; processing it
-            # would run a broad global re.sub that wrongly mutates the period of
-            # a *different* occurrence, so it is skipped entirely.
-            occurrences = []
-            for m in match_re.finditer(text):
-                end = m.end()
-                if text[end : end + 1] != ".":
-                    continue
-                char = text[end + 2 : end + 3] if text[end : end + 2] == ". " else ""
-                occurrences.append((m.group(), char))
-            # scan_for_replacements performs a *global* re.sub keyed only on (am,
-            # char), so identical occurrences yield identical, idempotent edits.
-            # Deduplicate them to keep work linear instead of O(occurrences × N)
-            # on long, repetitive, newline-free input.
-            for am, char in dict.fromkeys(occurrences):
-                text = self.scan_for_replacements(text, am, 0, (char,), stripped, escaped)
-        return text
-
-    def _replace_number_abbr(self, txt: str, am_escaped: str, boundary: str, upper: bool) -> str:
-        """Protect period after number abbreviations before digits and Roman numerals."""
-        if upper:
-            if self._leans_join:
-                # conservative: a capitalized follower ("Fig. Several") is read
-                # as a continuation, not a new sentence — protect (join).
-                return _replace_with_escape(txt, am_escaped, r"\.(?=\s[^\W\d_])", "∯", boundary)
-            # balanced/aggressive: protect only before Roman numerals (Vol. IV).
-            # Exclude lone "I" to avoid false joins with the pronoun "I".
-            return _replace_with_escape(txt, am_escaped, r"\.(?=\s(?:[IVXLCDM]{2,}|[VXLCDM])\b)", "∯", boundary)
-        txt = _replace_with_escape(txt, am_escaped, r"\.(?=(\s\d|\s+\(|\s\?\?(?!\?)|\s[IVXLCDM]+\b))", "∯", boundary)
-        return self._protect_number_abbr_unknown_placeholder(txt, am_escaped, boundary)
-
-    def _protect_number_abbr_unknown_placeholder(self, txt: str, am_escaped: str, boundary: str) -> str:
-        txt = " " + txt
-        txt = re.sub(rf"(?<=[{boundary}]{am_escaped}∯)\s\?\?(?!\?)", f" {self._UNKNOWN_PLACEHOLDER}", txt)
-        return txt[1:]
-
-    def _replace_starter_aware_prepositive(self, txt: str, am_escaped: str, boundary: str) -> str:
-        txt = " " + txt
-        pattern = re.compile(rf"(?<=[{boundary}]{am_escaped})\.(?=(\s|:\d+))")
-
-        def _protect_or_restore(match):
-            if txt[match.end() : match.end() + 1] == ":":
-                return "∯"
-            if self._follower_is_likely_sentence_start(txt, match.end()):
-                return "."
-            return "∯"
-
-        return pattern.sub(_protect_or_restore, txt)[1:]
-
-    def scan_for_replacements(
-        self, txt: str, am: str, ind: int, char_array, stripped: str = "", escaped: str | None = None
-    ) -> str:
-        try:
-            char = char_array[ind]
-        except IndexError:
-            char = ""
-        use_case_heuristic = self.CAPITALIZED_FOLLOWER_IS_BOUNDARY_CUE
-        upper = char.isupper() if (char and use_case_heuristic) else False
-        am_stripped = am.strip()
-        # Strip leading elision characters (e.g. apostrophe in "l'Avv") so the
-        # bare abbreviation is used for set lookups and replacement patterns.
-        elision = self._data.elision_chars
-        if elision and am_stripped and am_stripped[0] in elision:
-            am_stripped = am_stripped[1:]
-        am_lower = am_stripped.lower()
-        boundary = self._data.boundary_class
-        if not upper or am_lower in self._data.prepositive_set or am_lower in self._data.number_abbr_set:
-            am_escaped = re.escape(am_stripped)
-            if am_lower in self._data.prepositive_set:
-                should_protect = not (self._leans_split and am_lower in self.AGGRESSIVE_PREPOSITIVE_BOUNDARY_BLOCKLIST)
-                if should_protect:
-                    if am_lower in self.STARTER_AWARE_PREPOSITIVE and self._leans_split:
-                        txt = self._replace_starter_aware_prepositive(txt, am_escaped, boundary)
-                    else:
-                        txt = _replace_with_escape(txt, am_escaped, r"\.(?=(\s|:\d+))", "∯", boundary)
-            elif am_lower in self._data.number_abbr_set:
-                txt = self._replace_number_abbr(txt, am_escaped, boundary, upper)
-                # Multi-char number abbreviations (eq, pt, fig, vol, …) also
-                # need regular abbreviation protection before lowercase text.
-                # Single-char entries like "p" are excluded — they are too
-                # ambiguous (e.g. "p" is also part of "p.m.").
-                if not upper and len(am_stripped) > 1:
-                    txt = self.replace_period_of_abbr(txt, am_stripped, am_escaped)
-            else:
-                txt = self.replace_period_of_abbr(txt, am_stripped, am_escaped)
-        return txt
+        return self._period_classifier().rewrite(text)

@@ -112,10 +112,6 @@ mccabe.max-complexity = 10
 "sentencesplit/exclamation_words.py" = ["E501"]
 "sentencesplit/lists_item_replacer.py" = ["E501"]
 "benchmarks/english_golden_rules.py" = ["E501"]
-"analysis/analyze_disagreements_v1.py" = ["C901"]
-"analysis/analyze_disagreements_v2.py" = ["C901"]
-"analysis/compare_pysbd_vs_punkt.py" = ["C901"]
-"analysis/assign_verdicts.py" = ["C901"]
 "benchmarks/corpus_compare/run_compare.py" = ["C901"]
 "benchmarks/timing_script.py" = ["E501", "E402"]
 
@@ -140,6 +136,11 @@ ignore_missing_imports = true
 [tool.pytest.ini_options]
 minversion = "8.0"
 testpaths = ["tests"]
+# Put the repo root first on sys.path so tests import the in-tree `benchmarks`
+# package (e.g. benchmarks.corpus_compare) rather than any stale copy that may be
+# lingering in site-packages from an earlier install. benchmarks/ is intentionally
+# never shipped, so it is only importable from the working tree.
+pythonpath = ["."]
 # Fail the suite if an xfail-marked test starts passing, so a fixed bug's stale
 # xfail can't silently rot as an xpass.
 xfail_strict = true
@@ -149,11 +150,6 @@ xfail_strict = true
 addopts = ["-ra", "--strict-config", "--import-mode=importlib"]
 markers = [
   "perf: timing-sensitive performance regression guards",
-]
-filterwarnings = [
-  # Many span-contract tests intentionally exercise the deprecated char_span
-  # alias. The dedicated regression tests still assert the warning fires.
-  "ignore:char_span is deprecated; use segment_spans\\(\\):DeprecationWarning",
 ]
 
 [tool.semantic_release]
@@ -173,9 +169,8 @@ source = ["sentencesplit"]
 
 [tool.coverage.report]
 show_missing = true
-# Conservative ratchet: floor(measured TOTAL %) minus 3. Branch coverage and
-# the intentional char_span deprecation path keep this comfortably below the
-# observed ~95% so the gate is non-flaky.
+# Conservative ratchet: floor(measured TOTAL %) minus 3. Branch coverage keeps
+# this comfortably below the observed ~95% so the gate is non-flaky.
 fail_under = 93
 exclude_lines = [
   "pragma: no cover",

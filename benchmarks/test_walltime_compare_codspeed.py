@@ -47,7 +47,7 @@ def _only(impl: str) -> None:
 @pytest.fixture(scope="module")
 def en_segmenter() -> Segmenter:
     # Construction is amortized in real reuse; benchmark only the per-call work.
-    return Segmenter(language="en", clean=False, char_span=False)
+    return Segmenter(language="en", clean=False)
 
 
 @pytest.mark.parametrize("impl", ["cpython", "pypy"])

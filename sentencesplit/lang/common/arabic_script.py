@@ -2,7 +2,53 @@
 import re
 
 from sentencesplit.abbreviation_replacer import AbbreviationReplacer
+from sentencesplit.period_classifier import AbbrPolicy, Candidate, Decision, PeriodClassifier
 from sentencesplit.utils import Rule
+
+# Arabic / Persian (Phase 5): the legacy
+# ``ArabicScriptProfile.AbbreviationReplacer`` overrode ``scan_for_replacements``
+# with a SINGLE rule, ``re.sub(r"(?<={re.escape(am)})\.", "∯", txt)``, bypassing
+# the base prepositive / number / regular trichotomy entirely. The effective
+# behavior: PROTECT a known abbreviation's period whenever the abbreviation sits
+# at a word boundary, REGARDLESS of the follower (a BARE ``\.`` suffix — any
+# follower, including end-of-line, a non-space char, or a capital). Arabic script
+# has no letter case, so there is no capital-follower boundary cue to consult;
+# every matched abbreviation's period is non-terminal. Both ``ar`` and ``fa`` use
+# this profile; Persian additionally inherits the full English abbreviation lists
+# (``Standard.Abbreviation`` — including prepositive/number entries like ``e.g``),
+# so the bare-protect applies uniformly to all of them, never the trichotomy.
+# ``classify_special`` replaces every branch (always PROTECT);
+# ``realize_suffix_pattern`` pins the global realization pass to the same bare
+# ``\.`` so PROTECT is realized over every occurrence with the rule that decided
+# it.
+#
+# Already-correct (not a quirk fix): the legacy rule escaped ``am`` before
+# interpolation (the only Arabic-script override that did — see
+# tests/regression/test_arabic_script_abbreviation_metachar.py), so a dotted
+# abbreviation like ``e.g`` did not wildcard-match an unrelated ``egg.``. The
+# classifier uses ``data.abbreviations[idx][2]`` (the pre-built ``re.escape``) for the
+# lookbehind in ``_full_pattern``, so the literal ``.`` stays escaped and the same
+# regression case keeps splitting.
+_AR_PROTECT_BARE = re.compile(r"\.")
+
+
+def _ar_classify_special(pc: "PeriodClassifier", line: str, c: Candidate) -> object:
+    """Arabic / Persian: every candidate period PROTECTs (bare ``\\.``).
+
+    Reproduces ``ArabicScriptProfile.AbbreviationReplacer.scan_for_replacements``
+    (one rule, all branches collapsed, any follower). The candidate is already a
+    known ``<abbr>.`` at a word boundary (enumeration's reachability gate), so the
+    decision is unconditionally PROTECT.
+    """
+    return Decision.PROTECT
+
+
+AR_POLICY = AbbrPolicy(
+    classify_special=_ar_classify_special,
+    # Constant bare ``\.`` suffix for every PROTECT, independent of (c, line,
+    # decision); ``_AR_PROTECT_BARE`` stays the single source of the string.
+    realize_suffix_pattern=_AR_PROTECT_BARE.pattern,
+)
 
 
 class ArabicScriptProfile:
@@ -19,10 +65,11 @@ class ArabicScriptProfile:
     ReplaceColonBetweenNumbersRule = Rule(r"(?<=\d):(?=\d)", "♭")
 
     class AbbreviationReplacer(AbbreviationReplacer):
-        def scan_for_replacements(self, txt, am, index, character_array, stripped=None, escaped=None):
-            # ``am`` is the matched abbreviation occurrence (with its leading
-            # boundary char). It must be escaped before being spliced into the
-            # lookbehind: abbreviations such as "e.g"/"i.e"/"ا.د" contain a literal
-            # ".", which would otherwise act as a regex wildcard and protect the
-            # period after unrelated words (e.g. "egg." after seeing "e.g").
-            return re.sub(r"(?<={0})\.".format(re.escape(am)), "∯", txt)
+        # Single-pass classifier. ``AR_POLICY`` reproduces the former
+        # bare-period protect (any follower) as an ``AbbrPolicy`` hook: the matched
+        # abbreviation occurs at a word boundary and its period is always
+        # non-terminal (Arabic script has no letter case, so no capital-follower
+        # cue). The pre-escaped abbreviation in the classifier's lookbehind keeps a
+        # dotted form like "e.g" from wildcard-matching an unrelated "egg."
+        # (tests/regression/test_arabic_script_abbreviation_metachar.py).
+        ABBR_POLICY = AR_POLICY

@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 import pytest
 
+from tests.helpers import assert_segments
+
 GOLDEN_KK_RULES_TEST_CASES = [
     (
         "Мұхитқа тікелей шыға алмайтын мемлекеттердің ішінде Қазақстан - ең үлкені.",
@@ -65,9 +67,7 @@ GOLDEN_KK_RULES_TEST_CASES = [
 @pytest.mark.parametrize("text,expected_sents", GOLDEN_KK_RULES_TEST_CASES)
 def test_kk_sbd(kk_default_fixture, text, expected_sents):
     """Kazakh language SBD tests"""
-    segments = kk_default_fixture.segment(text)
-    segments = [s.strip() for s in segments]
-    assert segments == expected_sents
+    assert_segments(kk_default_fixture, text, expected_sents)
 
 
 def test_kk_single_period_abbreviations_do_not_split_before_numeric_continuation(kk_default_fixture):
@@ -103,3 +103,17 @@ def test_kk_latin_initialisms_do_not_split_before_kazakh_continuation(kk_default
 )
 def test_kk_single_period_abbreviations_do_not_split_before_cyrillic_lowercase(kk_default_fixture, text):
     assert kk_default_fixture.segment(text) == [text]
+
+
+# --- Kazakh KK_POLICY follower-class parity assertions ---
+# One Kazakh fact about KK_POLICY's follower-class dispatch, asserted directly at
+# the segment() level.
+
+
+def test_kk_obl_wide_follower_keeps_period_joined(kk_default_fixture):
+    # "обл. қала" rides the WIDE Kazakh-Cyrillic lowercase follower class
+    # (_KK_WIDE_FOLLOWER_STEMS): the period after 'обл.' is non-terminal before
+    # the lowercase 'қала', so it stays one sentence — while a genuine boundary
+    # ('. ' + capitalized start) still splits.
+    assert kk_default_fixture.segment("обл. қала үлкен.") == ["обл. қала үлкен."]
+    assert kk_default_fixture.segment("обл. қала. Келесі сөйлем.") == ["обл. қала. ", "Келесі сөйлем."]

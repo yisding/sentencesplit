@@ -2,15 +2,19 @@
 from __future__ import annotations
 
 import re
-import warnings
 
+from sentencesplit._normalize import (
+    _ZERO_WIDTH_CHARS,
+    _ZERO_WIDTH_CLASS,
+    strip_zero_width,
+    terminal_punctuation,
+)
 from sentencesplit.cleaner import Cleaner
 from sentencesplit.exceptions import InvalidConfigurationError
 from sentencesplit.languages import Language
 from sentencesplit.processor import Processor
 from sentencesplit.utils import (
     SPLIT_MODES,
-    ZERO_WIDTH_CHARS,
     DocType,
     SegmentLookahead,
     SplitMode,
@@ -38,16 +42,6 @@ _LANGUAGE_LOOKAHEAD_STEMS = {
 }
 _DIGIT_LOOKAHEAD_STEM = "1"
 _PERIOD_END_PUNCTUATION = frozenset({".", "．"})
-_TRAILING_SENTENCE_CLOSERS = frozenset("\"')]}»”’）】》」』")
-# Zero-width / format characters that str.isspace() does not flag. A lone one
-# (e.g. a Wikipedia U+200B reference marker) at a boundary survives str.strip()
-# and is otherwise emitted as a phantom sentence or folded into the next one.
-_ZERO_WIDTH_CHARS = frozenset(ZERO_WIDTH_CHARS)
-_ZERO_WIDTH_TRANSLATION = {ord(c): None for c in _ZERO_WIDTH_CHARS}
-_ZERO_WIDTH_CLASS = re.escape("".join(_ZERO_WIDTH_CHARS))
-# Fast presence test so the per-segment closer scan can early-out on the common
-# case of text with no zero-width/format characters at all.
-_ZERO_WIDTH_SEARCH_RE = re.compile(f"[{_ZERO_WIDTH_CLASS}]")
 
 # Above this length, the whole-sentence flexible-regex span fallback (which
 # emits ~8 pattern chars per input char with no cache) is replaced by a linear
@@ -56,90 +50,19 @@ _ZERO_WIDTH_SEARCH_RE = re.compile(f"[{_ZERO_WIDTH_CLASS}]")
 _REGEX_FALLBACK_MAX_LEN = 4096
 
 
-def _strip_zero_width(text: str, punctuations=None) -> str:
-    """Drop boundary zero-width/format characters from a (plain, non-span) segment.
-
-    Only the leading/trailing run of whitespace-or-zero-width is cleaned, and
-    even there whitespace is kept — just the stray zero-width artifact (e.g. a
-    lone U+200B Wikipedia reference marker) is removed. Interior zero-width
-    joiners are preserved, so emoji sequences (👩‍💻) and scripts that use
-    U+200C/U+200D within a word (e.g. Hindi, Persian) are not corrupted.
-    """
-
-    def _is_boundary_trim(ch: str) -> bool:
-        return ch.isspace() or ch in _ZERO_WIDTH_CHARS
-
-    start, end = 0, len(text)
-    while start < end and _is_boundary_trim(text[start]):
-        start += 1
-    while end > start and _is_boundary_trim(text[end - 1]):
-        end -= 1
-    lead = text[:start].translate(_ZERO_WIDTH_TRANSLATION)
-    trail = text[end:].translate(_ZERO_WIDTH_TRANSLATION)
-    core = text[start:end]
-    if punctuations:
-        core = _strip_zero_width_before_sentence_closers(core, punctuations)
-    return lead + core + trail
-
-
-def _strip_zero_width_before_sentence_closers(text: str, punctuations) -> str:
-    # The only edit this makes is dropping a zero-width run that sits between a
-    # sentence terminator and a closing quote/bracket; with no zero-width char
-    # present it rebuilds the string unchanged, so skip the char-by-char scan.
-    if not _ZERO_WIDTH_SEARCH_RE.search(text):
-        return text
-    chars = []
-    punctuation_set = frozenset(punctuations)
-    index = 0
-    text_len = len(text)
-    while index < text_len:
-        char = text[index]
-        if char not in _ZERO_WIDTH_CHARS:
-            chars.append(char)
-            index += 1
-            continue
-
-        run_start = index
-        while index < text_len and text[index] in _ZERO_WIDTH_CHARS:
-            index += 1
-
-        previous_char = chars[-1] if chars else ""
-        next_char = text[index] if index < text_len else ""
-        if previous_char in punctuation_set and next_char in _TRAILING_SENTENCE_CLOSERS:
-            continue
-        chars.append(text[run_start:index])
-    return "".join(chars)
-
-
-# ``char_span`` is soft-deprecated in favour of ``segment_spans()`` but retained
-# indefinitely as a convenience alias (no removal planned). The DeprecationWarning
-# fires only once per process — a gentle nudge, not per-construction noise.
-_CHAR_SPAN_DEPRECATION_WARNED = False
-
-
-def _warn_char_span_deprecated(stacklevel: int = 2) -> None:
-    global _CHAR_SPAN_DEPRECATION_WARNED
-    if _CHAR_SPAN_DEPRECATION_WARNED:
-        return
-    _CHAR_SPAN_DEPRECATION_WARNED = True
-    warnings.warn(
-        "char_span is deprecated; use segment_spans()",
-        DeprecationWarning,
-        stacklevel=stacklevel,
-    )
-
-
 class Segmenter:
     def __init__(
         self,
         language: str = "en",
         clean: bool = False,
         doc_type: DocType = None,
-        char_span: bool = False,
         split_mode: SplitMode = "balanced",
     ) -> None:
-        """Segments a text into a list of sentences
-        with or without character offsets from original text
+        """Segments a text into a list of sentences.
+
+        Use :meth:`segment` for plain ``list[str]`` output and
+        :meth:`segment_spans` for ``list[TextSpan]`` with original-text
+        character offsets.
 
         Parameters
         ----------
@@ -164,17 +87,6 @@ class Segmenter:
         doc_type : [type], optional
             Normal text or OCRed text, by default None
             set to `pdf` for OCRed text
-        char_span : bool, optional
-            Get start & end character offsets of each sentence within
-            the original text, by default False.
-
-            .. deprecated:: 0.0.5
-               Prefer :meth:`segment_spans`, the canonical spans API, which
-               always returns ``list[TextSpan]`` regardless of this flag and
-               guarantees a byte-for-byte round-trip with the source.
-               ``char_span`` is retained indefinitely as a convenience alias
-               (no removal is planned) and emits a one-time
-               :class:`DeprecationWarning` on first use.
         split_mode : str, optional
             Global split-bias for ambiguous boundaries, by default
             "balanced". One of:
@@ -195,24 +107,14 @@ class Segmenter:
         self.language_module = Language.get_language_code(language)
         self.clean = clean
         self.doc_type = doc_type
-        self.char_span = char_span
-        if char_span:
-            _warn_char_span_deprecated(stacklevel=3)
         if split_mode not in SPLIT_MODES:
             raise InvalidConfigurationError("split_mode must be one of {}.".format(", ".join(repr(m) for m in SPLIT_MODES)))
         self.split_mode = split_mode
         if doc_type not in (None, "pdf"):
             raise InvalidConfigurationError("doc_type must be None or 'pdf'.")
-        if self.clean and self.char_span:
-            raise InvalidConfigurationError(
-                "char_span must be False if clean is True. Since `clean=True` will modify original text."
-            )
         # when doctype is pdf then force user to clean the text
-        # char_span func wont be provided with pdf doctype also
-        elif self.doc_type == "pdf" and not self.clean:
-            raise InvalidConfigurationError(
-                "`doc_type='pdf'` should have `clean=True` & `char_span` should be False since original text will be modified."
-            )
+        if self.doc_type == "pdf" and not self.clean:
+            raise InvalidConfigurationError("`doc_type='pdf'` should have `clean=True` since original text will be modified.")
         self._cleaner_cls = getattr(self.language_module, "Cleaner", Cleaner)
         self._processor_cls = getattr(self.language_module, "Processor", Processor)
 
@@ -241,7 +143,7 @@ class Segmenter:
         return text
 
     def _strip_zero_width(self, text: str) -> str:
-        return _strip_zero_width(text, self.language_module.Punctuations)
+        return strip_zero_width(text, self.language_module.Punctuations)
 
     def _processor_text(self, text: str) -> str:
         if self.clean:
@@ -249,15 +151,7 @@ class Segmenter:
         return self._strip_zero_width(text)
 
     def _terminal_punctuation(self, text: str) -> tuple[int, str] | None:
-        idx = len(text) - 1
-        while idx >= 0 and (text[idx] in _TRAILING_SENTENCE_CLOSERS or text[idx] in _ZERO_WIDTH_CHARS):
-            idx -= 1
-        if idx < 0:
-            return None
-        punct = text[idx]
-        if punct not in self.language_module.Punctuations:
-            return None
-        return idx, punct
+        return terminal_punctuation(text, self.language_module.Punctuations)
 
     def _lookahead_probe_stems(self) -> tuple[str, ...]:
         stems = _LANGUAGE_LOOKAHEAD_STEMS.get(self.language, _DEFAULT_LOOKAHEAD_STEMS)
@@ -323,7 +217,7 @@ class Segmenter:
                 return True
         return False
 
-    def _segment_result(self, text: str | None) -> tuple[str, list[str] | list[TextSpan], list[str]]:
+    def _segment_result(self, text: str | None) -> tuple[str, list[str], list[str]]:
         if not text:
             return "", [], []
 
@@ -336,12 +230,6 @@ class Segmenter:
 
         matched_spans = list(self._match_spans(processed_sents, original_text))
         comparison_segments = [s for s, _, _ in matched_spans]
-        if self.char_span:
-            # Spans stay exact slices of the original text (non-destructive); a
-            # trailing zero-width char is absorbed into its preceding span by
-            # _match_spans so it is not folded into the next sentence.
-            spans = [TextSpan(s, start, end) for s, start, end in matched_spans]
-            return analysis_text, spans, comparison_segments
         # Plain segments drop zero-width/format chars that str.strip() leaves
         # behind, so a lone U+200B reference marker is not emitted as text.
         plain_segments = [seg for seg in (self._strip_zero_width(s) for s in comparison_segments) if seg.strip()]
@@ -548,13 +436,11 @@ class Segmenter:
         if prior_end < len(original_text):
             yield original_text[prior_end:], prior_end, len(original_text)
 
-    def segment(self, text: str | None) -> list[str] | list[TextSpan]:
-        """Segment ``text`` into sentences.
+    def segment(self, text: str | None) -> list[str]:
+        """Segment ``text`` into a ``list[str]`` of sentences.
 
-        Returns a ``list[str]`` by default, or a ``list[TextSpan]`` (with
-        ``.sent``/``.start``/``.end``) when the Segmenter was constructed with
-        ``char_span=True``. Use :meth:`segment_spans` to always get spans
-        regardless of the ``char_span`` flag.
+        Use :meth:`segment_spans` to get ``list[TextSpan]`` with original-text
+        character offsets and a byte-for-byte round-trip guarantee.
         """
         _, segments, _ = self._segment_result(text)
         return segments
@@ -568,8 +454,13 @@ class Segmenter:
         analysis_text, _, comparison_segments = self._segment_result(text)
         return self._wait_for_last_segment(analysis_text, comparison_segments)
 
-    def segment_with_lookahead(self, text: str | None) -> SegmentLookahead:
-        """Segment text and report whether the last segment should wait."""
+    def segment_with_lookahead(self, text: str | None) -> SegmentLookahead[str]:
+        """Segment text and report whether the last segment should wait.
+
+        Returns a :class:`~sentencesplit.utils.SegmentLookahead` whose
+        ``segments`` is a ``list[str]``. Use
+        :meth:`segment_spans_with_lookahead` for the ``list[TextSpan]`` variant.
+        """
         analysis_text, segments, comparison_segments = self._segment_result(text)
         return SegmentLookahead(
             segments=segments,
@@ -577,7 +468,7 @@ class Segmenter:
         )
 
     def segment_spans(self, text: str | None) -> list[TextSpan]:
-        """Return sentence spans regardless of the instance's ``char_span`` flag.
+        """Return sentence spans as a ``list[TextSpan]``.
 
         This is the canonical spans API and is byte-for-byte faithful: each
         returned :class:`~sentencesplit.utils.TextSpan` is an exact slice of the
@@ -596,8 +487,12 @@ class Segmenter:
         processed_sents = self.processor(self._processor_text(text)).process()
         return [TextSpan(s, start, end) for s, start, end in self._match_spans(processed_sents, text)]
 
-    def segment_spans_with_lookahead(self, text: str | None) -> tuple[list[TextSpan], bool]:
+    def segment_spans_with_lookahead(self, text: str | None) -> SegmentLookahead[TextSpan]:
         """Return sentence spans **and** the trailing-boundary lookahead verdict.
+
+        Returns a :class:`~sentencesplit.utils.SegmentLookahead` whose
+        ``segments`` is a ``list[TextSpan]`` (the spans variant of
+        :meth:`segment_with_lookahead`).
 
         Equivalent to calling :meth:`segment_spans` and
         :meth:`should_wait_for_more` separately, but segments ``text`` once
@@ -612,13 +507,13 @@ class Segmenter:
         if self.clean:
             raise InvalidConfigurationError("segment_spans_with_lookahead() requires clean=False.")
         if not text:
-            return [], False
+            return SegmentLookahead(segments=[], should_wait_for_more=False)
         processed_sents = self.processor(self._processor_text(text)).process()
         matched_spans = list(self._match_spans(processed_sents, text))
         spans = [TextSpan(s, start, end) for s, start, end in matched_spans]
         comparison_segments = [s for s, _, _ in matched_spans]
         should_wait = self._wait_for_last_segment(text, comparison_segments)
-        return spans, should_wait
+        return SegmentLookahead(segments=spans, should_wait_for_more=should_wait)
 
     def segment_clean(self, text: str | None) -> list[str]:
         """Return cleaned sentences regardless of the instance's clean flag."""

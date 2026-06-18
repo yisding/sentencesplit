@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 import pytest
 
+from tests.helpers import assert_segments
+
 GOLDEN_FR_RULES_TEST_CASES = [
     (
         "Après avoir été l'un des acteurs du projet génome humain, le Genoscope met aujourd'hui le cap vers la génomique environnementale. L'exploitation des données de séquences, prolongée par l'identification expérimentale des fonctions biologiques, notamment dans le domaine de la biocatalyse, ouvrent des perspectives de développements en biotechnologie industrielle.",
@@ -50,6 +52,4 @@ GOLDEN_FR_RULES_TEST_CASES = [
 @pytest.mark.parametrize("text,expected_sents", GOLDEN_FR_RULES_TEST_CASES)
 def test_fr_sbd(fr_default_fixture, text, expected_sents):
     """French language SBD tests"""
-    segments = fr_default_fixture.segment(text)
-    segments = [s.strip() for s in segments]
-    assert segments == expected_sents
+    assert_segments(fr_default_fixture, text, expected_sents)

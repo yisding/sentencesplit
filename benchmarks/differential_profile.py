@@ -98,7 +98,7 @@ def main() -> None:
     text = _SAMPLES[args.size]
     iters = 8000 if args.size != "large" else 1000
 
-    ours = sentencesplit.Segmenter(language="en", clean=False, char_span=False)
+    ours = sentencesplit.Segmenter(language="en", clean=False)
     sbd = pysbd.Segmenter(language="en", clean=False)
     engines = {"sentencesplit": ours.segment, "pysbd": sbd.segment}
 

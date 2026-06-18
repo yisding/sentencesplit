@@ -8,7 +8,7 @@ If you only need the packaged component, prefer:
 
     nlp.add_pipe("sentencesplit")
 
-This example shows a manual wrapper built on top of `Segmenter(char_span=True)`.
+This example shows a manual wrapper built on top of `Segmenter.segment_spans()`.
 """
 
 import spacy
@@ -19,8 +19,8 @@ import sentencesplit
 
 @Language.component("sentencesplit_sentence_boundaries")
 def sentencesplit_sentence_boundaries(doc):
-    seg = sentencesplit.Segmenter(language="en", clean=False, char_span=True)
-    sents_char_spans = seg.segment(doc.text)
+    seg = sentencesplit.Segmenter(language="en", clean=False)
+    sents_char_spans = seg.segment_spans(doc.text)
     start_char_offsets = {span.start for span in sents_char_spans}
     for token in doc:
         token.is_sent_start = token.idx in start_char_offsets

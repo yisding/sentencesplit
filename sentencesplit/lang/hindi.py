@@ -14,3 +14,9 @@ class Hindi(Common, Standard):
     # could never produce a boundary anyway — this just makes the two consistent.)
     SENTENCE_BOUNDARY_REGEX = re.compile(r".*?[।\|!\?]|.*?$")
     Punctuations = ["।", "|", "!", "?"]
+
+    # Hindi overrides zero scan methods and uses no elision, so it rides the base
+    # PeriodClassifier (BASE_POLICY) inherited from Standard directly. It inherits
+    # Standard.Abbreviation (the English-derived lists), and is NOT one of the
+    # CAPITALIZED_FOLLOWER_IS_BOUNDARY_CUE languages, so that flag stays off and
+    # capital followers flow through the split-mode ambiguity dial.

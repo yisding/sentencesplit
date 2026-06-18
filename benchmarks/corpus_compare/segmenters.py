@@ -107,7 +107,7 @@ def _make_sentencesplit() -> Segmenter:
         def seg(texts, language):
             key = language
             if key not in cache:
-                cache[key] = sentencesplit.Segmenter(language=language, clean=False, char_span=False)
+                cache[key] = sentencesplit.Segmenter(language=language, clean=False)
             s = cache[key]
             return [_norm(s.segment(t)) for t in texts]
 

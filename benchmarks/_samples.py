@@ -17,6 +17,17 @@ MEDIUM = (
 # A larger realistic document: repeat the medium sample to ~5 KB of prose.
 LARGE = " ".join([MEDIUM] * 20)
 
+# Abbreviation-dense legal prose. General prose spends little time in the
+# abbreviation phase, so the PeriodClassifier is barely visible there; this dense
+# sample (run through the en_legal profile) is the workload that actually guards
+# the abbreviation engine against regression.
+LEGAL = (
+    "Dr. Smith, Jr., Ph.D., M.D., et al., v. U.S. Dept. of Justice, No. 21-1234, "
+    "slip op. at 3 (2d Cir. Mar. 5, 2021). See 5 U.S.C. § 552(a)(4)(B); cf. Fed. R. "
+    "Civ. P. 12(b)(6). Mr. Lee, Esq., of Lee & Co., LLP, argued for appellant. The "
+    "Hon. J. Roberts, C.J., wrote for the majority. Compare id. at 5, with Ibid. n.7."
+)
+
 SAMPLES = {"short": SHORT, "medium": MEDIUM, "large": LARGE}
 
 # Whitespace-delimited token stream (LLM/ASR-like) for the streaming benchmark.

@@ -7,7 +7,7 @@ from syntok.tokenizer import Tokenizer
 
 import sentencesplit
 
-sentencesplit_segmenter = sentencesplit.Segmenter(language="en", clean=False, char_span=False)
+sentencesplit_segmenter = sentencesplit.Segmenter(language="en", clean=False)
 
 nlp = spacy.blank("en")
 nlp.add_pipe("sentencizer")

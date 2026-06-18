@@ -37,11 +37,20 @@ MEDIUM = (
     "She paid $4.50 for the U.S. edition (vol. 2, p. 17). Mr. Lee agreed."
 )
 LARGE = " ".join([MEDIUM] * 20)
+# Abbreviation-dense prose: the workload the abbreviation engine reworked, where
+# the engines' handling of "Dr."/"No."/"U.S."/"et al." diverges most. Same input for
+# all three engines, so the per-size rows stay directly comparable.
+DENSE = (
+    "Dr. Smith, Jr. met Mr. Lee, Esq. and Mrs. Jones at 3 p.m. on Jan. 5th. "
+    "They discussed the U.S. Dept. of Commerce report (vol. 2, no. 7, pp. 12-34). "
+    "Prof. Adams, Ph.D., of Acme Corp. vs. Globex Inc. cited St. Mary's Ave. and "
+    "the Mt. Vernon St. office. See e.g. fig. 4, cf. p. 9, et al."
+)
 # A larger document (~10 KB) used as a throughput proxy: per-run cost is inversely
 # proportional to sentences/sec, so the relative costs rank the engines' throughput.
 THROUGHPUT_DOC = " ".join([MEDIUM] * 50)
 
-_SAMPLES = {"short": SHORT, "medium": MEDIUM, "large": LARGE}
+_SAMPLES = {"short": SHORT, "medium": MEDIUM, "large": LARGE, "dense": DENSE}
 _LIBRARIES = ["ours", "pysbd", "punkt"]
 
 
@@ -58,7 +67,7 @@ def segmenters() -> dict[str, object]:
 
     import sentencesplit
 
-    ours = sentencesplit.Segmenter(language="en", clean=False, char_span=False)
+    ours = sentencesplit.Segmenter(language="en", clean=False)
     sbd = pysbd.Segmenter(language="en", clean=False)
     # Warm punkt so its one-time model load is not measured (nltk caches the
     # loaded tokenizer, so subsequent calls reuse it).
@@ -72,7 +81,7 @@ def segmenters() -> dict[str, object]:
 
 
 @pytest.mark.parametrize("library", _LIBRARIES)
-@pytest.mark.parametrize("size", ["short", "medium", "large"])
+@pytest.mark.parametrize("size", ["short", "medium", "large", "dense"])
 def test_segment(benchmark, segmenters: dict[str, object], size: str, library: str) -> None:
     segment = segmenters[library]
     benchmark(segment, _SAMPLES[size])

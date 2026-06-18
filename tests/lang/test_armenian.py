@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 import pytest
 
+from tests.helpers import assert_segments
+
 GOLDEN_HY_RULES_TEST_CASES = [
     ("Ի՞նչ ես մտածում: Ոչինչ:", ["Ի՞նչ ես մտածում:", "Ոչինչ:"]),
     ("Ապրիլի 24-ին սկսեց անձրևել...Այդպես էի գիտեի:", ["Ապրիլի 24-ին սկսեց անձրևել...Այդպես էի գիտեի:"]),
@@ -16,17 +18,6 @@ HY_MORE_TEST_CASES = [
         [
             "Սա այն փուլն է, երբ տեղի է ունենում Համակարգի մշակումը:",
             "Համաձայն Փուլ 2-ի, Մատակարարը մշակում և/կամ հարմարեցնում է համապատասխան ծրագիրը, տեղադրում ծրագրի բաղկացուցիչները, կատարում առանձին բլոկի և համակարգի թեստավորում և ներառում տարբեր մոդուլներ եզակի աշխատանքային համակարգում, որը  կազմում է այս Փուլի արդյունքը:",
-        ],
-    ),
-    (
-        "Մատակարարի նախագծի անձնակազմի կողմից համակարգի թեստերը հաջող անցնելուց հետո, Համակարգը տրվում է Գնորդին թեստավորման համար: 2-րդ փուլում, հիմք ընդունելով թեստային սցենարիոները, թեստերը կատարվում են Կառավարության կողմից Մատակարարի աջակցությամբ: Այս թեստերի թիրախը հանդիսանում է  Համակարգի` որպես մեկ ամբողջության և համակարգի գործունեության ստուգումը համաձայն տեխնիկական բնութագրերի: Այս թեստերի հաջողակ ավարտից հետո, Համակարգը ժամանակավոր ընդունվում է  Կառավարության կողմից: Այս թեստերի արդյունքները փաստաթղթային ձևով կներակայացվեն Թեստային Արդյունքների Հաշվետվություններում: Մատակարարը պետք է տրամադրի հետևյալը`",
-        [
-            "Մատակարարի նախագծի անձնակազմի կողմից համակարգի թեստերը հաջող անցնելուց հետո, Համակարգը տրվում է Գնորդին թեստավորման համար:",
-            "2-րդ փուլում, հիմք ընդունելով թեստային սցենարիոները, թեստերը կատարվում են Կառավարության կողմից Մատակարարի աջակցությամբ:",
-            "Այս թեստերի թիրախը հանդիսանում է  Համակարգի` որպես մեկ ամբողջության և համակարգի գործունեության ստուգումը համաձայն տեխնիկական բնութագրերի:",
-            "Այս թեստերի հաջողակ ավարտից հետո, Համակարգը ժամանակավոր ընդունվում է  Կառավարության կողմից:",
-            "Այս թեստերի արդյունքները փաստաթղթային ձևով կներակայացվեն Թեստային Արդյունքների Հաշվետվություններում:",
-            "Մատակարարը պետք է տրամադրի հետևյալը`",
         ],
     ),
     (
@@ -65,8 +56,6 @@ HY_MORE_TEST_CASES = [
     ),
     #  "No, I do not think so. It is not true." ==> ["No, I do not think so.", "It is not true."]
     ("Ոչ, այդպես չեմ կարծում: Դա ճիշտ չէ:", ["Ոչ, այդպես չեմ կարծում:", "Դա ճիշտ չէ:"]),
-    #  "April 24 it has started to rain... I was thinking about." ==> ["April 24 it has started to rain... I was thinking about."]
-    ("Ապրիլի 24-ին սկսեց անձրևել...Այդպես էի գիտեի:", ["Ապրիլի 24-ին սկսեց անձրևել...Այդպես էի գիտեի:"]),
     #  "It was 1960...it was winter...it was night. It was cold...emptiness." ==> ["It was 1960...it was winter...it was night.", "It was cold...emptiness."]
     ("1960 թվական…ձմեռ…գիշեր: Սառն էր…դատարկություն:", ["1960 թվական…ձմեռ…գիշեր:", "Սառն էր…դատարկություն:"]),
     #  "Why a computer could not do what a man could do? Simply it doesn't have a human brain." ==> ["Why a computer could not do what a man could do?", "Simply it doesn't have a human brain."]
@@ -79,13 +68,6 @@ HY_MORE_TEST_CASES = [
         "Թվարկիր ինձ համար 3 բան, որ կարևոր է քեզ համար - Պատասխանում եմ. սեր, գիտելիք, ազնվություն:",
         ["Թվարկիր ինձ համար 3 բան, որ կարևոր է քեզ համար - Պատասխանում եմ. սեր, գիտելիք, ազնվություն:"],
     ),
-    #  "So, we are coming to the end. The logic is...simplicity and work" ==> ["So, we are coming to the end.", "Simplicity and work."]
-    (
-        "Այսպիսով` մոտենում ենք ավարտին: Տրամաբանությյունը հետևյալն է. պարզություն և աշխատանք:",
-        ["Այսպիսով` մոտենում ենք ավարտին:", "Տրամաբանությյունը հետևյալն է. պարզություն և աշխատանք:"],
-    ),
-    #  "What are you thinking? Nothing!" ==> ["What are you thinking?", "Nothing!"]
-    ("Ի՞նչ ես մտածում: Ոչինչ:", ["Ի՞նչ ես մտածում:", "Ոչինչ:"]),
     #  "Can we work together ?. May be what you are thinking, is possible." ==> ["Can we work together?.", "May be what you are thinking is possible."]
     (
         "Կարող ե՞նք միասին աշխատել: Գուցե այն ինչ մտածում ես, իրականանալի է:",
@@ -104,14 +86,10 @@ HY_MORE_TEST_CASES = [
 @pytest.mark.parametrize("text,expected_sents", GOLDEN_HY_RULES_TEST_CASES)
 def test_hy_sbd(hy_default_fixture, text, expected_sents):
     """Armenian language SBD tests"""
-    segments = hy_default_fixture.segment(text)
-    segments = [s.strip() for s in segments]
-    assert segments == expected_sents
+    assert_segments(hy_default_fixture, text, expected_sents)
 
 
 @pytest.mark.parametrize("text,expected_sents", HY_MORE_TEST_CASES)
 def test_hy_sbd_more(hy_default_fixture, text, expected_sents):
     """Armenian language SBD tests"""
-    segments = hy_default_fixture.segment(text)
-    segments = [s.strip() for s in segments]
-    assert segments == expected_sents
+    assert_segments(hy_default_fixture, text, expected_sents)

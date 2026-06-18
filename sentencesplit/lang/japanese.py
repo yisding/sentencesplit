@@ -11,7 +11,15 @@ from sentencesplit.lang.common.cjk import (
     CJKProcessor,
     make_cjk_abbreviation_rules,
 )
+from sentencesplit.period_classifier import _cjk_regular_only_policy
 from sentencesplit.utils import Rule, apply_rules
+
+# Japanese (Phase 5): structurally identical to ``ZH_POLICY`` (regular-branch-only
+# CJK follower), but the follower range widens the CJK-ideograph block to also
+# include the kana blocks (``぀``..``ヿ``), because Japanese prose continues a
+# sentence in hiragana/katakana directly after an abbreviation period
+# ("ver.あいうえお") where Chinese would not.
+JA_POLICY = _cjk_regular_only_policy("[぀-ヿ一-鿿]")  # kana (U+3040..U+30FF) + CJK ideographs (U+4E00..U+9FFF)
 
 
 class Japanese(CJKBoundaryProfile, Common, Standard):
@@ -47,18 +55,17 @@ class Japanese(CJKBoundaryProfile, Common, Standard):
             self.text = apply_rules(self.text, NewLineInMiddleOfWordRule)
 
     class AbbreviationReplacer(AbbreviationReplacer):
-        def replace_period_of_abbr(self, txt: str, abbr: str, escaped: str | None = None) -> str:
-            txt = " " + txt
-            if escaped is None:
-                escaped = re.escape(abbr.strip())
-            txt = re.sub(
-                r"(?<=\s{abbr})\.(?=((\.|\:|-|\?|,)|(\s([a-z]|I\s|I'm|I'll|\d|\())|[\u3040-\u30ff\u4e00-\u9fff]))".format(
-                    abbr=escaped
-                ),
-                "∯",
-                txt,
-            )
-            return txt[1:]
+        # Route the per-line abbreviation-protection step through the
+        # PeriodClassifier. JA_POLICY re-encodes the formerly-overridden
+        # ``replace_period_of_abbr`` (the regular branch) as data — the base
+        # ``[a-z]`` follower class plus a kana+CJK-ideograph follower
+        # ``[\u3040-\u30ff\u4e00-\u9fff]`` (kana + CJK Unified Ideographs) that
+        # protects "U.S.標準" / "ver.あいうえお" without an intervening space —
+        # woven into the REGULAR branch only (``cjk_follower_regular_only``),
+        # exactly where the legacy override placed it. The PREPOSITIVE / NUMBER
+        # branches inherit the base (no-CJK) suffixes, and
+        # ``CAPITALIZED_FOLLOWER_IS_BOUNDARY_CUE`` stays False, matching legacy.
+        ABBR_POLICY = JA_POLICY
 
     class CjkAbbreviationRules:
         All = make_cjk_abbreviation_rules(r"\u3040-\u30ff\u4e00-\u9fff")

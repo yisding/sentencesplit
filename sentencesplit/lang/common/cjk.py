@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import re
 
+from sentencesplit.boundary_resplit import merge_quote_continuations
 from sentencesplit.processor import Processor
 from sentencesplit.punctuation_replacer import replace_punctuation
 from sentencesplit.utils import Rule
@@ -84,26 +85,11 @@ class CJKBoundaryProfile:
 
 class CJKProcessor(Processor):
     def split_into_segments(self, text: str | None = None) -> list[str]:
-        return self._merge_quote_continuations(super().split_into_segments(text))
-
-    def _merge_quote_continuations(self, sentences: list[str]) -> list[str]:
-        clause_regex = self.profile.cjk_reporting_clause_re
-        if clause_regex is None:
-            return sentences
-
-        merged: list[str] = []
-        for current in sentences:
-            if merged and self._should_merge_quote_continuation(merged[-1], current, clause_regex):
-                merged[-1] = merged[-1] + current.lstrip()
-            else:
-                merged.append(current)
-        return merged
-
-    def _should_merge_quote_continuation(self, previous: str, current: str, clause_regex) -> bool:
-        previous = previous.rstrip()
-        current = current.lstrip()
-        if not previous or not current:
-            return False
-        if not _QUOTE_CLOSER_RE.search(previous):
-            return False
-        return bool(clause_regex.match(current))
+        # A CJK quote closer followed by a reporting clause ("…" 他说。) is one
+        # reported sentence; the shared merger re-joins them (cjk_follower_re left
+        # as None so the continuation is concatenated directly, no space inserted).
+        return merge_quote_continuations(
+            super().split_into_segments(text),
+            closer_re=_QUOTE_CLOSER_RE,
+            reporting_clause_re=self.profile.cjk_reporting_clause_re,
+        )

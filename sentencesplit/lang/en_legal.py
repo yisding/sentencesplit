@@ -1,6 +1,21 @@
 # -*- coding: utf-8 -*-
 from sentencesplit.abbreviation_replacer import AbbreviationReplacer
-from sentencesplit.lang.common import Common, Standard
+from sentencesplit.lang.common import Common, Standard, canonical_abbreviations
+from sentencesplit.period_classifier import AbbrPolicy
+
+# en_legal's STARTER_AWARE_PREPOSITIVE court abbreviations (Cir., Bankr., ...) make
+# a POSITION-DEPENDENT boundary decision in 'aggressive' mode: the classifier reads
+# the per-occurrence follower via ``_follower_is_likely_sentence_start`` ("Cir. held"
+# joins, "Cir. The" splits). That decision cannot be realized GLOBALLY, because the
+# follower-independent prepositive suffix (``\.(?=(\s|:\d+))``) re-anchored over the
+# line would protect EVERY "Cir." with a whitespace follower — so a single joined
+# occurrence on a line wrongly suppressed the boundary at a sibling that should
+# split ("The 9th Cir. held the 2nd Cir. The panel reversed." collapsed to one
+# sentence). ``realize_per_occurrence`` anchors each occurrence's edit to its own
+# period from its own context (the russian precedent); it is byte-identical to the
+# global model for every position-INDEPENDENT branch, so the other modes/abbrs are
+# unchanged. Any future language that sets STARTER_AWARE_PREPOSITIVE needs this too.
+EN_LEGAL_POLICY = AbbrPolicy(realize_per_occurrence=True)
 
 
 class EnglishLegal(Common, Standard):
@@ -116,7 +131,7 @@ class EnglishLegal(Common, Standard):
             "twp",  # Township
         ]
 
-        ABBREVIATIONS = sorted(set(Standard.Abbreviation.ABBREVIATIONS + LEGAL_ABBREVIATIONS))
+        ABBREVIATIONS = canonical_abbreviations(Standard.Abbreviation.ABBREVIATIONS, LEGAL_ABBREVIATIONS)
 
         LEGAL_PREPOSITIVE_ABBREVIATIONS = [
             "atty",  # Attorney [name]
@@ -163,6 +178,9 @@ class EnglishLegal(Common, Standard):
         CAPITALIZED_FOLLOWER_IS_BOUNDARY_CUE = True
         PROTECT_ALLCAPS_IMPRINT_SUFFIXES = True
         RESTORE_STANDALONE_I_BOUNDARIES = True
+        # Per-occurrence realization for the position-dependent STARTER_AWARE branch
+        # below (see EN_LEGAL_POLICY).
+        ABBR_POLICY = EN_LEGAL_POLICY
         # Court/tribunal abbreviations that are prepositive (e.g. "Bankr. Court")
         # but can also legitimately end a sentence (e.g. "The 9th Cir. The panel
         # reversed."). split_mode controls whether ambiguous capitalized
