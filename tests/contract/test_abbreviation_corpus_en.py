@@ -16,7 +16,7 @@ from __future__ import annotations
 import pytest
 
 from sentencesplit import Segmenter
-from tests.abbreviation_corpus_en import green_cases, xfail_cases
+from tests.data.abbreviation_corpus_en import green_cases, xfail_cases
 
 
 @pytest.fixture(scope="module")

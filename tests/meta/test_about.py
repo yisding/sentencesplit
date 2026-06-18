@@ -8,7 +8,7 @@ import sentencesplit.about as about
 
 
 def _project_metadata():
-    pyproject_path = Path(__file__).resolve().parents[1] / "pyproject.toml"
+    pyproject_path = Path(__file__).resolve().parents[2] / "pyproject.toml"
     with pyproject_path.open("rb") as pyproject_file:
         return tomllib.load(pyproject_file)["project"]
 

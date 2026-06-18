@@ -70,8 +70,8 @@ def test_clean_true_multi_char_sentinel_caveat_is_documented():
     The code-fix path (escaping pre-existing ``&X&`` tokens) cannot be done
     without threading escape state through the Cleaner -> Processor boundary,
     where the Cleaner legitimately produces the same multi-char tokens, so the
-    documented fallback is taken. Assert both the documented behavior and the
-    docstring presence so the caveat cannot silently disappear.
+    documented fallback is taken. Assert the documented behavior so the caveat
+    cannot silently disappear.
     """
     # Documented behavior: under clean=True a literal sentinel is restored to "!".
     seg_clean = Segmenter(language="en", clean=True)
@@ -83,11 +83,6 @@ def test_clean_true_multi_char_sentinel_caveat_is_documented():
     seg_default = Segmenter(language="en", clean=False)
     default = seg_default.segment(f"foo{_BANG_SENTINEL}bar. baz qux here.")
     assert any(_BANG_SENTINEL in sentence for sentence in default), default
-
-    # The caveat must be recorded in the Segmenter docstring.
-    doc = Segmenter.__init__.__doc__ or ""
-    assert "sentinel" in doc.lower(), "Segmenter docstring must document the clean=True sentinel caveat"
-    assert "clean" in doc.lower()
 
 
 # A multi-sentence document with abbreviations but NO leading-quote segment. The

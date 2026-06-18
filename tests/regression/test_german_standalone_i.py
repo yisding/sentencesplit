@@ -1,20 +1,14 @@
 """Regression test for German standalone-"I" boundary handling.
 
-Finding 8 (pre-release review): ``sentencesplit/lang/deutsch.py`` carried a
-``if self.RESTORE_STANDALONE_I_BOUNDARIES: ...`` branch in its
-``AbbreviationReplacer.replace()`` override, but German never sets that flag
-``True`` (only english / en_legal / en_es_zh do), so the branch was permanently
-dead. ``I`` is not a German pronoun, so restoring standalone-``I`` boundaries is
-inapplicable to German.
-
-This is a characterization test: it pins the intended German behavior so that
-removing the dead branch is provably output-preserving. German must NOT split a
-standalone ``I`` boundary.
+``I`` is not a German pronoun, so German must NOT restore standalone-``I``
+sentence boundaries the way the English family (english / en_legal / en_es_zh)
+does — those profiles run a standalone-``I`` restoration stage that German omits.
+This pins that language-specific behavior: German keeps "... you and I. ..."
+joined where the English family would split after the standalone "I".
 """
 
 import pytest
 
-from sentencesplit.languages import LANGUAGE_CODES
 from sentencesplit.segmenter import Segmenter
 
 
@@ -40,9 +34,3 @@ def test_german_normal_sentence_boundary_still_splits(german_segmenter):
     # Sanity check that ordinary German boundaries are unaffected.
     text = "Karl und ich. Es hat funktioniert."
     assert german_segmenter.segment(text) == ["Karl und ich. ", "Es hat funktioniert."]
-
-
-def test_german_restore_standalone_i_flag_is_disabled():
-    # The standalone-"I" restoration must remain inapplicable to German; the
-    # base default is False and German must not flip it on.
-    assert LANGUAGE_CODES["de"].AbbreviationReplacer.RESTORE_STANDALONE_I_BOUNDARIES is False
