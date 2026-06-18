@@ -1,22 +1,30 @@
 # -*- coding: utf-8 -*-
 """Dedicated unit suite for ``processor.Processor``'s two pipeline phase lists.
 
-``Processor`` organizes its work into two explicit, ordered pipelines:
+``Processor`` organizes its work into two explicit pipelines:
 
-* ``_text_processing_phases()`` — newline normalization -> list-item markers ->
-  abbreviation replacement -> (optional CJK abbreviation rules) -> numbers ->
-  continuous punctuation -> numeric refs -> special-token protection;
-* ``_boundary_processing_phases()`` — terminal marker -> exclamation words ->
-  between-punctuation -> double-punctuation -> quotation-punctuation -> list parens.
+* ``_text_processing_phases()`` — newline normalization, list-item markers,
+  abbreviation replacement, (optional CJK abbreviation rules), numbers,
+  continuous punctuation, numeric refs, special-token protection;
+* ``_boundary_processing_phases()`` — terminal marker, exclamation words,
+  between-punctuation, double-punctuation, quotation-punctuation, list parens.
 
 The phase lists are the contract every per-language ``Processor`` override and the
-``process()`` / ``process_text()`` drivers depend on, so they get first-class
-coverage here: the exact ordered membership, the CJK-abbreviation phase being
-conditional on the language profile, that each phase is a callable ``str -> str``
-bound to the live instance, and that the drivers compose them in order. The
-individual phase methods are also pinned at the unit level (newline normalization,
-terminal marker, the abbreviation-protection delegation) so a refactor that reorders
-or drops a phase is caught without driving a full ``segment()`` call.
+``process()`` / ``process_text()`` drivers depend on. This suite pins that contract
+at the level that actually matters and stays robust to harmless refactors:
+
+* **Membership** of each pipeline (which phases are present), as an unordered set —
+  not an exact ``__name__`` tuple, so renaming/reordering an unrelated phase does
+  not red the suite. Ordering correctness is covered behaviorally by the snapshot
+  and Golden-Rule suites.
+* **Wiring** of the conditional CJK abbreviation phase: present for CJK profiles,
+  absent otherwise. This is a plant-a-regression guard — dropping the phase from
+  the pipeline fails here. (The base initials logic happens to subsume the phase's
+  effect on ``segment()`` output today, so the wiring cannot be guarded via
+  ``segment()`` output; it is guarded at the pipeline level instead, with the
+  phase's own transformation pinned by a behavioral unit test below.)
+* **Shape**: each phase is a callable ``str -> str`` bound to the live instance.
+* **Behavior** of the load-bearing individual phases and the drivers.
 """
 
 from __future__ import annotations
@@ -31,7 +39,8 @@ _NON_CJK = ["en", "en_legal", "de", "fr", "ru", "bg", "nl"]
 # Languages WITH CJK abbreviation rules (text pipeline grows the CJK phase).
 _CJK = ["zh", "ja", "en_es_zh"]
 
-_BASE_TEXT_PHASES = (
+# Expected pipeline membership as unordered sets (NOT exact-ordered tuples).
+_BASE_TEXT_PHASE_NAMES = {
     "_normalize_newlines",
     "_mark_list_item_boundaries",
     "replace_abbreviations",
@@ -39,15 +48,16 @@ _BASE_TEXT_PHASES = (
     "replace_continuous_punctuation",
     "replace_periods_before_numeric_references",
     "_protect_special_tokens",
-)
-_BOUNDARY_PHASES = (
+}
+_BOUNDARY_PHASE_NAMES = {
     "_ensure_terminal_marker",
     "_apply_exclamation_word_rules",
     "between_punctuation",
     "_apply_double_punctuation_rules",
     "_apply_quotation_punctuation_rules",
     "_replace_list_parens",
-)
+}
+_CJK_PHASE = "_apply_cjk_abbreviation_rules"
 
 
 def _processor(code: str, text: str = "x") -> Processor:
@@ -59,54 +69,57 @@ def _phase_names(phases) -> list[str]:
 
 
 # --------------------------------------------------------------------------- #
-# _text_processing_phases — ordered membership.
+# Pipeline membership (unordered).
 # --------------------------------------------------------------------------- #
 @pytest.mark.parametrize("code", _NON_CJK)
-def test_text_phases_non_cjk_exact_order(code: str) -> None:
+def test_non_cjk_text_pipeline_membership(code: str) -> None:
     p = _processor(code)
     assert not p.profile.cjk_abbreviation_rules
-    assert tuple(_phase_names(p._text_processing_phases())) == _BASE_TEXT_PHASES
+    assert set(_phase_names(p._text_processing_phases())) == _BASE_TEXT_PHASE_NAMES
 
 
 @pytest.mark.parametrize("code", _CJK)
-def test_text_phases_cjk_inserts_abbreviation_rules_after_abbreviations(code: str) -> None:
+def test_cjk_text_pipeline_adds_exactly_the_cjk_phase(code: str) -> None:
     p = _processor(code)
     assert p.profile.cjk_abbreviation_rules  # the conditional phase fires
-    names = _phase_names(p._text_processing_phases())
-    # The CJK phase sits immediately AFTER abbreviation replacement and BEFORE numbers.
-    assert names == [
-        "_normalize_newlines",
-        "_mark_list_item_boundaries",
-        "replace_abbreviations",
-        "_apply_cjk_abbreviation_rules",
-        "replace_numbers",
-        "replace_continuous_punctuation",
-        "replace_periods_before_numeric_references",
-        "_protect_special_tokens",
-    ]
+    names = set(_phase_names(p._text_processing_phases()))
+    # The CJK pipeline is the base pipeline plus exactly the CJK abbreviation phase.
+    assert names == _BASE_TEXT_PHASE_NAMES | {_CJK_PHASE}
 
 
-def test_cjk_phase_is_exactly_one_addition() -> None:
-    # The only structural difference between the CJK and base text pipelines is the
-    # single inserted ``_apply_cjk_abbreviation_rules`` phase.
-    base = _phase_names(_processor("en")._text_processing_phases())
-    cjk = _phase_names(_processor("zh")._text_processing_phases())
-    assert len(cjk) == len(base) + 1
-    assert [n for n in cjk if n != "_apply_cjk_abbreviation_rules"] == base
-
-
-# --------------------------------------------------------------------------- #
-# _boundary_processing_phases — ordered membership (language-independent).
-# --------------------------------------------------------------------------- #
 @pytest.mark.parametrize("code", _NON_CJK + _CJK)
-def test_boundary_phases_exact_order(code: str) -> None:
+def test_boundary_pipeline_membership(code: str) -> None:
     p = _processor(code)
-    assert tuple(_phase_names(p._boundary_processing_phases())) == _BOUNDARY_PHASES
+    assert set(_phase_names(p._boundary_processing_phases())) == _BOUNDARY_PHASE_NAMES
 
 
 # --------------------------------------------------------------------------- #
-# Phase shape: each phase is a bound, callable str -> str (boundary phases) /
-# str -> str (text phases) on the live instance.
+# CJK abbreviation phase: wiring (plant-a-regression guard) + behavior.
+# --------------------------------------------------------------------------- #
+@pytest.mark.parametrize("code", _CJK)
+def test_cjk_abbreviation_phase_is_wired_into_text_pipeline(code: str) -> None:
+    # If the CJK abbreviation phase is dropped from the text pipeline, this fails.
+    assert _CJK_PHASE in _phase_names(_processor(code)._text_processing_phases())
+
+
+@pytest.mark.parametrize("code", _NON_CJK)
+def test_cjk_abbreviation_phase_absent_for_non_cjk(code: str) -> None:
+    assert _CJK_PHASE not in _phase_names(_processor(code)._text_processing_phases())
+
+
+@pytest.mark.parametrize("code", _CJK)
+def test_cjk_abbreviation_rules_protect_latin_acronym_before_cjk(code: str) -> None:
+    # The phase sentinelizes the interior/terminal periods of a Latin acronym that
+    # directly precedes a CJK character (no space), e.g. "I.B.M.公司" -> the
+    # ``∯`` form, so the acronym is not split from the CJK text that follows.
+    p = _processor(code)
+    assert p._apply_cjk_abbreviation_rules("I.B.M.公司") == "I∯B∯M∯公司"
+    # No Latin acronym before CJK -> the phase is a no-op.
+    assert p._apply_cjk_abbreviation_rules("你好世界。") == "你好世界。"
+
+
+# --------------------------------------------------------------------------- #
+# Phase shape: each phase is a bound, callable str -> str on the live instance.
 # --------------------------------------------------------------------------- #
 def test_text_phases_are_bound_callables_returning_str() -> None:
     p = _processor("en")
@@ -173,14 +186,3 @@ def test_process_empty_and_none_text_short_circuit() -> None:
     assert Processor("", lang).process() == []
     assert Processor(None, lang).process() == []
     assert Processor("x", lang).split_into_segments("") == []
-
-
-def test_phase_lists_are_fresh_tuples_per_call() -> None:
-    # The drivers iterate a freshly-built tuple each call (no shared mutable state),
-    # so the phase composition cannot drift between invocations on one instance.
-    p = _processor("en")
-    a = p._text_processing_phases()
-    b = p._text_processing_phases()
-    assert isinstance(a, tuple) and isinstance(b, tuple)
-    assert _phase_names(a) == _phase_names(b)
-    assert isinstance(p._boundary_processing_phases(), tuple)

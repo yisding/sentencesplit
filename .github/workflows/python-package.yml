@@ -41,6 +41,13 @@ jobs:
       - name: Test with pytest
         run: uv run --python ${{ matrix.python-version }} pytest --cov=sentencesplit tests/ --color yes
 
+      - name: Test benchmark harness (path redaction)
+        # The corpus-compare harness lives under benchmarks/ (never shipped), so its
+        # correctness tests sit outside testpaths=["tests"]. Run them explicitly so the
+        # path-redaction guard keeps running. pytest's pythonpath=["."] puts the repo
+        # root on sys.path for `from benchmarks.corpus_compare import segmenters`.
+        run: uv run --python ${{ matrix.python-version }} pytest benchmarks/test_corpus_compare_segmenters.py --color yes
+
   free-threaded-test:
     runs-on: ubuntu-latest
 

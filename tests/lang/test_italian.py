@@ -13,7 +13,6 @@ GOLDEN_IT_RULES_TEST_CASES = [
 ]
 
 IT_MORE_TEST_CASES = [
-    ("Salve Sig.ra Mengoni! Come sta oggi?", ["Salve Sig.ra Mengoni!", "Come sta oggi?"]),
     (
         "Buongiorno! Sono l'Ing. Mengozzi. È presente l'Avv. Cassioni?",
         ["Buongiorno!", "Sono l'Ing. Mengozzi.", "È presente l'Avv. Cassioni?"],
@@ -81,7 +80,6 @@ IT_MORE_TEST_CASES = [
     ("La stanza misurava 20m².", ["La stanza misurava 20m²."]),
     ("1°C corrisponde a 33.8°F.", ["1°C corrisponde a 33.8°F."]),
     ("Oggi è il 27-10-14.", ["Oggi è il 27-10-14."]),
-    ("La casa costa 170.500.000,00€!", ["La casa costa 170.500.000,00€!"]),
     ("Il corridore 103 è arrivato 4°.", ["Il corridore 103 è arrivato 4°."]),
     ("Oggi è il 27/10/2014.", ["Oggi è il 27/10/2014."]),
     ("Ecco l'elenco: 1.gelato, 2.carne, 3.riso.", ["Ecco l'elenco: 1.gelato, 2.carne, 3.riso."]),

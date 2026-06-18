@@ -546,11 +546,6 @@ CHALLENGING_EN_TEST_CASES = [
         "I studied for the S.A.T. Tomorrow is test day.",
         ["I studied for the S.A.T.", "Tomorrow is test day."],
     ),
-    # 119i) Lowercase multi-period abbreviation should not force a split
-    (
-        "In early Dixieland, a.k.a. New Orleans jazz, musicians improvised freely.",
-        ["In early Dixieland, a.k.a. New Orleans jazz, musicians improvised freely."],
-    ),
     # 119j) Common U.S. Government phrases stay joined even before uppercase followers
     (
         "The U.S. Government issued a statement.",

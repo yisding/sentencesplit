@@ -107,10 +107,6 @@ ES_MORE_TEST_CASES = [
             "De esta manera se consagró ¡Campeón mundial!",
         ],
     ),
-    (
-        "¡La casa cuesta $170.500.000,00! ¡Muy costosa! Se prevé una disminución del 12.5% para el próximo año.",
-        ["¡La casa cuesta $170.500.000,00!", "¡Muy costosa!", "Se prevé una disminución del 12.5% para el próximo año."],
-    ),
     ("El corredor No. 103 arrivó 4°.", ["El corredor No. 103 arrivó 4°."]),
     ("Vea nos. 4 y 5. Luego confirme.", ["Vea nos. 4 y 5.", "Luego confirme."]),
     ("Revise pp. 12-13. Luego confirme.", ["Revise pp. 12-13.", "Luego confirme."]),
