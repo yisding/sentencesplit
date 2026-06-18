@@ -515,7 +515,7 @@ class AbbreviationReplacer:
         return index
 
     def _follower_is_likely_sentence_start(self, text: str, start: int) -> bool:
-        return self._is_likely_sentence_start_at(text, self._sentence_start_content_offset(text, start))
+        return self._is_likely_sentence_start(text, self._sentence_start_content_offset(text, start))
 
     def _is_likely_sentence_start(self, text: str, start: int = 0) -> bool:
         """Check if the next non-space character in *text* looks like a sentence start.
@@ -526,13 +526,10 @@ class AbbreviationReplacer:
         """
         return _next_nonspace_char_is_upper(text, start)
 
-    def _is_likely_sentence_start_at(self, text: str, start: int) -> bool:
-        return self._is_likely_sentence_start(text, start)
-
     def _is_capital_sentence_start_at(self, text: str, start: int) -> bool:
         if start >= len(text):
             return False
-        if self._is_likely_sentence_start_at(text, start):
+        if self._is_likely_sentence_start(text, start):
             return True
         return self.NON_LATIN_CAPITAL_STARTS_SENTENCE and text[start].isupper()
 
@@ -767,7 +764,7 @@ class AbbreviationReplacer:
             # split mixed abbreviations, uppercase two-letter initialisms, and
             # 3+ uppercase initialisms before likely sentence starts.
             content_offset = self._sentence_start_content_offset(self.text, next_start)
-            likely_start = self._is_likely_sentence_start_at(self.text, content_offset)
+            likely_start = self._is_likely_sentence_start(self.text, content_offset)
             two_letter_uppercase_initialism = len(parts) == 2 and all(len(part) == 1 and part.isupper() for part in parts)
             two_letter_initialism = (
                 two_letter_uppercase_initialism
