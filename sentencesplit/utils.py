@@ -93,9 +93,8 @@ def _next_nonspace_char_is_non_ascii_upper(text: str, start: int = 0) -> bool:
     return bool(char) and char.isupper() and not char.isascii() and unicodedata.name(char, "").startswith("LATIN")
 
 
-def _next_nonspace_char_starts_sentence(text: str, start: int = 0) -> bool:
-    char = _next_nonspace_char(text, start)
-    return _is_latin_upper(char)
+# Default sentence-start predicate; identical to the Latin-uppercase test today.
+_next_nonspace_char_starts_sentence = _next_nonspace_char_is_upper
 
 
 @dataclass
