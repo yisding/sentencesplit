@@ -25,7 +25,7 @@ class AhoCorasickAutomaton:
     ``_cache_lock``, so every reader's ``search()`` happens-after ``build()``.
     """
 
-    __slots__ = ("goto", "fail", "output", "delta", "_built")
+    __slots__ = ("goto", "fail", "output", "delta")
 
     def __init__(self):
         # State 0 is the root. Each state maps char -> next_state.
@@ -38,7 +38,6 @@ class AhoCorasickAutomaton:
         # loop). Chars outside the alphabet are absent and .get(ch, 0) sends them
         # to the root, exactly as the fail walk would.
         self.delta: list[dict[str, int]] = []
-        self._built = False
 
     def add_pattern(self, pattern: str, pattern_id: int) -> None:
         state = 0
@@ -91,7 +90,6 @@ class AhoCorasickAutomaton:
             delta[r] = {ch: (gr[ch] if ch in gr else dfail[ch]) for ch in alphabet}
             queue.extend(gr.values())
         self.delta = delta
-        self._built = True
 
     def search(self, text: str) -> set[int]:
         """Scan text in one pass, return set of matched pattern IDs."""
