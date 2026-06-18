@@ -47,7 +47,7 @@ jobs:
         run: uv run --no-sync --python 3.13 python -c "import nltk; nltk.download('punkt_tab', quiet=True); nltk.download('punkt', quiet=True)"
 
       - name: Run CodSpeed benchmarks
-        uses: CodSpeedHQ/action@v3
+        uses: CodSpeedHQ/action@v4
         with:
           # --no-sync: run in the bench-only environment from the previous step
           # without an implicit re-sync, which would otherwise pull the default
@@ -88,7 +88,7 @@ jobs:
           uv pip install --python .venv-wt . pytest pytest-codspeed
 
       - name: Run CodSpeed walltime benchmarks (CPython)
-        uses: CodSpeedHQ/action@v3
+        uses: CodSpeedHQ/action@v4
         with:
           mode: walltime
           # `python -m pytest` puts the repo root on sys.path so the
@@ -117,7 +117,7 @@ jobs:
           uv pip install --python .venv-pypy . pytest pytest-codspeed
 
       - name: Run CodSpeed walltime benchmarks (PyPy)
-        uses: CodSpeedHQ/action@v3
+        uses: CodSpeedHQ/action@v4
         with:
           mode: walltime
           run: .venv-pypy/bin/python -m pytest benchmarks/test_walltime_compare_codspeed.py --codspeed
