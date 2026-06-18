@@ -49,6 +49,10 @@ jobs:
       - name: Run CodSpeed benchmarks
         uses: CodSpeedHQ/action@v4
         with:
+          # CodSpeed action v4 requires an explicit mode (no default). `simulation`
+          # is the deterministic CPU-instruction-count measurement — the modern
+          # name for what v3 called `instrumentation` (now deprecated).
+          mode: simulation
           # --no-sync: run in the bench-only environment from the previous step
           # without an implicit re-sync, which would otherwise pull the default
           # `dev` group back in (defeating isolation) and run install work under
