@@ -133,7 +133,7 @@ class ListItemReplacer:
 
     def substitute_found_list_items(self, regex, each, strip, replacement):
 
-        def replace_item(match, val=None, strip=False, repl="♨"):
+        def replace_item(match, strip=False):
             match = match.group()
             if strip:
                 match = match.strip()
@@ -143,7 +143,7 @@ class ListItemReplacer:
             else:
                 return match
 
-        self.text = re.sub(regex, partial(replace_item, val=each, strip=strip, repl=replacement), self.text)
+        self.text = re.sub(regex, partial(replace_item, strip=strip), self.text)
 
     @staticmethod
     def _is_embedded_numbered_marker(text: str, marker_start: int) -> bool:
