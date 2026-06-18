@@ -282,9 +282,6 @@ def list_languages() -> list[str]:
 
 
 class Language:
-    def __init__(self, code: str) -> None:
-        self.code = code
-
     @classmethod
     def get_language_code(cls, code: str):
         try:
