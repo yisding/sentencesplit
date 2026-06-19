@@ -2,9 +2,9 @@
 from __future__ import annotations
 
 import re
-from collections import deque
 from threading import RLock
 
+from sentencesplit._abbreviation_data import _AbbreviationData
 from sentencesplit.utils import (
     _next_nonspace_char_is_non_ascii_upper,
     _next_nonspace_char_is_upper,
@@ -12,100 +12,6 @@ from sentencesplit.utils import (
     ensure_compiled,
     split_mode_rank,
 )
-
-
-class AhoCorasickAutomaton:
-    """Pure-Python Aho-Corasick automaton for multi-pattern substring search.
-
-    Thread-safety: an instance is mutated only by ``add_pattern``/``build`` and is
-    read-only thereafter. It carries no lock of its own — safe concurrent use
-    relies on the owner publishing it only after ``build()`` completes. In this
-    package the only instances live inside ``_AbbreviationData``, which is built
-    and then stored into ``AbbreviationReplacer._data_cache`` under
-    ``_cache_lock``, so every reader's ``search()`` happens-after ``build()``.
-    """
-
-    __slots__ = ("goto", "fail", "output", "delta", "_built")
-
-    def __init__(self):
-        # State 0 is the root. Each state maps char -> next_state.
-        self.goto: list[dict[str, int]] = [{}]
-        self.output: list[list[int]] = [[]]  # pattern IDs at each state
-        self.fail: list[int] = [0]
-        # Fail-link-collapsed transition table, built once in build(). Each
-        # delta[state] maps an observed-alphabet char -> next state with the fail
-        # walk already resolved, so search() is one dict.get per char (no inner
-        # loop). Chars outside the alphabet are absent and .get(ch, 0) sends them
-        # to the root, exactly as the fail walk would.
-        self.delta: list[dict[str, int]] = []
-        self._built = False
-
-    def add_pattern(self, pattern: str, pattern_id: int) -> None:
-        state = 0
-        for ch in pattern:
-            nxt = self.goto[state].get(ch)
-            if nxt is None:
-                nxt = len(self.goto)
-                self.goto.append({})
-                self.output.append([])
-                self.fail.append(0)
-                self.goto[state][ch] = nxt
-            state = nxt
-        self.output[state].append(pattern_id)
-
-    def build(self) -> None:
-        queue: deque[int] = deque()
-        # Initialize depth-1 states
-        for ch, s in self.goto[0].items():
-            self.fail[s] = 0
-            queue.append(s)
-        # BFS to build failure links
-        while queue:
-            r = queue.popleft()
-            for ch, s in self.goto[r].items():
-                queue.append(s)
-                state = self.fail[r]
-                while state != 0 and ch not in self.goto[state]:
-                    state = self.fail[state]
-                self.fail[s] = self.goto[state].get(ch, 0)
-                if self.fail[s] == s:
-                    self.fail[s] = 0
-                if self.output[self.fail[s]]:
-                    self.output[s] = self.output[s] + self.output[self.fail[s]]
-
-        # Collapse the fail links into a DFA transition table. For each state and
-        # each observed-alphabet char: take the goto if present, else inherit the
-        # fail state's already-resolved transition. fail[r] is strictly shallower
-        # than r, so a goto-tree BFS visits it first and delta[fail[r]] is ready.
-        alphabet: set[str] = set()
-        for trans in self.goto:
-            alphabet.update(trans)
-        delta: list[dict[str, int]] = [{} for _ in self.goto]
-        root_goto = self.goto[0]
-        delta[0] = {ch: root_goto.get(ch, 0) for ch in alphabet}
-        queue = deque(self.goto[0].values())
-        while queue:
-            r = queue.popleft()
-            gr = self.goto[r]
-            dfail = delta[self.fail[r]]
-            delta[r] = {ch: (gr[ch] if ch in gr else dfail[ch]) for ch in alphabet}
-            queue.extend(gr.values())
-        self.delta = delta
-        self._built = True
-
-    def search(self, text: str) -> set[int]:
-        """Scan text in one pass, return set of matched pattern IDs."""
-        state = 0
-        found: set[int] = set()
-        delta = self.delta
-        output = self.output
-        for ch in text:
-            state = delta[state].get(ch, 0)
-            out = output[state]
-            if out:
-                found.update(out)
-        return found
-
 
 # Constant patterns run on every ``replace()`` call. Compiling them once at import
 # (rather than via a raw ``re.sub`` literal each call) skips the per-call pattern
@@ -119,86 +25,6 @@ _STANDALONE_I_BOUNDARY_RE = re.compile(r"(?<![A-Za-z0-9_∯])I∯(?=\s)")
 # Non-ASCII a.m./p.m. boundary restores (with and without an inner space).
 _NON_ASCII_AMPM_RE = re.compile(r"(\d\s*[AaPp]∯[Mm])∯(?=\s)")
 _NON_ASCII_AMPM_SPACED_RE = re.compile(r"(\d\s*[AaPp]∯\s+[Mm])∯(?=\s)")
-
-
-class _AbbreviationData:
-    """Pre-computed abbreviation data for a language, cached per Abbreviation class."""
-
-    __slots__ = (
-        "abbreviations",
-        "abbr_set",
-        "prepositive_set",
-        "number_abbr_set",
-        "automaton",
-        "elision_chars",
-        "boundary_class",
-        # Persistent cache of PeriodClassifier instances keyed by
-        # ``(id(policy), split_mode, replacer_cls)``. The classifier's compiled
-        # ``RE_*`` suffix patterns and its ``_full_cache`` are line-independent and
-        # depend only on ``(policy, split_mode, data)`` — all immutable for a given
-        # ``_AbbreviationData`` — so reusing one classifier across the per-call
-        # ``AbbreviationReplacer`` instances avoids recompiling ~9 regexes and
-        # rebuilding the full-pattern cache on every ``segment()`` call. The
-        # replacer CLASS is part of the key because two replacer classes can share
-        # one ``_AbbreviationData`` (e.g. English and Urdu both use
-        # ``Standard.Abbreviation``) yet differ in the class-level flags the
-        # classifier reads (``CAPITALIZED_FOLLOWER_IS_BOUNDARY_CUE`` …); keying by
-        # class keeps each its own classifier. Published after full construction
-        # under ``AbbreviationReplacer._cache_lock``.
-        "_classifier_cache",
-    )
-
-    def __init__(self, lang_abbreviation_class):
-        raw = lang_abbreviation_class.ABBREVIATIONS
-        elision = getattr(lang_abbreviation_class, "ELISION_CHARACTERS", "")
-        self.elision_chars = elision
-        if elision:
-            escaped_elision = re.escape(elision)
-            self.boundary_class = rf"\s{escaped_elision}"
-        else:
-            self.boundary_class = r"\s"
-        sorted_abbrs = sorted(raw, key=len, reverse=True)
-        self.abbreviations = []
-        self.automaton = AhoCorasickAutomaton()
-        for idx, abbr in enumerate(sorted_abbrs):
-            stripped = abbr.strip()
-            stripped_lower = stripped.lower()
-            escaped = re.escape(stripped)
-            # Pre-compile the word-boundary-prefixed match pattern for this abbr.
-            if elision:
-                match_re = re.compile(r"(?:^|\s|\r|\n|[{ec}]){esc}".format(ec=escaped_elision, esc=escaped), re.IGNORECASE)
-            else:
-                match_re = re.compile(r"(?:^|\s|\r|\n){}".format(escaped), re.IGNORECASE)
-            self.abbreviations.append(
-                (
-                    stripped,
-                    stripped_lower,
-                    escaped,
-                    match_re,
-                )
-            )
-            # Add the trailing period to the automaton key. search_for_abbreviations
-            # only ever acts on an abbreviation when it occurs at a word boundary
-            # *followed by a period*; any such occurrence contains the substring
-            # "<abbr>.", so keying on "<abbr>." is a byte-identical pre-filter that
-            # skips the per-abbreviation full-text finditer for abbreviations whose
-            # bare form merely appears inside other words (e.g. "al" in "called",
-            # "no" in "no one") with no following period — the dominant cost on
-            # real prose, where common short abbreviations match everywhere.
-            #
-            # Exception: the automaton is searched on ``text.lower()`` and U+0130
-            # 'İ' is the only Unicode char whose .lower() changes length ('İ' ->
-            # 'i' + U+0307 combining dot). An occurrence ending in 'İ' followed by
-            # a period lowers to '...i̇.', so the "<abbr>." key (e.g. "vi.") would
-            # not match. Abbreviations ending in 'i' therefore keep the bare key
-            # (the original, always-correct behavior).
-            key = stripped_lower if stripped_lower.endswith("i") else stripped_lower + "."
-            self.automaton.add_pattern(key, idx)
-        self.automaton.build()
-        self.abbr_set = frozenset(a.strip().lower() for a in raw)
-        self.prepositive_set = frozenset(a.lower() for a in lang_abbreviation_class.PREPOSITIVE_ABBREVIATIONS)
-        self.number_abbr_set = frozenset(a.lower() for a in lang_abbreviation_class.NUMBER_ABBREVIATIONS)
-        self._classifier_cache: dict[tuple[int, str, type], object] = {}
 
 
 # --------------------------------------------------------------------------- #
@@ -517,7 +343,7 @@ class AbbreviationReplacer:
         return index
 
     def _follower_is_likely_sentence_start(self, text: str, start: int) -> bool:
-        return self._is_likely_sentence_start_at(text, self._sentence_start_content_offset(text, start))
+        return self._is_likely_sentence_start(text, self._sentence_start_content_offset(text, start))
 
     def _is_likely_sentence_start(self, text: str, start: int = 0) -> bool:
         """Check if the next non-space character in *text* looks like a sentence start.
@@ -528,13 +354,10 @@ class AbbreviationReplacer:
         """
         return _next_nonspace_char_is_upper(text, start)
 
-    def _is_likely_sentence_start_at(self, text: str, start: int) -> bool:
-        return self._is_likely_sentence_start(text, start)
-
     def _is_capital_sentence_start_at(self, text: str, start: int) -> bool:
         if start >= len(text):
             return False
-        if self._is_likely_sentence_start_at(text, start):
+        if self._is_likely_sentence_start(text, start):
             return True
         return self.NON_LATIN_CAPITAL_STARTS_SENTENCE and text[start].isupper()
 
@@ -667,10 +490,6 @@ class AbbreviationReplacer:
         return _STANDALONE_I_BOUNDARY_RE.sub(_restore, self.text)
 
     @staticmethod
-    def _two_letter_initialism_key(parts: list[str]) -> str:
-        return ".".join(parts).lower()
-
-    @staticmethod
     def _normalize_follower_token(token: str) -> str:
         normalized = token.strip(",.;:([{)]}\"'“”‘’").lower()
         for possessive_suffix in ("'s", "’s"):
@@ -697,7 +516,7 @@ class AbbreviationReplacer:
         return tuple(words)
 
     def _two_letter_initialism_has_always_joined_follower(self, parts: list[str], content_offset: int) -> bool:
-        initialism_key = self._two_letter_initialism_key(parts)
+        initialism_key = ".".join(parts).lower()
         max_words = max((len(phrase) - 1 for phrase in self.ALWAYS_JOIN_TWO_LETTER_INITIALISM_PHRASES), default=0)
         followers = self._next_normalized_words(content_offset, max_words)
         for word_count in range(1, len(followers) + 1):
@@ -773,7 +592,7 @@ class AbbreviationReplacer:
             # split mixed abbreviations, uppercase two-letter initialisms, and
             # 3+ uppercase initialisms before likely sentence starts.
             content_offset = self._sentence_start_content_offset(self.text, next_start)
-            likely_start = self._is_likely_sentence_start_at(self.text, content_offset)
+            likely_start = self._is_likely_sentence_start(self.text, content_offset)
             two_letter_uppercase_initialism = len(parts) == 2 and all(len(part) == 1 and part.isupper() for part in parts)
             two_letter_initialism = (
                 two_letter_uppercase_initialism

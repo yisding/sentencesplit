@@ -288,16 +288,8 @@ class Slovak(Common, Standard):
             return _SLOVAK_DOUBLE_QUOTES_RE.sub(replace_punctuation, txt)
 
         def sub_punctuation_between_quotes_and_parens(self, txt):
-            txt = self.sub_punctuation_between_single_quotes(txt)
-            txt = self.sub_punctuation_between_single_quote_slanted(txt)
-            txt = self.sub_punctuation_between_double_quotes(txt)
-            txt = self.sub_punctuation_between_square_brackets(txt)
-            txt = self.sub_punctuation_between_parens(txt)
-            txt = self.sub_punctuation_between_quotes_arrow(txt)
-            txt = self.sub_punctuation_between_em_dashes(txt)
-            txt = self.sub_punctuation_between_quotes_slanted(txt)
-            txt = self.sub_punctuation_between_slovak_double_quotes(txt)
-            return txt
+            txt = super().sub_punctuation_between_quotes_and_parens(txt)
+            return self.sub_punctuation_between_slovak_double_quotes(txt)
 
     class Processor(Processor):
         def replace_numbers(self, text: str) -> str:

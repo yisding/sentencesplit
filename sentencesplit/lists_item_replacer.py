@@ -83,15 +83,12 @@ class ListItemReplacer:
         return self.text
 
     def format_numbered_list_with_parens(self):
-        self.replace_parens_in_numbered_list()
+        self.scan_lists(self.NUMBERED_LIST_PARENS_REGEX, self.NUMBERED_LIST_PARENS_REGEX, "☝")
         self.add_line_breaks_for_numbered_list_with_parens()
         self.text = apply_rules(self.text, self.ListMarkerRule)
 
-    def replace_periods_in_numbered_list(self):
-        self.scan_lists(self.NUMBERED_LIST_REGEX_1, self.NUMBERED_LIST_REGEX_2, "♨", strip=True)
-
     def format_numbered_list_with_periods(self):
-        self.replace_periods_in_numbered_list()
+        self.scan_lists(self.NUMBERED_LIST_REGEX_1, self.NUMBERED_LIST_REGEX_2, "♨", strip=True)
         self.add_line_breaks_for_numbered_list_with_periods()
         self.text = apply_rules(self.text, self.SubstituteListPeriodRule)
 
@@ -133,7 +130,7 @@ class ListItemReplacer:
 
     def substitute_found_list_items(self, regex, each, strip, replacement):
 
-        def replace_item(match, val=None, strip=False, repl="♨"):
+        def replace_item(match, strip=False):
             match = match.group()
             if strip:
                 match = match.strip()
@@ -143,7 +140,7 @@ class ListItemReplacer:
             else:
                 return match
 
-        self.text = re.sub(regex, partial(replace_item, val=each, strip=strip, repl=replacement), self.text)
+        self.text = re.sub(regex, partial(replace_item, strip=strip), self.text)
 
     @staticmethod
     def _is_embedded_numbered_marker(text: str, marker_start: int) -> bool:
@@ -182,9 +179,6 @@ class ListItemReplacer:
             )
         else:
             self.text = text_for_breaks
-
-    def replace_parens_in_numbered_list(self):
-        self.scan_lists(self.NUMBERED_LIST_PARENS_REGEX, self.NUMBERED_LIST_PARENS_REGEX, "☝")
 
     def add_line_breaks_for_numbered_list_with_parens(self):
         if "☝" in self.text and not _MULTILINE_PAREN_MARKER_GUARD_RE.search(self.text):
