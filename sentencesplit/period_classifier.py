@@ -575,6 +575,7 @@ class PeriodClassifier:
     # -------------------------------------------------------------------- rewrite
     def _collect_edits(self, line: str) -> list[Edit]:
         edits: list[Edit] = []
+        realized_global: set[tuple[str, str, Decision]] = set()
         per_occurrence = self.policy.realize_per_occurrence
         # The leading-space probe is candidate-independent (it just lets the
         # lookbehind match an abbr that opens the line, the legacy " " + txt trick),
@@ -608,6 +609,15 @@ class PeriodClassifier:
             # fall back to ``_suffix_for`` there, which honors ``policy.realize_suffix``.
             if suffix is None:
                 suffix = self._suffix_for(c, line, d)
+            # A global realization depends only on the abbreviation, suffix, and
+            # decision. German can enumerate many representatives with distinct
+            # follower chars even though all of them collapse to the same
+            # ``\.(?=\s)`` PROTECT realization; scanning once prevents quadratic
+            # duplicate Edit materialization before rewrite-time deduplication.
+            realization_key = (c.am_escaped, suffix, d)
+            if realization_key in realized_global:
+                continue
+            realized_global.add(realization_key)
             # Realize GLOBALLY over the line (legacy global re.sub semantics): the
             # chosen suffix regex, re-anchored with the lookbehind, applied to EVERY
             # occurrence of THIS abbr on the line. Leading-space prefix matches the
