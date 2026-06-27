@@ -97,3 +97,23 @@ def test_classifier_rewrite_order_independent(text_a: str, text_b: str) -> None:
     # The bracketed occurrence stays a boundary in both (period unchanged there).
     assert "(see inc.)" in out_a
     assert "(see inc.)" in out_b
+
+
+def test_german_global_realization_deduplicates_identical_suffix_decisions() -> None:
+    """German must not rescan the same abbr/suffix decision for each follower.
+
+    DE_POLICY protects every known abbreviation period before whitespace with a
+    constant suffix, so many distinct follower chars still share one global
+    realization. Re-realizing each candidate would materialize O(n²) duplicate
+    edits before rewrite-time deduplication.
+    """
+    lang = Language.get_language_code("de")
+    rep = lang.AbbreviationReplacer("", lang, split_mode="balanced")
+    pc = rep._period_classifier()
+    text = " ".join(f"Dr. {chr(0x4E00 + i)}" for i in range(80))
+
+    assert len(pc.enumerate_candidates(text)) == 80
+    edits = pc._collect_edits(text)
+
+    assert len(edits) == 80
+    assert len({edit.start for edit in edits}) == 80

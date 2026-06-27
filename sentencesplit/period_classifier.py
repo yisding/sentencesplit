@@ -416,6 +416,7 @@ class PeriodClassifier:
     # -------------------------------------------------------------------- rewrite
     def _collect_edits(self, line: str) -> list[Edit]:
         edits: list[Edit] = []
+        realized_units: set[tuple[str, str, Decision]] = set()
         per_occurrence = self.policy.realize_per_occurrence
         # The leading-space probe is candidate-independent (it just lets the
         # lookbehind match an abbr that opens the line, the legacy " " + txt trick),
@@ -449,6 +450,10 @@ class PeriodClassifier:
             # fall back to ``_suffix_for`` there, which honors ``policy.realize_suffix``.
             if suffix is None:
                 suffix = self._suffix_for(c, line, d)
+            realization_key = (c.am_escaped, suffix, d)
+            if realization_key in realized_units:
+                continue
+            realized_units.add(realization_key)
             # Realize GLOBALLY over the line (legacy global re.sub semantics): the
             # chosen suffix regex, re-anchored with the lookbehind, applied to EVERY
             # occurrence of THIS abbr on the line. Leading-space prefix matches the
