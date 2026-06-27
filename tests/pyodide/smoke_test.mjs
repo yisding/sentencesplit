@@ -6,7 +6,7 @@
 // `pyodide-test` CI job; also runnable locally:
 //
 //     uv build --wheel
-//     npm install pyodide@latest
+//     npm ci
 //     node tests/pyodide/smoke_test.mjs dist/sentencesplit-*.whl
 //
 // Exits non-zero on any failed expectation so CI fails loudly.

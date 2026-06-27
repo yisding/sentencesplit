@@ -134,7 +134,7 @@ jobs:
       # wheel via micropip and exercising the public API proves the package works
       # unmodified in the browser/WASM runtime.
       - name: Install Pyodide
-        run: npm install pyodide@latest --no-audit --no-fund
+        run: npm ci --no-audit --no-fund
 
       - name: Pyodide smoke test
         run: node tests/pyodide/smoke_test.mjs "$(ls dist/*.whl)"
