@@ -22,6 +22,7 @@ package's own ``split_mode_rank``.
 from __future__ import annotations
 
 import re
+from bisect import bisect_left
 from threading import Lock
 
 from sentencesplit._abbr_policy import (
@@ -482,10 +483,21 @@ class PeriodClassifier:
         if not _spans_intersect(ordered):
             return ordered
         kept: list[Edit] = []
+        kept_starts: list[int] = []
         for e in sorted(ordered, key=lambda x: (x.start - x.end, x.start)):  # widest first
-            if any(e.start < k.end and k.start < e.end for k in kept):
+            # ``kept`` is maintained sorted by start and contains only disjoint
+            # intervals, so a new edit can overlap only its immediate predecessor
+            # or successor. This preserves the longest-first semantics without
+            # scanning every accepted edit after the first overlap on a long line.
+            i = bisect_left(kept_starts, e.start)
+            if (i > 0 and kept[i - 1].end > e.start) or (i < len(kept) and kept[i].start < e.end):
                 continue  # embedded in / overlapping an already-kept wider edit
-            kept.append(e)
+            if i == len(kept):
+                kept.append(e)
+                kept_starts.append(e.start)
+            else:
+                kept.insert(i, e)
+                kept_starts.insert(i, e.start)
         return sorted(kept, key=lambda e: (e.start, e.end))
 
     @staticmethod
