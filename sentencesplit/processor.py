@@ -74,42 +74,8 @@ _NONCHARACTER_DELIMITER_RANGES = _sentinel.NONCHARACTER_DELIMITER_RANGES
 _MAX_NONCHARACTER_DELIMITER_INDEX_BYTES = _sentinel.MAX_NONCHARACTER_DELIMITER_INDEX_BYTES
 
 
-def _iter_private_use_chars():
-    return _sentinel.iter_private_use_chars(_PRIVATE_USE_RANGES)
-
-
-def _iter_delimited_private_use_tokens(body_len: int, delimiter: str):
-    return _sentinel.iter_delimited_private_use_tokens(body_len, delimiter, _PRIVATE_USE_RANGES)
-
-
 def _iter_noncharacter_delimiters():
     return _sentinel.iter_noncharacter_delimiters(_NONCHARACTER_DELIMITER_RANGES)
-
-
-def _decode_noncharacter_delimiter(code: int, width: int, alphabet: tuple[str, ...]) -> str:
-    return _sentinel.decode_noncharacter_delimiter(code, width, alphabet)
-
-
-def _absent_noncharacter_delimiter_with_missing_follower(
-    text: str,
-    context_code: int,
-    context_width: int,
-    alphabet: tuple[str, ...],
-    alphabet_index: dict[str, int],
-) -> str | None:
-    return _sentinel.absent_noncharacter_delimiter_with_missing_follower(
-        text, context_code, context_width, alphabet, alphabet_index
-    )
-
-
-def _scan_noncharacter_delimiter_counts(
-    text: str,
-    width: int,
-    base: int,
-    total_candidates: int,
-    alphabet_index: dict[str, int],
-) -> tuple[bytearray, int]:
-    return _sentinel.scan_noncharacter_delimiter_counts(text, width, base, total_candidates, alphabet_index)
 
 
 def _absent_noncharacter_delimiter(text: str) -> str:
