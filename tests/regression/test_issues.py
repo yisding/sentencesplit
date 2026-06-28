@@ -1415,3 +1415,31 @@ def test_en_es_zh_resplits_protected_number_abbreviation_unknown_placeholder(tex
     spans = span_seg.segment_spans(text)
     assert [span.sent for span in spans] == expected
     assert "".join(span.sent for span in spans) == text
+
+
+def test_slovak_overlapping_whole_span_abbreviations_do_not_drop_later_edits():
+    """Overlapping Slovak abbreviation candidates should not force an all-kept scan.
+
+    The leading ``a.s.a.p.`` creates overlapping whole-span edits; later disjoint
+    edits model a long line of ordinary Slovak abbreviations and must all remain.
+    """
+    from sentencesplit.period_classifier import Edit, PeriodClassifier
+
+    edits = [
+        Edit(0, 4, "a∯s∯", 3),
+        Edit(0, 8, "a∯s∯a∯p∯", 7),
+        *(Edit(start, start + 1, "∯", start) for start in range(20, 120, 5)),
+    ]
+
+    deduped = PeriodClassifier._dedup_sorted(edits)
+
+    assert deduped[0] == Edit(0, 8, "a∯s∯a∯p∯", 7)
+    assert deduped[1:] == [Edit(start, start + 1, "∯", start) for start in range(20, 120, 5)]
+
+
+def test_slovak_segmenter_handles_overlap_and_many_following_abbreviations():
+    """Public Slovak API keeps crafted overlap input as one protected sentence."""
+    seg = sentencesplit.Segmenter(language="sk", clean=False)
+    text = "a.s.a.p. " + "napr. " * 100 + "koniec."
+
+    assert seg.segment(text) == [text]
