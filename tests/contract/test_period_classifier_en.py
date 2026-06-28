@@ -205,3 +205,15 @@ def test_classifier_reuses_same_abbreviation_data() -> None:
     replacer = lang.AbbreviationReplacer("x", lang)
     pc = replacer._period_classifier()
     assert pc.data is replacer._data  # never rebuild the automaton/keys
+
+
+def test_global_realization_deduplicates_identical_suffix_passes() -> None:
+    pc = _classifier()
+    followers = [chr(0x0100 + i) for i in range(80)]
+    line = " ".join(f"Dr. {ch}." for ch in followers)
+
+    edits = pc._collect_edits(line)
+
+    assert len(pc.enumerate_candidates(line)) == len(followers)
+    assert len(edits) == len(followers)
+    assert len({(e.start, e.end, e.replacement) for e in edits}) == len(followers)
