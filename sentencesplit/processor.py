@@ -2,8 +2,8 @@
 from __future__ import annotations
 
 import re
-from itertools import product
 
+from sentencesplit import _sentinel
 from sentencesplit.boundary_resplit import (
     _CJK_BANG_RESPLIT_RE,
     _CJK_QUOTE_RESPLIT_RE,
@@ -63,211 +63,39 @@ def _rule_key(rule) -> tuple[str, str, int]:
     return (rule.pattern, rule.replacement, rule.flags)
 
 
-# Internal placeholder ("sentinel") characters the pipeline uses to protect
-# punctuation from splitting. They are ordinary printable codepoints, so if a
-# user's input already contains one, naive processing would rewrite it on output
-# (corrupting clean=True text) and break span mapping (silently dropping text in
-# the default clean=False mode). To stay non-destructive, any pre-existing
-# single-char sentinel in the input is escaped to a placeholder codepoint before
-# processing and restored verbatim afterwards. Multi-char "&X&" sentinels are
-# intentionally excluded: they are also produced by the Cleaner (e.g. "&ᓷ&" for a
-# bracketed "?") and are not realistically present in source text.
-_RESERVED_SENTINELS = "∯♬♭☉☇☈☄☊☋☌☍ȸȹƪ♟♝☏∮♨☝"
-_RESERVED_SENTINEL_SET = frozenset(_RESERVED_SENTINELS)
-# Private-use codepoints (BMP + both supplementary planes) used as escape
-# targets. Targets are chosen per call from this pool to be absent from the
-# input. If adversarial input occupies every single private-use character, the
-# escape target grows into a delimited private-use string token. The delimiter
-# is a noncharacter token chosen absent from the input, which keeps restore
-# matches aligned to whole escape tokens instead of arbitrary private-use
-# substrings.
-_PRIVATE_USE_RANGES = ((0xE000, 0xF8FF), (0xF0000, 0xFFFFD), (0x100000, 0x10FFFD))
-_NONCHARACTER_DELIMITER_RANGES = ((0xFDD0, 0xFDEF),) + tuple(
-    (plane + 0xFFFE, plane + 0xFFFF) for plane in range(0, 0x110000, 0x10000)
-)
-_MAX_NONCHARACTER_DELIMITER_INDEX_BYTES = 32 * 1024 * 1024
-
-
-def _iter_private_use_chars():
-    for lo, hi in _PRIVATE_USE_RANGES:
-        for cp in range(lo, hi + 1):
-            yield chr(cp)
-
-
-def _iter_delimited_private_use_tokens(body_len: int, delimiter: str):
-    alphabet = tuple(_iter_private_use_chars())
-    if not alphabet:
-        return
-    for chars in product(alphabet, repeat=body_len):
-        yield delimiter + "".join(chars) + delimiter
+# Private compatibility aliases for tests and internal callers that exercise the
+# sentinel machinery through processor.py. The implementation lives in
+# `_sentinel.py`; these wrappers deliberately read the module-level values below
+# at call time so monkeypatching them still constrains the helper behavior.
+_RESERVED_SENTINELS = _sentinel.RESERVED_SENTINELS
+_RESERVED_SENTINEL_SET = _sentinel.RESERVED_SENTINEL_SET
+_PRIVATE_USE_RANGES = _sentinel.PRIVATE_USE_RANGES
+_NONCHARACTER_DELIMITER_RANGES = _sentinel.NONCHARACTER_DELIMITER_RANGES
+_MAX_NONCHARACTER_DELIMITER_INDEX_BYTES = _sentinel.MAX_NONCHARACTER_DELIMITER_INDEX_BYTES
 
 
 def _iter_noncharacter_delimiters():
-    for lo, hi in _NONCHARACTER_DELIMITER_RANGES:
-        for cp in range(lo, hi + 1):
-            yield chr(cp)
-
-
-def _decode_noncharacter_delimiter(code: int, width: int, alphabet: tuple[str, ...]) -> str:
-    base = len(alphabet)
-    chars = [""] * width
-    for pos in range(width - 1, -1, -1):
-        code, idx = divmod(code, base)
-        chars[pos] = alphabet[idx]
-    return "".join(chars)
-
-
-def _absent_noncharacter_delimiter_with_missing_follower(
-    text: str,
-    context_code: int,
-    context_width: int,
-    alphabet: tuple[str, ...],
-    alphabet_index: dict[str, int],
-) -> str | None:
-    base = len(alphabet)
-    high_order = base ** (context_width - 1)
-    code = 0
-    run_len = 0
-    followers = 0
-
-    for index, ch in enumerate(text):
-        char_index = alphabet_index.get(ch)
-        if char_index is None:
-            code = 0
-            run_len = 0
-            continue
-        if run_len < context_width:
-            code = (code * base) + char_index
-            run_len += 1
-            if run_len < context_width:
-                continue
-        else:
-            code = ((code % high_order) * base) + char_index
-
-        if code != context_code or index + 1 == len(text):
-            continue
-        follower_index = alphabet_index.get(text[index + 1])
-        if follower_index is not None:
-            followers |= 1 << follower_index
-
-    for follower_index, follower in enumerate(alphabet):
-        if not followers & (1 << follower_index):
-            return _decode_noncharacter_delimiter(context_code, context_width, alphabet) + follower
-    return None
-
-
-def _scan_noncharacter_delimiter_counts(
-    text: str,
-    width: int,
-    base: int,
-    total_candidates: int,
-    alphabet_index: dict[str, int],
-) -> tuple[bytearray, int]:
-    counts = bytearray(total_candidates)
-    seen = 0
-    code = 0
-    run_len = 0
-    high_order = base ** (width - 1)
-
-    for ch in text:
-        idx = alphabet_index.get(ch)
-        if idx is None:
-            code = 0
-            run_len = 0
-            continue
-        if run_len < width:
-            code = (code * base) + idx
-            run_len += 1
-            if run_len < width:
-                continue
-        else:
-            code = ((code % high_order) * base) + idx
-
-        if counts[code] == 0:
-            seen += 1
-        if counts[code] < base:
-            counts[code] += 1
-
-    return counts, seen
+    return _sentinel.iter_noncharacter_delimiters(_NONCHARACTER_DELIMITER_RANGES)
 
 
 def _absent_noncharacter_delimiter(text: str) -> str:
-    """Return a noncharacter delimiter token absent from *text* in linear time."""
-    alphabet = tuple(_iter_noncharacter_delimiters())
-    if not alphabet:
-        raise ValueError("At least one noncharacter delimiter token is required")
-
-    alphabet_index = {char: idx for idx, char in enumerate(alphabet)}
-    base = len(alphabet)
-    width = 1
-
-    while True:
-        total_candidates = base**width
-        if total_candidates > _MAX_NONCHARACTER_DELIMITER_INDEX_BYTES:
-            raise ValueError("Unable to choose a bounded noncharacter delimiter token")
-
-        counts, seen = _scan_noncharacter_delimiter_counts(text, width, base, total_candidates, alphabet_index)
-
-        if seen < total_candidates:
-            for missing_code, count in enumerate(counts):
-                if count == 0:
-                    return _decode_noncharacter_delimiter(missing_code, width, alphabet)
-
-        for context_code, count in enumerate(counts):
-            if count >= base:
-                continue
-            delimiter = _absent_noncharacter_delimiter_with_missing_follower(
-                text, context_code, width, alphabet, alphabet_index
-            )
-            if delimiter is not None:
-                return delimiter
-
-        width += 1
+    return _sentinel.absent_noncharacter_delimiter(
+        text,
+        noncharacter_delimiter_ranges=_NONCHARACTER_DELIMITER_RANGES,
+        max_index_bytes=_MAX_NONCHARACTER_DELIMITER_INDEX_BYTES,
+    )
 
 
 def _build_sentinel_escape_tables(
     text: str,
 ) -> tuple[dict[int, str], dict[str, str], re.Pattern[str]]:
-    """Return escape/restore tables for reserved sentinels in *text*.
-
-    The escape values are private-use tokens that do not occur in the input.
-    Single private-use characters are used for normal inputs; if an adversarial
-    input exhausts the single-character pool, longer private-use token bodies
-    are wrapped in an absent delimiter. The delimiter prevents restore matches
-    from starting inside neighboring original private-use text.
-
-    Returns ``(escape, restore, restore_re)`` where ``escape`` maps codepoints to
-    tokens for ``str.translate``, ``restore`` maps each token back to its
-    sentinel, and ``restore_re`` is a compiled alternation that restores every
-    token in a single left-to-right pass. The atomic restore is required for
-    correctness: multi-character tokens are not prefix-free, so a sequential
-    per-token ``str.replace`` could match a window straddling two adjacent
-    escaped sentinels and corrupt the round-trip.
-    """
-    tokens = []
-    occupied = set(text)
-    for token in _iter_private_use_chars():
-        if token not in occupied:
-            tokens.append(token)
-            if len(tokens) == len(_RESERVED_SENTINELS):
-                break
-    if len(tokens) < len(_RESERVED_SENTINELS):
-        delimiter = _absent_noncharacter_delimiter(text)
-        body_len = 1
-        while len(tokens) < len(_RESERVED_SENTINELS):
-            saw_candidate = False
-            for token in _iter_delimited_private_use_tokens(body_len, delimiter):
-                saw_candidate = True
-                tokens.append(token)
-                if len(tokens) == len(_RESERVED_SENTINELS):
-                    break
-            if not saw_candidate:
-                raise ValueError("At least one private-use escape codepoint is required")
-            body_len += 1
-    escape = {ord(ch): token for ch, token in zip(_RESERVED_SENTINELS, tokens, strict=True)}
-    restore = {token: ch for ch, token in zip(_RESERVED_SENTINELS, tokens, strict=True)}
-    restore_re = re.compile("|".join(re.escape(token) for token in sorted(tokens, key=len, reverse=True)))
-    return escape, restore, restore_re
+    return _sentinel.build_sentinel_escape_tables(
+        text,
+        reserved_sentinels=_RESERVED_SENTINELS,
+        private_use_ranges=_PRIVATE_USE_RANGES,
+        noncharacter_delimiter_ranges=_NONCHARACTER_DELIMITER_RANGES,
+        max_index_bytes=_MAX_NONCHARACTER_DELIMITER_INDEX_BYTES,
+    )
 
 
 def _sub_symbols_fast(text: str, subs_table) -> str:
