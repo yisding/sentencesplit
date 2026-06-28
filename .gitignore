@@ -8,7 +8,6 @@ __pycache__/
 
 # Node (Pyodide smoke-test runtime, installed in CI)
 node_modules/
-package-lock.json
 
 # Distribution / packaging
 .Python
