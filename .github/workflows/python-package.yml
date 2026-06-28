@@ -17,7 +17,7 @@ jobs:
         python-version: ["3.11", "3.12", "3.13", "3.14"]
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Install uv
         uses: astral-sh/setup-uv@v7
@@ -52,7 +52,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Install uv
         uses: astral-sh/setup-uv@v7
@@ -83,7 +83,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Install uv
         uses: astral-sh/setup-uv@v7
@@ -113,7 +113,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Install uv
         uses: astral-sh/setup-uv@v7
@@ -134,7 +134,7 @@ jobs:
       # wheel via micropip and exercising the public API proves the package works
       # unmodified in the browser/WASM runtime.
       - name: Install Pyodide
-        run: npm install pyodide@latest --no-audit --no-fund
+        run: npm ci --no-audit --no-fund
 
       - name: Pyodide smoke test
         run: node tests/pyodide/smoke_test.mjs "$(ls dist/*.whl)"
@@ -144,7 +144,7 @@ jobs:
     needs: [test, free-threaded-test, pypy-test, pyodide-test]
 
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Install uv
         uses: astral-sh/setup-uv@v7

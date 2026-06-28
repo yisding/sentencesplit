@@ -3,7 +3,7 @@ name: CodSpeed
 # Deterministic (instruction-count) latency benchmarks. CodSpeed measures CPU
 # instructions under instrumentation, so per-PR deltas are stable on noisy
 # shared runners — unlike raw wall-clock timing. Results are uploaded to the
-# CodSpeed dashboard and posted as a PR comment showing the regression/speedup.
+# CodSpeed dashboard for trusted branch and manual runs.
 #
 # Auth uses OIDC: the CodSpeed action exchanges GitHub's short-lived id-token
 # for upload credentials, so no CODSPEED_TOKEN secret is needed. The only
@@ -12,8 +12,6 @@ name: CodSpeed
 
 on:
   push:
-    branches: [main]
-  pull_request:
     branches: [main]
   workflow_dispatch:
 
@@ -26,7 +24,7 @@ jobs:
   benchmarks:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Install uv
         uses: astral-sh/setup-uv@v7
@@ -76,7 +74,7 @@ jobs:
   benchmarks-walltime-cpython:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Install uv
         uses: astral-sh/setup-uv@v7
@@ -102,7 +100,7 @@ jobs:
   benchmarks-walltime-pypy:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Install uv
         uses: astral-sh/setup-uv@v7

@@ -7,7 +7,8 @@ Unicode character whose ``.lower()`` changes length — it expands to 'i' + a
 combining dot above (U+0307). So an abbreviation occurrence ending in 'İ' and
 followed by a period becomes '...i̇.' when lowered, and the '<abbr>.' key (e.g.
 'vi.') no longer matches: the abbreviation is missed and the period over-splits.
-Abbreviations ending in 'i' therefore keep the bare key (the original behavior).
+Abbreviations ending in 'i' therefore add a precise alternate key ending in
+'i' + U+0307 + '.', while still requiring a period in the pre-filter.
 """
 
 import unicodedata
@@ -31,3 +32,20 @@ def test_dotted_capital_i_is_still_the_only_length_changing_lowercase():
     expanding = [chr(c) for c in range(0x110000) if len(chr(c).lower()) != 1]
     assert expanding == ["İ"], expanding
     assert "İ".lower() == "i" + unicodedata.lookup("COMBINING DOT ABOVE")
+
+
+def test_periodless_i_ending_abbreviations_do_not_trigger_abbreviation_scans():
+    # The U+0130 fix must not fall back to bare i-ending automaton keys: without
+    # a period-like key, attacker-controlled periodless abbreviation substrings can
+    # force many full-line regex scans that all discard their matches.
+    from sentencesplit.abbreviation_replacer import _AbbreviationData
+    from sentencesplit.lang.italian import Italian
+
+    data = _AbbreviationData(Italian.Abbreviation)
+    i_ending_abbreviations = [
+        abbr for abbr in Italian.Abbreviation.ABBREVIATIONS if abbr.strip().lower().endswith("i") and "." not in abbr
+    ]
+    payload = " ".join(i_ending_abbreviations) + " " + ("x" * 1000)
+
+    assert "." not in payload
+    assert data.automaton.search(payload.lower()) == set()

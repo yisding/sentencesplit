@@ -22,6 +22,7 @@ package's own ``split_mode_rank``.
 from __future__ import annotations
 
 import re
+from bisect import bisect_left
 from threading import Lock
 
 from sentencesplit._abbr_policy import (
@@ -416,6 +417,7 @@ class PeriodClassifier:
     # -------------------------------------------------------------------- rewrite
     def _collect_edits(self, line: str) -> list[Edit]:
         edits: list[Edit] = []
+        realized_units: set[tuple[str, str, Decision]] = set()
         per_occurrence = self.policy.realize_per_occurrence
         # The leading-space probe is candidate-independent (it just lets the
         # lookbehind match an abbr that opens the line, the legacy " " + txt trick),
@@ -449,6 +451,10 @@ class PeriodClassifier:
             # fall back to ``_suffix_for`` there, which honors ``policy.realize_suffix``.
             if suffix is None:
                 suffix = self._suffix_for(c, line, d)
+            realization_key = (c.am_escaped, suffix, d)
+            if realization_key in realized_units:
+                continue
+            realized_units.add(realization_key)
             # Realize GLOBALLY over the line (legacy global re.sub semantics): the
             # chosen suffix regex, re-anchored with the lookbehind, applied to EVERY
             # occurrence of THIS abbr on the line. Leading-space prefix matches the
@@ -482,10 +488,21 @@ class PeriodClassifier:
         if not _spans_intersect(ordered):
             return ordered
         kept: list[Edit] = []
+        kept_starts: list[int] = []
         for e in sorted(ordered, key=lambda x: (x.start - x.end, x.start)):  # widest first
-            if any(e.start < k.end and k.start < e.end for k in kept):
+            # ``kept`` is maintained sorted by start and contains only disjoint
+            # intervals, so a new edit can overlap only its immediate predecessor
+            # or successor. This preserves the longest-first semantics without
+            # scanning every accepted edit after the first overlap on a long line.
+            i = bisect_left(kept_starts, e.start)
+            if (i > 0 and kept[i - 1].end > e.start) or (i < len(kept) and kept[i].start < e.end):
                 continue  # embedded in / overlapping an already-kept wider edit
-            kept.append(e)
+            if i == len(kept):
+                kept.append(e)
+                kept_starts.append(e.start)
+            else:
+                kept.insert(i, e)
+                kept_starts.insert(i, e.start)
         return sorted(kept, key=lambda e: (e.start, e.end))
 
     @staticmethod

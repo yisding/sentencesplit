@@ -1,0 +1,9 @@
+{
+  "name": "sentencesplit-pyodide-smoke-test",
+  "private": true,
+  "description": "Pinned Node dependencies for the Pyodide CI smoke test.",
+  "type": "module",
+  "dependencies": {
+    "pyodide": "314.0.0"
+  }
+}
