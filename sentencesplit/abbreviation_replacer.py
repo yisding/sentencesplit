@@ -124,6 +124,7 @@ class AbbreviationReplacer:
     STARTER_AWARE_PREPOSITIVE: frozenset[str] = frozenset()
     TWO_LETTER_INITIALISM_SPLIT_MIN_RANK = 1
     UPPERCASE_INITIALISM_SPLIT_MIN_RANK = 1
+    SENTENCE_BOUNDARY_ABBREVIATIONS: frozenset[str] = frozenset()
     ALWAYS_JOIN_TWO_LETTER_INITIALISM_PHRASES = frozenset(
         {
             ("d.c", "circuit"),
@@ -603,6 +604,8 @@ class AbbreviationReplacer:
                 and all(part.isupper() for part in parts)
                 and split_mode_rank(self.split_mode) >= self.UPPERCASE_INITIALISM_SPLIT_MIN_RANK
             )
+            abbreviation_key = matched[:-1].lower()
+            listed_sentence_boundary = abbreviation_key in self.SENTENCE_BOUNDARY_ABBREVIATIONS
             split_candidate = any(len(part) > 1 for part in parts) or two_letter_initialism or uppercase_initialism
             # Greek/Cyrillic etc. (opt-in): a capital follower reliably starts a
             # new sentence, so a pure single-letter initialism ("π.Χ.", "Ε.Ε.")
@@ -633,7 +636,7 @@ class AbbreviationReplacer:
                 protect_final_period = True
             elif titled_name_prefix:
                 protect_final_period = True
-            elif not is_ampm and ((split_candidate and likely_start) or capital_boundary):
+            elif not is_ampm and (((split_candidate or listed_sentence_boundary) and likely_start) or capital_boundary):
                 protect_final_period = False
 
             body = matched[:-1].replace(".", "∯")

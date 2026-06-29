@@ -16,6 +16,8 @@ GOLDEN_DA_RULES_TEST_CASES = [
     ("St. Michael's Kirke er på 5. gade nær ved lyset.", ["St. Michael's Kirke er på 5. gade nær ved lyset."]),
     ("Jeg bor i E.U. Hvad med dig?", ["Jeg bor i E.U.", "Hvad med dig?"]),
     ("I live in the U.S. Hvad med dig?", ["I live in the U.S.", "Hvad med dig?"]),
+    ("Han bor i s.u. Det er kendt.", ["Han bor i s.u.", "Det er kendt."]),
+    ("Han bor i s.U. Det er kendt.", ["Han bor i s.U.", "Det er kendt."]),
 ]
 
 
