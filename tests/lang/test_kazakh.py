@@ -117,3 +117,10 @@ def test_kk_obl_wide_follower_keeps_period_joined(kk_default_fixture):
     # ('. ' + capitalized start) still splits.
     assert kk_default_fixture.segment("обл. қала үлкен.") == ["обл. қала үлкен."]
     assert kk_default_fixture.segment("обл. қала. Келесі сөйлем.") == ["обл. қала. ", "Келесі сөйлем."]
+
+
+def test_kk_empty_follower_occurrences_are_classified_independently(kk_default_fixture):
+    # Both "обл.x" and "обл.:" have the classifier's coarse empty follower_char,
+    # but only the colon case matches the wide Kazakh abbreviation continuation.
+    # The earlier boundary occurrence must not suppress the later protection.
+    assert kk_default_fixture.segment("обл.x обл.: қала") == ["обл.", "x обл.: қала"]

@@ -100,6 +100,11 @@ def _kk_protect_before_parenthesis(r) -> None:
 # upstream Cyrillic-initial rules and runs the driver.
 KK_POLICY = AbbrPolicy(
     regular_follower_overrides=(_KK_WIDE_FOLLOWER_STEMS, _KK_WIDE_FOLLOWER_CLASS),
+    # The widened Kazakh follower decision is context-sensitive even when
+    # ``follower_char`` is empty: "обл.x" is a boundary, while "обл.:" protects.
+    # Anchor each occurrence so an earlier empty-follower boundary cannot suppress
+    # a later protectable occurrence of the same abbreviation on the same line.
+    realize_per_occurrence=True,
     post_stages=DEFAULT_POST_STAGES + (_kk_protect_before_parenthesis,),
 )
 
