@@ -1,3 +1,6 @@
+import gc
+import weakref
+
 import sentencesplit
 from sentencesplit.between_punctuation import BetweenPunctuation
 from sentencesplit.lang.common import Common, Standard
@@ -11,7 +14,6 @@ def test_language_profile_resolves_default_and_custom_hooks():
     english = Language.get_language_code("en")
     english_profile = LanguageProfile.from_language(english)
 
-    assert english_profile.language is english
     assert english_profile.abbreviation_replacer_cls is english.AbbreviationReplacer
     assert english_profile.between_punctuation_cls is BetweenPunctuation
     assert english_profile.list_item_replacer_cls is ListItemReplacer
@@ -23,12 +25,26 @@ def test_language_profile_resolves_default_and_custom_hooks():
     hybrid = Language.get_language_code("en_es_zh")
     hybrid_profile = LanguageProfile.from_language(hybrid)
 
-    assert hybrid_profile.language is hybrid
     assert hybrid_profile.abbreviation_replacer_cls is hybrid.AbbreviationReplacer
     assert hybrid_profile.between_punctuation_cls is hybrid.BetweenPunctuation
     assert hybrid_profile.list_item_replacer_cls is ListItemReplacer
     assert hybrid_profile.cjk_abbreviation_rules == tuple(hybrid.CjkAbbreviationRules.All)
     assert hybrid_profile.latin_uppercase_resplit is False
+
+
+def test_language_profile_cache_does_not_pin_dynamic_language_classes():
+    class Demo(Common, Standard):
+        iso_code = "demo"
+
+    profile = LanguageProfile.from_language(Demo)
+    assert profile.abbreviation_replacer_cls is Demo.AbbreviationReplacer
+
+    demo_ref = weakref.ref(Demo)
+    del Demo
+    del profile
+    gc.collect()
+
+    assert demo_ref() is None
 
 
 def test_language_profile_resolves_static_rule_hooks():

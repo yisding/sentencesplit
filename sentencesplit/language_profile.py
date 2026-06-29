@@ -22,7 +22,6 @@ _PROFILE_CACHE_LOCK = RLock()
 class LanguageProfile:
     """Resolved language hooks and compiled regexes used by the processor."""
 
-    language: type
     abbreviation_replacer_cls: type[AbbreviationReplacer]
     between_punctuation_cls: type[BetweenPunctuation]
     list_item_replacer_cls: type[ListItemReplacer]
@@ -79,7 +78,6 @@ class LanguageProfile:
         ellipsis_rules = lang.EllipsisRules
         exclamation_rules = lang.ExclamationPointRules
         return cls(
-            language=lang,
             abbreviation_replacer_cls=getattr(lang, "AbbreviationReplacer", AbbreviationReplacer),
             between_punctuation_cls=getattr(lang, "BetweenPunctuation", BetweenPunctuation),
             list_item_replacer_cls=getattr(lang, "ListItemReplacer", ListItemReplacer),

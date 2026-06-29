@@ -281,6 +281,7 @@ class Processor:
     def __init__(self, text: str | None, lang, split_mode: SplitMode = "balanced") -> None:
         self.text = text
         self.split_mode = split_mode
+        self.lang = lang
         self.profile = LanguageProfile.from_language(lang)
 
     def process(self) -> list[str]:
@@ -615,7 +616,7 @@ class Processor:
         return apply_rules(text, *self.profile.number_rules)
 
     def replace_abbreviations(self, text: str) -> str:
-        return self.profile.abbreviation_replacer_cls(text, self.profile.language, split_mode=self.split_mode).replace()
+        return self.profile.abbreviation_replacer_cls(text, self.lang, split_mode=self.split_mode).replace()
 
     def between_punctuation_processor(self, txt: str):
         return self.profile.between_punctuation_cls(txt)
