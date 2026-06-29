@@ -633,6 +633,11 @@ class AbbreviationReplacer:
                 protect_final_period = True
             elif titled_name_prefix:
                 protect_final_period = True
+            elif matched.endswith("∯"):
+                # The classifier already protected the final period before this
+                # multi-period pass. Keep that boundary decision instead of
+                # reclassifying the sentinel-terminated token as sentence-final.
+                protect_final_period = True
             elif not is_ampm and ((split_candidate and likely_start) or capital_boundary):
                 protect_final_period = False
 

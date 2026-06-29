@@ -28,3 +28,9 @@ def test_dotless_multiperiod_interior_dots_protected() -> None:
     seg = Segmenter("kk")
     assert seg.segment("Бұл т.с.с. (мысал) еді.") == ["Бұл т.с.с. (мысал) еді."]
     assert seg.segment("Көрсеткіш т.с.с. 5 еді.") == ["Көрсеткіш т.с.с. 5 еді."]
+
+
+def test_uppercase_dotless_multiperiod_keeps_classifier_protected_final_period() -> None:
+    seg = Segmenter("kk", split_mode="balanced")
+
+    assert seg.segment("Бұл Т.С.С. I went.") == ["Бұл Т.С.С. I went."]
