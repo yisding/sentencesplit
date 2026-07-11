@@ -466,6 +466,7 @@ class Kazakh(Common, Standard):
         #      ``KK_POLICY.post_stages`` (``DEFAULT_POST_STAGES`` + this pass) rather
         #      than a hand-call after ``super().replace()``.
         ABBR_POLICY = KK_POLICY
+        PRESERVE_CLASSIFIER_PROTECTED_MULTI_PERIOD_FINAL = True
 
         def replace(self) -> str:
             SingleUpperCaseCyrillicLetterAtStartOfLineRule = Rule(r"(?<=^[А-ЯЁ])\.(?=\s)", "∯")

@@ -214,6 +214,18 @@ def test_non_english_two_letter_initialism_follows_split_mode(language):
         assert [s.strip() for s in seg.segment(text)] == ["Je vois U.S.", "Il part."]
 
 
+@pytest.mark.parametrize("language", ["zh", "ja", "nl", "it", "mr"])
+def test_non_english_two_letter_initialism_before_i_follows_split_mode(language):
+    """Classifier-protected initialisms still respect the downstream split dial."""
+    text = "Je vois U.S. I went."
+
+    seg = sentencesplit.Segmenter(language=language, clean=False, split_mode="conservative")
+    assert [s.strip() for s in seg.segment(text)] == [text]
+    for mode in ("balanced", "aggressive"):
+        seg = sentencesplit.Segmenter(language=language, clean=False, split_mode=mode)
+        assert [s.strip() for s in seg.segment(text)] == ["Je vois U.S.", "I went."]
+
+
 @pytest.mark.parametrize("language", ["fr", "es", "it", "nl"])
 def test_non_english_profiles_do_not_inherit_uppercase_abbreviation_heuristic(language):
     """Removing empty overrides must not expose English-oriented Standard flags."""
