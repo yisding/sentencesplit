@@ -2,6 +2,7 @@ import gc
 import weakref
 
 import sentencesplit
+from sentencesplit.abbreviation_replacer import AbbreviationReplacer
 from sentencesplit.between_punctuation import BetweenPunctuation
 from sentencesplit.lang.common import Common, Standard
 from sentencesplit.language_profile import LanguageProfile
@@ -36,12 +37,13 @@ def test_language_profile_cache_does_not_pin_dynamic_language_classes():
     class Demo(Common, Standard):
         iso_code = "demo"
 
-    profile = LanguageProfile.from_language(Demo)
-    assert profile.abbreviation_replacer_cls is Demo.AbbreviationReplacer
+        class AbbreviationReplacer(AbbreviationReplacer):
+            pass
+
+    assert Processor("Dr. test.", Demo).process() == ["Dr. test."]
 
     demo_ref = weakref.ref(Demo)
     del Demo
-    del profile
     gc.collect()
 
     assert demo_ref() is None
