@@ -37,6 +37,7 @@ class Danish(Common, Standard):
         # pass that the classifier leaves untouched.
         CAPITALIZED_FOLLOWER_IS_BOUNDARY_CUE = True
         PROTECT_ALLCAPS_IMPRINT_SUFFIXES = True
+        SENTENCE_BOUNDARY_ABBREVIATIONS = frozenset({"s.u"})
 
     class Abbreviation(Standard.Abbreviation):
         # Stored in canonical form (lowercased, de-duplicated, sorted); see

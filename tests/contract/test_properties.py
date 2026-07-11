@@ -172,7 +172,7 @@ _MONOTONICITY_CLEAN = [c for c in ALL_CODES if c not in MONOTONICITY_QUARANTINE]
 # 1. No-crash — hard gate across every code.
 # --------------------------------------------------------------------------- #
 # The engine carries decisions as in-band sentinel codepoints spliced into the
-# text (processor.py ``_RESERVED_SENTINELS``); because those are printable
+# text (``sentencesplit._sentinel.RESERVED_SENTINELS``); because those are printable
 # characters a user can type, the escape/restore machinery must stay
 # non-destructive when input *already* contains them. Feeding them in deliberately
 # exercises that collision path rather than waiting for ``st.characters()`` to
