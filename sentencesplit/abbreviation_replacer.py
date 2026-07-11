@@ -97,6 +97,7 @@ class AbbreviationReplacer:
     CAPITALIZED_FOLLOWER_IS_BOUNDARY_CUE = False
     PROTECT_ALLCAPS_IMPRINT_SUFFIXES = False
     RESTORE_STANDALONE_I_BOUNDARIES = False
+    PRESERVE_CLASSIFIER_PROTECTED_MULTI_PERIOD_FINAL = False
 
     # Single-pass period classifier. The per-line abbreviation-protection step
     # always routes through PeriodClassifier. ABBR_POLICY selects the per-language
@@ -636,6 +637,11 @@ class AbbreviationReplacer:
             elif has_always_joined_follower:
                 protect_final_period = True
             elif titled_name_prefix:
+                protect_final_period = True
+            elif self.PRESERVE_CLASSIFIER_PROTECTED_MULTI_PERIOD_FINAL and matched.endswith("∯"):
+                # The classifier already protected the final period before this
+                # multi-period pass. Keep that boundary decision instead of
+                # reclassifying the sentinel-terminated token as sentence-final.
                 protect_final_period = True
             elif not is_ampm and (((split_candidate or listed_sentence_boundary) and likely_start) or capital_boundary):
                 protect_final_period = False
