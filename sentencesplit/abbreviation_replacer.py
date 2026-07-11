@@ -253,9 +253,10 @@ class AbbreviationReplacer:
         pc = cache.get(key)
         if pc is None:
             # Build against a document-free reference replacer of THIS class so the
-            # cached classifier never pins a caller's input text and reads only
-            # class-level config through its back-ref.
+            # cached classifier never pins a caller's input text or language class
+            # and reads only class-level config through its back-ref.
             reference = cls("", self.lang, split_mode=self.split_mode)
+            reference.lang = None
             pc = PeriodClassifier(reference, self._data, policy)
             with AbbreviationReplacer._cache_lock:
                 # Publish after full construction; first writer wins (the value is
