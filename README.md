@@ -52,9 +52,11 @@ install it directly in the browser:
 
 ```python
 import micropip
+
 await micropip.install("sentencesplit")
 
 import sentencesplit
+
 sentencesplit.Segmenter(language="en").segment("Hello world. This is a test.")
 # ['Hello world. ', 'This is a test.']
 ```
@@ -90,7 +92,7 @@ When processing streaming text (e.g. LLM output), you often can't tell if the la
 seg = sentencesplit.Segmenter(language="en")
 
 result = seg.segment_with_lookahead("The model is GPT 3.")
-result.segments          # ['The model is GPT 3.']
+result.segments  # ['The model is GPT 3.']
 result.should_wait_for_more  # True  -- "3." might continue as "3.5"
 
 result = seg.segment_with_lookahead("This is the finale.")
@@ -242,11 +244,13 @@ sentencesplit is derived from [pySBD](https://github.com/nipunsadvilkar/pySBD) a
 ```python
 # Before
 import pysbd
+
 seg = pysbd.Segmenter(language="en", clean=False)
 seg.segment("My name is Jonas E. Smith. Please turn to p. 55.")
 
 # After
 import sentencesplit
+
 seg = sentencesplit.Segmenter(language="en", clean=False)
 seg.segment("My name is Jonas E. Smith. Please turn to p. 55.")
 ```
@@ -270,25 +274,29 @@ from sentencesplit.lang.spanish import Spanish
 from sentencesplit.lang.french import French
 from sentencesplit.languages import LANGUAGE_CODES
 
+
 class MultiLang(Common, Standard):
-    iso_code = 'multi'
+    iso_code = "multi"
 
     class Abbreviation(Standard.Abbreviation):
-        ABBREVIATIONS = sorted(set(
-            Standard.Abbreviation.ABBREVIATIONS +
-            Spanish.Abbreviation.ABBREVIATIONS +
-            French.Abbreviation.ABBREVIATIONS
-        ))
-        PREPOSITIVE_ABBREVIATIONS = sorted(set(
-            Standard.Abbreviation.PREPOSITIVE_ABBREVIATIONS +
-            Spanish.Abbreviation.PREPOSITIVE_ABBREVIATIONS +
-            French.Abbreviation.PREPOSITIVE_ABBREVIATIONS
-        ))
-        NUMBER_ABBREVIATIONS = sorted(set(
-            Standard.Abbreviation.NUMBER_ABBREVIATIONS +
-            Spanish.Abbreviation.NUMBER_ABBREVIATIONS +
-            French.Abbreviation.NUMBER_ABBREVIATIONS
-        ))
+        ABBREVIATIONS = sorted(
+            set(Standard.Abbreviation.ABBREVIATIONS + Spanish.Abbreviation.ABBREVIATIONS + French.Abbreviation.ABBREVIATIONS)
+        )
+        PREPOSITIVE_ABBREVIATIONS = sorted(
+            set(
+                Standard.Abbreviation.PREPOSITIVE_ABBREVIATIONS
+                + Spanish.Abbreviation.PREPOSITIVE_ABBREVIATIONS
+                + French.Abbreviation.PREPOSITIVE_ABBREVIATIONS
+            )
+        )
+        NUMBER_ABBREVIATIONS = sorted(
+            set(
+                Standard.Abbreviation.NUMBER_ABBREVIATIONS
+                + Spanish.Abbreviation.NUMBER_ABBREVIATIONS
+                + French.Abbreviation.NUMBER_ABBREVIATIONS
+            )
+        )
+
 
 from sentencesplit.languages import register_language
 
