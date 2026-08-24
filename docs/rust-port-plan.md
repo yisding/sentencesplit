@@ -23,6 +23,8 @@ every frozen corpus in this repo, for every language, in every `split_mode`.
 * Retiring the Python implementation. It stays as the reference oracle, the Pyodide
   path, and the extension point for `register_language`.
 * A new accuracy model. No statistical/ML boundary detection; this is a port.
+* **Third-party language registration in the Rust core.** v1 ships the built-in languages
+  only; custom registered languages transparently fall back to the Python engine (§3.3).
 
 ## 2. What is actually being ported
 
@@ -45,7 +47,8 @@ Frozen artifacts that become the port's acceptance corpus:
 
 ## 3. The three hard problems
 
-Everything else is mechanical. These three decide whether the port succeeds.
+Everything else is mechanical. These three decide whether the port succeeds. The first two are
+engineering problems to be solved; the third (§3.3) is resolved by scoping it out of v1.
 
 ### 3.1 Regex: lookaround is not optional here
 
@@ -97,17 +100,91 @@ Conversion is one O(n) pass over the input with a cached prefix table, done once
 astral-plane span round-trip test; `tests/contract/test_span_roundtrip.py` already exists
 to be extended.
 
-### 3.3 `register_language` cannot cross the FFI boundary
+### 3.3 Custom languages: deferred, with a transparent fallback
 
-`register_language(code, language_cls)` takes a **Python class** with nested `Abbreviation`,
-`AbbreviationReplacer`, `Cleaner`, `Processor` overrides. A Rust core cannot execute that.
+`register_language(code, language_cls)` takes a **Python class**. `LanguageProfile._build()`
+reduces it to a frozen dataclass, but three of the ~30 attributes it reads are *class objects*
+it will later instantiate (`AbbreviationReplacer`, `BetweenPunctuation`, `ListItemReplacer`),
+and `Segmenter.__init__` grabs `Processor` and `Cleaner` the same way. So the contract is not
+"a bag of data" — it is "a bag of data **and** up to five classes whose methods we will call."
 
-**Decision:** introduce a declarative `LanguageSpec` — abbreviation lists, sentence-boundary
-regex, flags, punctuation sets — as plain data (dict / JSON). The Rust core accepts
-`register_language_spec(code, spec)`. The Python-class path keeps working only on the
-pure-Python engine, and the docs state plainly that a custom language needing a subclassed
-`Processor` must use the pure-Python engine. This is the **one deliberate API capability
-gap** in the port; it needs a maintainer sign-off before Phase 4 (see §8).
+An AST scan of the 26 built-ins shows what registered classes actually do:
+
+| Tier | Overrides | Built-ins | Expressible as data? |
+|---|---|---|---|
+| 1 | Attributes only — abbreviation lists, flags | **19 of 26** | Yes |
+| 2 | `Rule` tables (regex + replacement): `Numbers` in de/da/sk | subset of above | Yes — a `Rule` is a serializable pair |
+| 3 | Methods on `Processor` / `AbbreviationReplacer` / `BetweenPunctuation` / `Cleaner` / `ListItemReplacer` | 7 (zh, ja, de, sk, kk, en_es_zh) | No |
+| 4 | `AbbrPolicy.classify_special` — a callable handed the live `PeriodClassifier` and `Candidate` | 2 (de, ru) | No |
+
+**Decision: the Rust core ships the built-in languages only. Third-party language
+registration is deferred past v1**, in any form — no `LanguageSpec`, no declarative
+registration API. Designing an extension vocabulary is a large, speculative surface, and
+scoping it out keeps Phases 1–3 aimed squarely at parity on the languages that ship.
+
+#### Routing rule
+
+The Rust backend handles a language code **only when the registry still holds the canonical
+built-in class for it**, compared by object identity:
+
+```python
+_rust_ok = LANGUAGE_CODES.get(code) is _CANONICAL_BUILTIN.get(code)
+```
+
+Identity, not a data-only heuristic. `register_language("zz", CustomEn)` where
+`class CustomEn(English): Abbreviation = CustomAbbr` is Tier 1 — pure data — but it is still
+a different class object, and honoring it would mean shipping the very spec-extraction
+machinery this section defers. Everything that is not the untouched built-in class routes to
+the pure-Python engine, which is always present. Consequences, all of them correct:
+
+* An unknown code, a custom class, *or a subclass of a built-in* → Python engine. Never an error.
+* `register_language("en", CustomEn)` → `"en"` silently moves to Python for the rest of the process.
+* `unregister_language("en")` → resolution fails in the existing Python registry before the
+  backend question is ever asked, so `UnknownLanguageError` is raised exactly as today.
+* `tests/meta/test_language_reregistration.py` (stale-automaton rebuild on re-registration)
+  keeps passing untouched, because re-registration always lands on the Python path.
+
+Add `sentencesplit.backend(language=...)` so routing is introspectable rather than mysterious.
+
+#### The seven hook-carrying built-ins are port work, not extension work
+
+zh, ja, de, sk, kk, en_es_zh and ru carry Tier 3/4 method overrides, but they **ship with the
+library** — Rust reimplements each behavior natively in Phase 2. The overrides are narrower
+than "arbitrary code" suggests: extra number/date rules (de, sk), CJK quote-continuation
+merging (zh, ja, en_es_zh), protect-abbreviation-before-parenthesis (kk), a Slovak list-item
+line break, a Japanese newline-in-word cleaner, a Cyrillic-uppercase sentence-start check (ru),
+and a German capital-noun exception (de). Roughly seven named behaviors.
+
+Making those hooks *declarative* — which would shrink the Python-fallback set once custom
+languages are picked back up — is deliberately **not** in this plan. If it happens it should
+land in the Python engine on its own merits first, under the §1 rule that behavior changes
+never originate in the port.
+
+#### Why Python callbacks over FFI are not the escape hatch
+
+PyO3 can call back into Python. It is still the wrong answer:
+
+1. **npm has no Python.** A callback design serves only the PyPI target, so it can never be
+   *the* answer — at best a PyPI-only concession that leaves wasm behind.
+2. **The perf math inverts.** `classify_special` runs per period candidate;
+   `_is_likely_sentence_start` runs per abbreviation occurrence. Crossing FFI at that
+   frequency, with GIL acquisition and object construction each time, could make the Rust
+   build *slower than pure Python* for exactly the languages that use hooks.
+3. **It freezes the internals as public API.** `classify_special(pc, line, c)` hands the
+   callback the live classifier. Supporting it from Rust means exposing a Python-visible
+   mirror of `PeriodClassifier` and `Candidate`, locking the Rust engine into today's Python
+   internal structure permanently — forfeiting much of the reason to port.
+4. **Free-threading.** The core is meant to be `Send + Sync` with no global mutable state;
+   running arbitrary user Python inside it drags the GIL and reentrancy back in.
+
+#### Registry shape (separate from the port)
+
+`register_language` mutates a process-global registry. The code does lock it
+(`_LANGUAGE_LOCK`, an `RLock`), though README:~290 still describes the registry as
+"non-thread-safe" — stale relative to the docstring at `languages.py:250`, worth fixing
+independently. For wasm a global mutable registry across workers is worse than in Python, so
+whenever custom languages are revisited, a per-`Segmenter` immutable registry is the shape to
+offer.
 
 ## 4. Language data becomes shared data, not duplicated code
 
@@ -202,20 +279,23 @@ that is what makes free-threaded Python and multi-worker Node safe by constructi
 thin dispatcher that prefers a compiled core and falls back to pure Python.
 
 ```python
-try:
-    from sentencesplit._rust import Segmenter        # sentencesplit-core-rs, optional
-except ImportError:
-    from sentencesplit.segmenter import Segmenter    # always present
+def Segmenter(language="en", **kw):
+    if _rust is not None and LANGUAGE_CODES.get(language) is _CANONICAL_BUILTIN.get(language):
+        return _rust.Segmenter(language, **kw)       # sentencesplit-core-rs, optional
+    return _py.Segmenter(language, **kw)             # always present
 ```
+
+Routing is **per language**, not per install (§3.3): a process can serve `en` from Rust and a
+custom registered `demo` from Python simultaneously.
 
 * `pip install sentencesplit` → unchanged today: pure Python, zero dependencies, works on
   Pyodide, PyPy, and any platform including ones we never build wheels for.
 * `pip install sentencesplit[fast]` → pulls `sentencesplit-core-rs`, the compiled wheel.
 * Installation can never hard-fail on a missing Rust toolchain, and the Pyodide smoke test
   keeps passing untouched.
-* Add `sentencesplit.backend()` returning `"rust"` / `"python"` so users can assert which
-  engine they got, and an env var (`SENTENCESPLIT_BACKEND=python`) to force the fallback for
-  debugging.
+* Add `sentencesplit.backend(language=...)` returning `"rust"` / `"python"` so users can
+  assert which engine a given code resolved to, and an env var
+  (`SENTENCESPLIT_BACKEND=python`) to force the fallback globally for debugging.
 
 The alternative — make `sentencesplit` itself the compiled package — buys a simpler story at
 the cost of the zero-dependency promise, the Pyodide path, and PyPy support. Not recommended,
@@ -246,6 +326,9 @@ Details that need doing properly:
   `opt-level="z"`, `lto="fat"`, `panic="abort"`, `wasm-opt -Oz`, and — if still over — split
   language data behind subpath exports (`sentencesplit/lang/zh`) so a monolingual app pays
   only for its language. Measure in Phase 4 before committing to a shape.
+* **No fallback exists here.** With no Python in the browser, the wasm build supports the
+  built-in languages and nothing else; an unknown code throws a clear, named error rather than
+  degrading. This is the one place §3.3's deferral is user-visible, and it is honest.
 * **API shape.** Idiomatic JS/TS, not a transliterated Python API:
   `segment(text, {language, splitMode})`, `segmentSpans(...)` returning
   `{text, start, end}` with **UTF-16** offsets, and a `StreamSegmenter` class. Full `.d.ts`,
@@ -273,15 +356,19 @@ and `en_legal`; UD `en_ewt` + `en_gum` F1 ≥ baseline.
 
 ### Phase 2 — All 26 languages
 Remaining language profiles, CJK boundary handling, Arabic-script and Cyrillic rules,
-`en_es_zh`.
+`en_es_zh`. Includes native Rust reimplementations of the seven hook-carrying built-ins
+(§3.3) — zh, ja, de, sk, kk, en_es_zh, ru.
 **Exit:** 100% exact match on the *entire* `segment_snapshot.json`; every language's UD gold
 score ≥ `gate/baseline.json`.
 
 ### Phase 3 — Full API surface
 `Cleaner` (`clean=True`, `doc_type="pdf"`), lookahead (`segment_with_lookahead`,
-`should_wait_for_more`), `StreamSegmenter`, `register_language_spec`, exceptions.
+`should_wait_for_more`), `StreamSegmenter`, exceptions, and the identity-based
+built-in-vs-custom routing rule (§3.3).
 **Exit:** the entire `tests/contract/` suite passes against the Rust core via the harness,
-including `test_stream_segmenter.py` (584 lines) and `test_lookahead.py`.
+including `test_stream_segmenter.py` (584 lines) and `test_lookahead.py`; every
+`register_language` test in `tests/unit/`, `tests/meta/` and `tests/regression/` passes
+unmodified with the Rust backend installed, by routing to Python.
 
 ### Phase 4 — Bindings and publishing
 PyO3 crate + abi3 and free-threaded wheel matrix; the `sentencesplit[fast]` dispatcher;
@@ -307,8 +394,9 @@ These change the work materially and should be settled before Phase 0 ends:
 
 1. **PyPI packaging shape** — dispatcher + `[fast]` extra (recommended, preserves Pyodide /
    PyPy / zero-dep), or `sentencesplit` becomes the compiled package outright?
-2. **`register_language` gap** — is "custom `Processor` subclasses require the pure-Python
-   engine" acceptable, or must the Rust core support some plugin mechanism?
+2. ~~**`register_language` gap**~~ — **settled: deferred past v1.** The Rust core ships
+   built-in languages only; anything else routes to Python by object identity (§3.3). Revisit
+   only if third-party demand appears.
 3. **npm package name** — `sentencesplit` (is it available?) or a scoped `@sentencesplit/…`?
 4. **Monorepo vs. separate repo** — the plan assumes monorepo; a split repo is workable but
    costs the cheap drift check.
@@ -326,3 +414,5 @@ These change the work materially and should be settled before Phase 0 ends:
 | Two engines drift after launch | The port becomes a liability | Shared data + CI drift check + differential harness on every PR, forever |
 | wasm bundle too large | npm package unusable for web | Size budget enforced in CI; per-language subpath exports as the escape hatch |
 | Scope creep into "fix behavior while porting" | Parity becomes unmeasurable | Non-goal stated in §1; fixes land in Python first, always |
+| Custom-language users silently get no speedup | Surprise, not breakage | `backend(language=...)` makes routing introspectable; documented in §3.3 |
+| wasm users need a custom language | Hard blocker, no fallback | Accepted for v1 and stated plainly in the npm docs |
