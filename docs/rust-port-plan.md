@@ -52,14 +52,22 @@ engineering problems to be solved; the third (§3.3) is resolved by scoping it o
 
 ### 3.1 Regex: lookaround is not optional here
 
-The engine uses **73 lookbehind** and **115 lookahead** constructs, plus possessive
-quantifiers, atomic groups, named groups and two backreferences, across ~96 compiled
-patterns. Rust's `regex` crate supports **none** of lookaround or backreferences — by
-design, since it guarantees linear time.
+The engine uses roughly **100 lookbehind** and **165 lookahead** occurrences, plus
+possessive quantifiers (~17 occurrences), atomic groups, named groups and a couple of
+backreferences, across ~96 compiled patterns. Rust's `regex` crate supports **none** of
+lookaround or backreferences — by design, since it guarantees linear time.
 
 **Decision: use `fancy-regex`** for the port. It layers a backtracking engine over
-`regex`, supports lookaround / backrefs / atomic groups / possessive quantifiers, and
-delegates lookaround-free subpatterns to the linear `regex` fast path automatically.
+`regex`, supports lookaround / backrefs / atomic groups, and delegates lookaround-free
+subpatterns to the linear `regex` fast path automatically. Verify possessive-quantifier
+support in Phase 0; if absent, they rewrite mechanically to atomic groups
+(`a*+` ≡ `(?>a*)`).
+
+Pattern sources will live in the shared data files (§4) and be compiled by *both*
+engines, so syntax differences must be bridged by **one centralized translator**, not by
+hand-editing patterns: Python replacement templates (`\1`, `\g<name>`) become Rust's
+`$1` / `${name}`, and any Python-only syntax gets rewritten in that single function,
+which the Phase 0 pattern harness exercises directly.
 
 One thing works in our favor: **Python's `re` already rejects variable-width lookbehind**
 ("look-behind requires fixed-width pattern"), so all 73 lookbehinds in the codebase are
@@ -77,8 +85,16 @@ Residual risks, each with a mitigation:
 * **Perf.** Patterns that fall off the linear fast path are the likely hot spots.
   *Mitigation:* Phase 5 replaces the measured-hot lookaround patterns with hand-written
   scanners. Do this **after** parity, guarded by the differential harness — never before.
+* **Unicode drift outside regex.** The engine's hot heuristics also call
+  `str.isupper()` and `unicodedata.name(ch).startswith("LATIN"/"CYRILLIC")` at ~15 sites
+  (`utils.py`, `abbreviation_replacer.py`, `period_classifier.py`, `boundary_resplit.py`,
+  `lang/russian.py`). These depend on CPython's bundled Unicode tables, which move
+  between CPython versions. *Mitigation:* implement the Rust classifiers against a
+  pinned Unicode version and — unlike regexes — verify them **exhaustively**: iterate all
+  0x110000 codepoints in Phase 0 and diff every classifier against the CPython oracle.
+  Cheap, complete, done once.
 
-The `re.escape`-built dynamic patterns (13 sites) and the Aho-Corasick abbreviation
+The `re.escape`-built dynamic patterns (17 sites) and the Aho-Corasick abbreviation
 automaton are easier: the `aho-corasick` crate is the same algorithm, faster, and can be
 built once per language profile and cached in a `OnceLock`.
 
@@ -180,7 +196,7 @@ PyO3 can call back into Python. It is still the wrong answer:
 #### Registry shape (separate from the port)
 
 `register_language` mutates a process-global registry. The code does lock it
-(`_LANGUAGE_LOCK`, an `RLock`), though README:~290 still describes the registry as
+(`_LANGUAGE_LOCK`, an `RLock`), though README:~310 still describes the registry as
 "non-thread-safe" — stale relative to the docstring at `languages.py:250`, worth fixing
 independently. For wasm a global mutable registry across workers is worse than in Python, so
 whenever custom languages are revisited, a per-`Segmenter` immutable registry is the shape to
@@ -199,8 +215,10 @@ from the Python source by `tools/dump_language_data.py`, committed to the repo, 
   and fails if the committed JSON differs. Adding an abbreviation in Python therefore cannot
   land without regenerating the shared data.
 * Rust's `sentencesplit-data` crate consumes the JSON in `build.rs` and emits static tables
-  (perfect-hash sets, prebuilt Aho-Corasick automata) so there is **zero parse cost at
-  runtime and no data file to ship alongside the binary**.
+  (perfect-hash sets, pattern arrays) so there is **no JSON to parse at runtime and no data
+  file to ship alongside the binary**. Note the `aho-corasick` crate has no stable
+  serialized form, so automata (like compiled regexes) are built lazily at first use per
+  language and cached in a `OnceLock` — construction is milliseconds, paid once.
 
 A later, optional step is to invert this — make the JSON the source of truth and have Python
 read it — but that is a separate change and not required for the port.
@@ -217,12 +235,20 @@ tools/difftest/
   compare.py            # exact diff, per-language report, non-zero exit on any mismatch
 ```
 
+The oracle is **one pinned CPython version** (the one that generated the snapshot).
+Cross-version CPython drift — Unicode tables move between 3.11 and 3.14 — is a separate,
+pre-existing concern; the port targets the pinned oracle, not a moving one.
+
 Four layers, all wired into CI:
 
 1. **Pattern-level.** Every regex compiled in both engines, matched over the corpus,
-   match spans compared. Catches §3.1 drift at the smallest possible granularity.
-2. **Segment-level.** Exact `segment()` / `segment_spans()` equality across the frozen
-   corpora. **100% required** — no tolerance, no allowlist.
+   match spans compared — including the 17 dynamically-built (`re.escape`) patterns,
+   captured after profile instantiation. Plus the exhaustive all-codepoints classifier
+   diff from §3.1. Catches drift at the smallest possible granularity.
+2. **Segment-level.** Exact `segment()` / `segment_spans()` equality. **100% required** —
+   no tolerance, no allowlist. Because the oracle is Python's *output*, not gold labels,
+   this layer runs over any text at all: the frozen corpora, but also the raw UD
+   sentences and the benchmark corpora, which cost nothing to add.
 3. **Score-level.** The Rust engine runs the existing `gate_scoring.boundary_f1` against
    `gate/baseline.json` and must meet the same thresholds. This is the safety net for
    corpora not in the snapshot.
@@ -278,15 +304,32 @@ that is what makes free-threaded Python and multi-worker Node safe by constructi
 **Packaging recommendation:** keep `sentencesplit` as the name users install, and make it a
 thin dispatcher that prefers a compiled core and falls back to pure Python.
 
+`Segmenter` must **stay a class**, not become a factory function — code in the wild does
+`isinstance(seg, Segmenter)`, subclasses it, and pickles it, and the existing `.pyi` types
+it as a class. The dispatch lives *inside* it: the Python `Segmenter` keeps its public
+surface and delegates to either a Rust core object or the existing Python pipeline chosen
+at `__init__`:
+
 ```python
-def Segmenter(language="en", **kw):
-    if _rust is not None and LANGUAGE_CODES.get(language) is _CANONICAL_BUILTIN.get(language):
-        return _rust.Segmenter(language, **kw)  # sentencesplit-core-rs, optional
-    return _py.Segmenter(language, **kw)  # always present
+class Segmenter:
+    def __init__(self, language="en", **kw):
+        if _rust_core is not None and LANGUAGE_CODES.get(language) is _CANONICAL_BUILTIN.get(language):
+            self._engine = _rust_core.Engine(language, **kw)  # sentencesplit-core-rs, optional
+        else:
+            self._engine = _PyEngine(language, **kw)  # always present
 ```
 
 Routing is **per language**, not per install (§3.3): a process can serve `en` from Rust and a
 custom registered `demo` from Python simultaneously.
+
+**Version skew is a real failure mode.** If `sentencesplit` upgrades (say, a new
+abbreviation) but the compiled wheel lags — or pip resolves mismatched versions — the two
+engines silently disagree, defeating the whole parity guarantee. Two guards:
+
+* the `[fast]` extra pins **exactly**: `sentencesplit-core-rs==<same version>`;
+* at import, the dispatcher compares a data-schema tag (`_rust_core.DATA_VERSION`, stamped
+  from the §4 JSON at build time) against its own, and on mismatch falls back to Python
+  with a `RuntimeWarning` instead of running a stale engine.
 
 * `pip install sentencesplit` → unchanged today: pure Python, zero dependencies, works on
   Pyodide, PyPy, and any platform including ones we never build wheels for.
@@ -318,6 +361,9 @@ Details that need doing properly:
   ESM/browser, and a Node entry point that reads the `.wasm` synchronously so Node users get
   a plain synchronous `segment()` with no await. Both from one package via conditional
   `exports`.
+* **Init time, not just init shape.** ~96 patterns × 26 languages must not compile at
+  `init()`. Compile lazily per language on first use (the `OnceLock` scheme from §4);
+  measure both `init()` and first-`segment()` latency in the Phase 4 smoke tests.
 * **String marshalling.** Crossing the wasm boundary copies the string in and the results
   out. For a `StreamSegmenter` this happens per chunk. Benchmark it early; if it dominates,
   return offsets rather than substrings and let JS slice.
@@ -401,14 +447,21 @@ These change the work materially and should be settled before Phase 0 ends:
 4. **Monorepo vs. separate repo** — the plan assumes monorepo; a split repo is workable but
    costs the cheap drift check.
 5. **Version coupling** — do the Rust and Python packages share a version number and release
-   cadence, or version independently? Shared is simpler to reason about; independent is
-   kinder to the release workflow's manual bump dropdown.
+   cadence, or version independently? *Recommendation: lockstep.* The `[fast]` extra pins
+   exactly and the `DATA_VERSION` handshake (§7.1) makes skew safe either way, but lockstep
+   keeps the manual release dropdown a single decision instead of two.
+6. **crates.io** — publish `sentencesplit-core` as a Rust crate, or keep the workspace
+   crates unpublished (PyPI and npm are the products)? *Recommendation: don't publish in
+   v1* — a third registry means a third audience and semver surface before the API has
+   settled. Do reserve the crate name.
 
 ## 10. Risks
 
 | Risk | Impact | Mitigation |
 |---|---|---|
 | Regex semantic drift between CPython `re` and `fancy-regex` | Silent wrong output | Pattern-level differential in Phase 0, before any engine code |
+| Unicode classifier drift (`isupper`, `unicodedata.name`) | Silent wrong output in hot heuristics | Pin a Unicode version; exhaustive all-codepoints diff in Phase 0 |
+| Mixed-version install (`sentencesplit` new, compiled core stale) | Two engines silently disagree in one process | Exact version pin on the `[fast]` extra + `DATA_VERSION` handshake with warning-and-fallback |
 | Backtracking blowup on adversarial input | Hard error where Python was merely slow | Backtrack limit + fuzzing; Phase 5 scanner replacement |
 | Compiled extension breaks Pyodide | Loses browser Python support | Dispatcher keeps the pure-Python fallback; wasm covers browsers anyway |
 | Two engines drift after launch | The port becomes a liability | Shared data + CI drift check + differential harness on every PR, forever |
