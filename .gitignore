@@ -112,3 +112,5 @@ ENV/
 benchmarks/corpus_compare/results/divergences_all.json
 benchmarks/corpus_compare/results/verdicts.json
 
+# Rust workspace build artifacts.
+target/
