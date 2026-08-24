@@ -281,8 +281,8 @@ thin dispatcher that prefers a compiled core and falls back to pure Python.
 ```python
 def Segmenter(language="en", **kw):
     if _rust is not None and LANGUAGE_CODES.get(language) is _CANONICAL_BUILTIN.get(language):
-        return _rust.Segmenter(language, **kw)       # sentencesplit-core-rs, optional
-    return _py.Segmenter(language, **kw)             # always present
+        return _rust.Segmenter(language, **kw)  # sentencesplit-core-rs, optional
+    return _py.Segmenter(language, **kw)  # always present
 ```
 
 Routing is **per language**, not per install (§3.3): a process can serve `en` from Rust and a
