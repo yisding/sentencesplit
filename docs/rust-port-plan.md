@@ -1,6 +1,8 @@
 # Rust port plan
 
-Status: **proposal** — no code written yet. Branch: `feat/rust-port`.
+Status: **Phase 0 in progress** — shared language-data extraction and the Rust data
+crate have landed; pattern/Unicode differential and engine work are next. Branch:
+`feat/rust-port`.
 
 ## 1. Goal
 
